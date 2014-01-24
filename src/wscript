@@ -1,0 +1,23 @@
+from waflib.extras.layout import Solution, Product
+
+NAME = 'simulation_grid'
+
+def options(optCtx):
+    optCtx.load('compiler_cxx boost gtest gmock')
+
+def configure(confCtx):
+    confCtx.load('compiler_cxx boost gtest gmock')
+    confCtx.check_boost('program_options')
+    confCtx.env.product = Product.fromContext(confCtx, NAME, confCtx.env.solution)
+    confCtx.env.solution.addProduct(confCtx.env.product)
+    confCtx.env.product.include_path_list.extend(confCtx.env['INCLUDES_BOOST'])
+    confCtx.env.product.lib_path_list.extend(confCtx.env['LIBPATH_BOOST'])
+    confCtx.recurse('manager')
+
+def build(buildCtx):
+    buildCtx.env.product = buildCtx.env.solution.getProduct(NAME)
+    buildCtx.recurse('manager')
+
+def install(installCtx):
+    installCtx.env.product = installCtx.env.solution.getProduct(NAME)
+    installCtx.recurse('manager')

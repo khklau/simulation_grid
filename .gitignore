@@ -1,0 +1,5 @@
+.lock-waf_linux2_build
+.waf*
+build/
+*.pyc
+*.pyo
