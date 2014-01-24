@@ -11,14 +11,12 @@ namespace manager {
 
 
 config::config() :
-	manager_port(2300), manager_address(""), bot_path("")
+	port(2300)
 { }
 
 
 config::config(const config& other) :
-	manager_port(other.manager_port),
-	manager_address(other.manager_address),
-	bot_path(other.bot_path)
+	port(other.port)
 { }
 
 
@@ -26,9 +24,7 @@ config& config::operator=(const config& other)
 {
     if (this != &other)
     {
-	manager_port = other.manager_port;
-	manager_address = other.manager_address;
-	bot_path = other.bot_path;
+	port = other.port;
     }
     return *this;
 }
@@ -42,11 +38,11 @@ parse_result::value parse_cmd_line(const int argc, char* const argv[],
 {
     config tmp;
     namespace bpo = boost::program_options;
-    bpo::options_description descr("Usage: manager [options] bot-path");
+    bpo::options_description descr("Usage: manager [options]");
     descr.add_options()
 	    ("help,h", "This help text")
-	    ("port,p", bpo::value<unsigned short>(&tmp.manager_port)->default_value(DEFAULT_PORT),
-		    "Port number for grid topology query service")
+	    ("port,p", bpo::value<unsigned short>(&tmp.port)->default_value(DEFAULT_PORT),
+		    "Port number for grid topology query service");
     bpo::variables_map vm;
     try
     {
