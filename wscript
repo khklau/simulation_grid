@@ -4,18 +4,18 @@ from waflib.ConfigSet import ConfigSet
 def options(optCtx):
     optCtx.recurse('prop')
     optCtx.recurse('dep')
-    optCtx.recurse('src')
+    optCtx.recurse('main')
 
 def configure(confCtx):
     confCtx.recurse('prop')
     confCtx.recurse('dep')
-    confCtx.recurse('src')
+    confCtx.recurse('main')
 
 def build(buildCtx):
     buildCtx.recurse('prop')
     buildCtx.recurse('dep')
-    buildCtx.recurse('src')
+    buildCtx.recurse('main')
 
 def install(installCtx):
     installCtx.recurse('prop')
-    installCtx.recurse('src')
+    installCtx.recurse('main')

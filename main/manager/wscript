@@ -12,11 +12,11 @@ def build(buildCtx):
     buildCtx.env.component = buildCtx.env.product.getComponent(name(buildCtx))
     buildCtx.recurse('doc')
     buildCtx.recurse('include')
-    buildCtx.recurse('code')
+    buildCtx.recurse('src')
     buildCtx.recurse('test')
 
 def install(installCtx):
     installCtx.env.component = installCtx.env.product.getComponent(name(installCtx))
     installCtx.recurse('doc')
     installCtx.recurse('include')
-    installCtx.recurse('code')
+    installCtx.recurse('src')
