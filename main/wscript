@@ -13,14 +13,14 @@ def configure(confCtx):
     confCtx.env.product.include_path_list.extend(confCtx.env['INCLUDES_BOOST'])
     confCtx.env.product.lib_path_list.extend(confCtx.env['LIBPATH_BOOST'])
     confCtx.recurse('manager')
-    confCtx.recurse('topology_service')
+    confCtx.recurse('query_service')
 
 def build(buildCtx):
     buildCtx.env.product = buildCtx.env.solution.getProduct(NAME)
     buildCtx.recurse('manager')
-    buildCtx.recurse('topology_service')
+    buildCtx.recurse('query_service')
 
 def install(installCtx):
     installCtx.env.product = installCtx.env.solution.getProduct(NAME)
     installCtx.recurse('manager')
-    installCtx.recurse('topology_service')
+    installCtx.recurse('query_service')
