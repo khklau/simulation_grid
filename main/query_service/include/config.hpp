@@ -1,11 +1,11 @@
-#ifndef SIMULATION_GRID_TOPOLOGY_SERVICE_CONFIG_HPP
-#define SIMULATION_GRID_TOPOLOGY_SERVICE_CONFIG_HPP
+#ifndef SIMULATION_GRID_QUERY_SERVICE_CONFIG_HPP
+#define SIMULATION_GRID_QUERY_SERVICE_CONFIG_HPP
 
 #include <string>
 #include <iosfwd>
 
 namespace simulation_grid {
-namespace topology_service {
+namespace query_service {
 
 static const unsigned short DEFAULT_PORT = 2300;
 
@@ -30,7 +30,7 @@ namespace parse_result
 parse_result::value parse_cmd_line(const int argc, char* const argv[],
 	config& conf, std::ostringstream& err_msg);
 
-} // namespace topology_service
+} // namespace query_service
 } // namespace simulation_grid
 
 #endif

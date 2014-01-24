@@ -7,7 +7,7 @@
 #include "config.hpp"
 
 namespace simulation_grid {
-namespace topology_service {
+namespace query_service {
 
 
 config::config() :
@@ -38,7 +38,7 @@ parse_result::value parse_cmd_line(const int argc, char* const argv[],
 {
     config tmp;
     namespace bpo = boost::program_options;
-    bpo::options_description descr("Usage: topology_service [options]");
+    bpo::options_description descr("Usage: query_service [options]");
     descr.add_options()
 	    ("help,h", "This help text")
 	    ("port,p", bpo::value<unsigned short>(&tmp.port)->default_value(DEFAULT_PORT),
@@ -65,5 +65,5 @@ parse_result::value parse_cmd_line(const int argc, char* const argv[],
 }
 
 
-} // namespace topology_service
+} // namespace query_service
 } // namespace simulation_grid

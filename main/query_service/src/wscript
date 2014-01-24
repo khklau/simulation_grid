@@ -4,7 +4,7 @@ from os.path import join
 def build(buildCtx):
     buildCtx.program(
 	    source=['config.cxx', 'main.cxx'], 
-	    target='topology_service',
+	    target='query_service',
 	    use='BOOST',
 	    includes=buildCtx.env.component.include_path_list,
 	    libpath=buildCtx.env.component.lib_path_list,
