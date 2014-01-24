@@ -4,7 +4,7 @@
 #include <boost/program_options/variables_map.hpp>
 #include <boost/program_options/parsers.hpp>
 #include <boost/program_options/errors.hpp>
-#include "config.h"
+#include "config.hpp"
 
 namespace simulation_grid {
 namespace manager {
