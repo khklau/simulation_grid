@@ -3,24 +3,35 @@ from waflib.extras.layout import Solution, Product
 NAME = 'simulation_grid'
 
 def options(optCtx):
-    optCtx.load('compiler_cxx boost gtest gmock')
+    optCtx.load('compiler_cxx cxx boost protobuf gtest gmock')
 
 def configure(confCtx):
-    confCtx.load('compiler_cxx boost gtest gmock')
+    confCtx.load('compiler_cxx cxx boost protobuf gtest gmock')
     confCtx.check_boost('program_options')
     confCtx.env.product = Product.fromContext(confCtx, NAME, confCtx.env.solution)
     confCtx.env.solution.addProduct(confCtx.env.product)
-    confCtx.env.product.include_path_list.extend(confCtx.env['INCLUDES_BOOST'])
+    confCtx.env.product.include_path_list.append(confCtx.env['INCLUDES_BOOST'])
+    confCtx.env.product.include_path_list.append(confCtx.env['INCLUDES_PROTOBUF'])
     confCtx.env.product.lib_path_list.extend(confCtx.env['LIBPATH_BOOST'])
+    confCtx.env.product.lib_path_list.extend(confCtx.env['LIBPATH_PROTOBUF'])
+    confCtx.recurse('grid_db')
     confCtx.recurse('manager')
     confCtx.recurse('query_service')
 
+def postbuild(buildCtx):
+    buildCtx.env.product = buildCtx.env.solution.getProduct(NAME)
+    buildCtx.recurse('grid_db', 'postbuild')
+    buildCtx.recurse('manager', 'postbuild')
+    buildCtx.recurse('query_service', 'postbuild')
+
 def build(buildCtx):
     buildCtx.env.product = buildCtx.env.solution.getProduct(NAME)
+    buildCtx.recurse('grid_db')
     buildCtx.recurse('manager')
     buildCtx.recurse('query_service')
 
 def install(installCtx):
     installCtx.env.product = installCtx.env.solution.getProduct(NAME)
+    installCtx.recurse('grid_db')
     installCtx.recurse('manager')
     installCtx.recurse('query_service')

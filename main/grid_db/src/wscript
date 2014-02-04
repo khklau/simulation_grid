@@ -1,0 +1,28 @@
+from os.path import join
+
+def postbuild(buildCtx):
+    print('DEBUG: source = %s' % join(buildCtx.env.component.inter_tree.src, 'header.pb.h'))
+    print('DEBUG: target = %s' % join(buildCtx.env.component.build_tree.includeNode(buildCtx).abspath(), 'header.pb.h'))
+    for header in [
+	    'header.pb.h']:
+	buildCtx.exec_command('cp -p %s %s' %
+		(join(buildCtx.env.component.inter_tree.src, header),
+		join(buildCtx.env.component.build_tree.include, header)))
+	#buildCtx(rule='cp ${SRC} ${TGT}',
+	#	source=join(buildCtx.env.component.inter_tree.src, header),
+	#	target=join(buildCtx.env.component.build_tree.include, header))
+
+def build(buildCtx):
+    buildCtx.shlib(
+	    source='header.proto',
+	    target='libgrid_db',
+	    features='cxx cxxshlib protoc',
+	    use='PROTOBUF',
+	    includes=['.'] + buildCtx.env.component.include_path_list,
+	    libpath=buildCtx.env.component.lib_path_list,
+	    cxxflags=['-Wl,-z,origin'],
+	    rpath=buildCtx.env.component.rpath_list,
+	    install_path=buildCtx.env.component.install_tree.bin)
+
+def install(installCtx):
+    return
