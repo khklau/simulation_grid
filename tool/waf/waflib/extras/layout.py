@@ -113,74 +113,91 @@ class OutputTree:
 
 class Component:
 
-    __slots__ = ('name', 'build_tree', 'install_tree', 'include_path_list', 'lib_path_list', 'rpath_list', 'input_tree')
+    __slots__ = ('name', 'source_tree', 'inter_tree', 'build_tree', 'install_tree', 
+		'include_path_list', 'lib_path_list', 'rpath_list')
 
-    def __init__(self, name, build_tree, install_tree, include_path_list, lib_path_list, rpath_list, input_tree):
+    def __init__(self, name, source_tree, inter_tree, build_tree, install_tree,
+	    include_path_list, lib_path_list, rpath_list):
+	self.name = name
+	self.source_tree = source_tree
+	self.inter_tree = inter_tree
+	self.build_tree = build_tree
+	self.install_tree = install_tree
+	self.include_path_list = include_path_list
+	self.lib_path_list = lib_path_list
+	self.rpath_list = rpath_list
+
+    @classmethod
+    def fromContext(cls, context, name, product):
+	src_node = context.path.get_src()
+	inter_node = context.path.get_bld()
+	source_tree = InputTree.fromNode(src_node,
+		src_node.make_node('src'), src_node.make_node('doc'),
+		src_node.make_node('include'), src_node.make_node('test'))
+	inter_tree = InputTree.fromNode(inter_node,
+		inter_node.make_node('src'), inter_node.make_node('doc'),
+		inter_node.make_node('include'), inter_node.make_node('test'))
+	build_tree = OutputTree.fromNode(
+		product.build_tree.rootNode(context), product.build_tree.binNode(context),
+		product.build_tree.libNode(context), product.build_tree.docNode(context),
+		product.build_tree.includeNode(context).make_node(name),
+		product.build_tree.testNode(context).make_node(name))
+	install_tree = OutputTree.fromNode(
+		product.install_tree.rootNode(context), product.install_tree.binNode(context),
+		product.install_tree.libNode(context), product.install_tree.docNode(context),
+		product.install_tree.includeNode(context).make_node(name),
+		product.install_tree.testNode(context).make_node(name))
+	include_path_list = [source_tree.include, inter_tree.include] + product.include_path_list
+	lib_path_list = [inter_tree.src] + product.lib_path_list
+	rpath_list = list(product.rpath_list)
+	return cls(name, source_tree, inter_tree, build_tree, install_tree, 
+		include_path_list, lib_path_list, rpath_list)
+
+    def __repr__(self):
+	return "__import__('waflib').extras.layout.%s('%s', %s, %s, %s, %s, %s, %s, %s)" % (
+		self.__class__.__name__, self.name,
+		self.source_tree.__repr__(), self.inter_tree.__repr__(),
+		self.build_tree.__repr__(), self.install_tree.__repr__(),
+		self.include_path_list.__repr__(), self.lib_path_list.__repr__(),
+		self.rpath_list.__repr__())
+
+
+class Product:
+
+    __slots__ = ('name', 'build_tree', 'install_tree', 'include_path_list', 'lib_path_list', 'rpath_list')
+
+    def __init__(self, name, build_tree, install_tree, include_path_list, lib_path_list, rpath_list, component_set):
 	self.name = name
 	self.build_tree = build_tree
 	self.install_tree = install_tree
 	self.include_path_list = include_path_list
 	self.lib_path_list = lib_path_list
 	self.rpath_list = rpath_list
-	self.input_tree = input_tree
-
-    @classmethod
-    def fromContext(cls, context, name, product):
-	input = InputTree.fromNode(context.path,
-		context.path.make_node('src'), context.path.make_node('doc'),
-		context.path.make_node('include'), context.path.make_node('test'))
-	return cls(name, OutputTree.fromNode(
-		product.build_tree.rootNode(context), product.build_tree.binNode(context),
-		product.build_tree.libNode(context), product.build_tree.docNode(context),
-		product.build_tree.includeNode(context).make_node(name),
-		product.build_tree.testNode(context).make_node(name)),
-		OutputTree.fromNode(
-		product.install_tree.rootNode(context), product.install_tree.binNode(context),
-		product.install_tree.libNode(context), product.install_tree.docNode(context),
-		product.install_tree.includeNode(context).make_node(name),
-		product.install_tree.testNode(context).make_node(name)),
-		[input.include] + product.include_path_list, list(product.lib_path_list),
-		["\$ORIGIN/../lib"] + product.lib_path_list + [product.install_tree.lib], input)
-
-    def __repr__(self):
-	return "__import__('waflib').extras.layout.%s('%s', %s, %s, %s, %s, %s, %s)" % (
-		self.__class__.__name__, self.name,
-		self.build_tree.__repr__(), self.install_tree.__repr__(),
-		self.include_path_list.__repr__(), self.lib_path_list.__repr__(),
-		self.rpath_list.__repr__(), self.input_tree.__repr__())
-
-
-class Product:
-
-    __slots__ = ('name', 'build_tree', 'install_tree', 'include_path_list', 'lib_path_list')
-
-    def __init__(self, name, build_tree, install_tree, include_path_list, lib_path_list, component_set):
-	self.name = name
-	self.build_tree = build_tree
-	self.install_tree = install_tree
-	self.include_path_list = include_path_list
-	self.lib_path_list = lib_path_list
 	self.__component_set = component_set
 
     @classmethod
     def fromContext(cls, context, name, solution):
-	return cls(name, OutputTree.fromNode(
+	build_tree = OutputTree.fromNode(
 		solution.build_tree.rootNode(context), solution.build_tree.binNode(context),
 		solution.build_tree.libNode(context), solution.build_tree.docNode(context),
 		solution.build_tree.includeNode(context).make_node(name),
-		solution.build_tree.testNode(context).make_node(name)),
-		OutputTree.fromNode(
+		solution.build_tree.testNode(context).make_node(name))
+	install_tree = OutputTree.fromNode(
 		solution.install_tree.rootNode(context), solution.install_tree.binNode(context),
 		solution.install_tree.libNode(context), solution.install_tree.docNode(context),
 		solution.install_tree.includeNode(context).make_node(name),
-		solution.install_tree.testNode(context).make_node(name)),
-		list(solution.include_path_list), list(solution.lib_path_list), dict())
+		solution.install_tree.testNode(context).make_node(name))
+	include_path_list = list(solution.include_path_list)
+	lib_path_list = list(solution.lib_path_list)
+	rpath_list = list(solution.rpath_list)
+	return cls(name, build_tree, install_tree, include_path_list, lib_path_list, rpath_list, dict())
 
     def __repr__(self):
-	return "__import__('waflib').extras.layout.%s('%s', %s, %s, %s, %s, %s)" % (
+	return "__import__('waflib').extras.layout.%s('%s', %s, %s, %s, %s, %s, %s)" % (
 		self.__class__.__name__, self.name, self.build_tree.__repr__(),
 		self.install_tree.__repr__(), self.include_path_list.__repr__(),
-		self.lib_path_list.__repr__(), self.__component_set.__repr__())
+		self.lib_path_list.__repr__(), self.rpath_list.__repr__(),
+		self.__component_set.__repr__())
 
     def addComponent(self, component):
 	self.__component_set[component.name] = component
@@ -191,13 +208,14 @@ class Product:
 
 class Solution:
 
-    __slots__ = ('build_tree', 'install_tree', 'include_path_list', 'lib_path_list')
+    __slots__ = ('build_tree', 'install_tree', 'include_path_list', 'lib_path_list', 'rpath_list')
 
-    def __init__(self, build_tree, install_tree, include_path_list, lib_path_list, product_set):
+    def __init__(self, build_tree, install_tree, include_path_list, lib_path_list, rpath_list, product_set):
 	self.build_tree = build_tree
 	self.install_tree = install_tree
 	self.include_path_list = include_path_list
 	self.lib_path_list = lib_path_list
+	self.rpath_list = rpath_list
 	self.__product_set = product_set
 
     @classmethod
@@ -212,19 +230,24 @@ class Solution:
 	    installNode = context.root.make_node(context.options.prefix)
 	buildLib = buildNode.make_node('lib')
 	buildInclude = buildNode.make_node('include')
-	return cls(OutputTree.fromNode(buildNode, buildNode.make_node('bin'),
+	build_tree = OutputTree.fromNode(buildNode, buildNode.make_node('bin'),
 		buildLib, buildNode.make_node('doc'),
-		buildInclude, buildNode.make_node('test')),
-		OutputTree.fromNode(installNode, installNode.make_node('bin'),
-		installNode.make_node('lib'), installNode.make_node('doc'),
-		installNode.make_node('include'), installNode.make_node('test')),
-		[buildInclude.abspath()], [buildLib.abspath()], dict())
+		buildInclude, buildNode.make_node('test'))
+	installLib = installNode.make_node('lib')
+	install_tree = OutputTree.fromNode(installNode, installNode.make_node('bin'),
+		installLib, installNode.make_node('doc'),
+		installNode.make_node('include'), installNode.make_node('test'))
+	include_path_list = [buildInclude.abspath()]
+	lib_path_list = [buildLib.abspath()]
+	rpath_list = ['\$ORIGIN/../lib', installLib.abspath()] + lib_path_list
+	return cls(build_tree, install_tree, include_path_list, lib_path_list, rpath_list, dict())
 
     def __repr__(self):
-	return "__import__('waflib').extras.layout.%s(%s, %s, %s, %s, %s)" % (
+	return "__import__('waflib').extras.layout.%s(%s, %s, %s, %s, %s, %s)" % (
 		self.__class__.__name__, self.build_tree.__repr__(),
 		self.install_tree.__repr__(), self.include_path_list.__repr__(),
-		self.lib_path_list.__repr__(), self.__product_set.__repr__())
+		self.lib_path_list.__repr__(), self.rpath_list.__repr__(),
+		self.__product_set.__repr__())
 
     def addProduct(self, product):
 	self.__product_set[product.name] = product
