@@ -1,28 +1,45 @@
 from os.path import join
+from waflib.extras.protobuf import proto_cxx_compile, protoc
 
-def postbuild(buildCtx):
-    print('DEBUG: source = %s' % join(buildCtx.env.component.inter_tree.src, 'header.pb.h'))
-    print('DEBUG: target = %s' % join(buildCtx.env.component.build_tree.includeNode(buildCtx).abspath(), 'header.pb.h'))
-    for header in [
-	    'header.pb.h']:
-	buildCtx.exec_command('cp -p %s %s' %
-		(join(buildCtx.env.component.inter_tree.src, header),
-		join(buildCtx.env.component.build_tree.include, header)))
-	#buildCtx(rule='cp ${SRC} ${TGT}',
-	#	source=join(buildCtx.env.component.inter_tree.src, header),
-	#	target=join(buildCtx.env.component.build_tree.include, header))
+proto_files=[
+	'header.proto']
 
 def build(buildCtx):
+    relativeIncludePath = buildCtx.env.component.build_tree.includeNode(buildCtx).path_from(buildCtx.path.get_bld())
+    ccNodeList=[]
+    protoTaskList=[]
+    for proto in proto_files:
+	compileTask='protoc_%s' % proto
+	protoNode=buildCtx.path.find_node(proto)
+	ccNode=protoNode.change_ext('.pb.cc')
+	hNode=protoNode.change_ext('.pb.h')
+	buildCtx(
+		name=compileTask,
+		rule='${PROTOC} --cpp_out=%s ${PROTOC_FLAGS} -I%s ${SRC[0].abspath()}' % (
+			buildCtx.path.get_bld().abspath(),
+			buildCtx.path.get_src().abspath()),
+		source=[protoNode],
+		target=[ccNode, hNode],
+		includes=['.'])
+	ccNodeList.append(ccNode)
+	protoTaskList.append(compileTask)
+	publishTask='cp_%s' % proto
+	buildCtx(
+		name=publishTask,
+		rule='cp ${SRC} ${TGT}',
+		source=hNode,
+		target=join(relativeIncludePath, str(hNode)),
+		after=compileTask)
+	protoTaskList.append(publishTask)
     buildCtx.shlib(
-	    source='header.proto',
-	    target='libgrid_db',
-	    features='cxx cxxshlib protoc',
-	    use='PROTOBUF',
-	    includes=['.'] + buildCtx.env.component.include_path_list,
+	    source=ccNodeList + [buildCtx.path.find_node('handle.cxx')],
+	    target='grid_db',
+	    includes=buildCtx.env.component.include_path_list,
 	    libpath=buildCtx.env.component.lib_path_list,
 	    cxxflags=['-Wl,-z,origin'],
 	    rpath=buildCtx.env.component.rpath_list,
-	    install_path=buildCtx.env.component.install_tree.bin)
+	    install_path=buildCtx.env.component.install_tree.lib,
+	    after=protoTaskList)
 
 def install(installCtx):
     return

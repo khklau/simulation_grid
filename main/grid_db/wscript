@@ -15,13 +15,6 @@ def build(buildCtx):
     buildCtx.recurse('src')
     buildCtx.recurse('test')
 
-def postbuild(buildCtx):
-    buildCtx.env.component = buildCtx.env.product.getComponent(name(buildCtx))
-    buildCtx.recurse('doc', 'postbuild')
-    buildCtx.recurse('include', 'postbuild')
-    buildCtx.recurse('src', 'postbuild')
-    buildCtx.recurse('test', 'postbuild')
-
 def install(installCtx):
     installCtx.env.component = installCtx.env.product.getComponent(name(installCtx))
     installCtx.recurse('doc')
