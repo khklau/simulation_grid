@@ -18,12 +18,6 @@ def configure(confCtx):
     confCtx.recurse('manager')
     confCtx.recurse('query_service')
 
-def postbuild(buildCtx):
-    buildCtx.env.product = buildCtx.env.solution.getProduct(NAME)
-    buildCtx.recurse('grid_db', 'postbuild')
-    buildCtx.recurse('manager', 'postbuild')
-    buildCtx.recurse('query_service', 'postbuild')
-
 def build(buildCtx):
     buildCtx.env.product = buildCtx.env.solution.getProduct(NAME)
     buildCtx.recurse('grid_db')
