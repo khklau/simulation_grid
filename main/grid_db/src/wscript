@@ -1,5 +1,5 @@
 from os.path import join
-from waflib.extras.protobuf import proto_cxx_compile, protoc
+import waflib.extras.protobuf
 
 proto_files=[
 	'header.proto']
@@ -13,11 +13,8 @@ def build(buildCtx):
 	protoNode=buildCtx.path.find_node(proto)
 	ccNode=protoNode.change_ext('.pb.cc')
 	hNode=protoNode.change_ext('.pb.h')
-	buildCtx(
+	waflib.extras.protobuf.define_task_gen(buildCtx,
 		name=compileTask,
-		rule='${PROTOC} --cpp_out=%s ${PROTOC_FLAGS} -I%s ${SRC[0].abspath()}' % (
-			buildCtx.path.get_bld().abspath(),
-			buildCtx.path.get_src().abspath()),
 		source=[protoNode],
 		target=[ccNode, hNode],
 		includes=['.'])

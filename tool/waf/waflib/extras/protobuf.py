@@ -31,29 +31,48 @@ import sys
 import re
 import os
 from os.path import join
-from waflib import Utils, Logs, Errors
+import waflib.Build
+from waflib import Utils
 from waflib.Configure import conf
 from waflib.Task import Task
 from waflib.TaskGen import extension 
 
 class protoc(Task):
-	run_str = '${PROTOC} ${PROTOC_FLAGS} ${PROTOC_ST:INCPATHS} ${SRC[0].abspath()}'
-	color   = 'BLUE'
-	ext_out = ['.h', 'pb.cc']
+    run_str = '${PROTOC} ${PROTOC_FLAGS} ${PROTOC_ST:INCPATHS} ${SRC[0].abspath()}'
+    color   = 'BLUE'
+    ext_out = ['.h', 'pb.cc']
 
 @extension('.proto')
 def process_protoc(self, node):
-	cpp_node = node.change_ext('.pb.cc')
-	hpp_node = node.change_ext('.pb.h')
-	self.create_task('protoc', node, [cpp_node, hpp_node])
-	self.source.append(cpp_node)
+    cpp_node = node.change_ext('.pb.cc')
+    hpp_node = node.change_ext('.pb.h')
+    self.create_task('protoc', node, [cpp_node, hpp_node])
+    self.source.append(cpp_node)
+    self.target.append(cpp_node)
+    self.target.append(hpp_node)
 
-	if 'cxx' in self.features and not self.env['PROTOC_FLAGS']:
-		self.env['PROTOC_FLAGS'] = '--cpp_out=%s' % node.parent.get_bld().abspath()
+    if 'cxx' in self.features and not self.env['PROTOC_FLAGS']:
+	self.env['PROTOC_FLAGS'] = '--cpp_out=%s' % node.parent.get_bld().abspath()
 
-	use = getattr(self, 'use', '')
-	if not 'PROTOBUF' in use:
-		self.use = self.to_list(use) + ['PROTOBUF']
+    use = getattr(self, 'use', '')
+    if not 'PROTOBUF' in use:
+	self.use = self.to_list(use) + ['PROTOBUF']
+
+def proto_cxx_compile(task):
+    output_cc = task.inputs[0].change_ext('.pb.cc')
+    output_h = task.inputs[0].change_ext('.pb.h')
+    task.env['PROTOC_FLAGS'] = '--cpp_out=%s' % task.inputs[0].parent.get_bld().abspath()
+    cmd = '%s %s -I%s %s' % (task.env['PROTOC'], task.env['PROTOC_FLAGS'])
+    return task.exec_command(cmd)
+
+def define_task_gen(context, **keywords):
+    context(name=keywords['name'],
+	    rule='${PROTOC} --cpp_out=%s ${PROTOC_FLAGS} -I%s ${SRC[0].abspath()}' % (
+                        context.path.get_bld().abspath(),
+                        context.path.get_src().abspath()),
+	    source=keywords['source'],
+	    target=keywords['target'],
+	    includes=keywords['includes'])
 
 def options(optCtx):
     optCtx.add_option('--protobuf-binpath', type='string',
