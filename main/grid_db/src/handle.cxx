@@ -1,6 +1,6 @@
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/mapped_region.hpp>
-#include <simulation_grid/grid_db/header.pb.h>
+#include <simulation_grid/grid_db/entry.pb.h>
 #include <simulation_grid/grid_db/exception.hpp>
 #include "handle.hpp"
 
@@ -8,7 +8,7 @@ using boost::interprocess::shared_memory_object;
 using boost::interprocess::mapped_region;
 using boost::interprocess::open_only;
 using boost::interprocess::read_only;
-using simulation_grid::grid_db::header;
+using simulation_grid::grid_db::entry;
 
 namespace simulation_grid {
 namespace grid_db {
@@ -25,12 +25,12 @@ public:
 
     ~read_handle_impl() { }
 
-    const header& get_db_header() const
+    const entry& get_db_entry() const
     {
-	const header* address = static_cast<const header*>(region_.get_address());
+	const entry* address = static_cast<const entry*>(region_.get_address());
 	if (!address)
 	{
-	    throw handle_error("Could not get address of header") << info_db_id(db_id_);
+	    throw handle_error("Could not get address of entry") << info_db_id(db_id_);
 	}
 	return *address;
     }
@@ -52,9 +52,9 @@ read_handle::~read_handle()
     delete impl_;
 }
 
-const header& read_handle::get_db_header() const
+const entry& read_handle::get_db_entry() const
 {
-    return impl_->get_db_header();
+    return impl_->get_db_entry();
 }
 
 } // namespace grid_db

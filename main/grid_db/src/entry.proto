@@ -1,0 +1,8 @@
+import "header.proto";
+
+package simulation_grid.grid_db;
+
+message entry
+{
+    required header db_header = 1;
+}

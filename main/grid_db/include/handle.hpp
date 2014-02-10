@@ -7,7 +7,7 @@
 namespace simulation_grid {
 namespace grid_db {
 
-class header;
+class entry;
 class read_handle_impl;
 
 class read_handle : private boost::noncopyable
@@ -15,7 +15,7 @@ class read_handle : private boost::noncopyable
 public:
     explicit read_handle(const std::string& db_id);
     ~read_handle();
-    const header& get_db_header() const;
+    const entry& get_db_entry() const;
 private:
     read_handle_impl* impl_;
 };
