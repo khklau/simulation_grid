@@ -1,0 +1,21 @@
+package simulation_grid.grid_db;
+
+message ip4_address
+{
+    required uint32 octect_1 = 1;
+    required uint32 octect_2 = 2;
+    required uint32 octect_3 = 3;
+    required uint32 octect_4 = 4;
+}
+
+message ip6_address
+{
+    required uint32 hexect_1 = 1;
+    required uint32 hexect_2 = 2;
+    required uint32 hexect_3 = 3;
+    required uint32 hexect_4 = 4;
+    required uint32 hexect_5 = 5;
+    required uint32 hexect_6 = 6;
+    required uint32 hexect_7 = 7;
+    required uint32 hexect_8 = 8;
+}

@@ -1,0 +1,11 @@
+import "router.proto";
+
+package simulation_grid.grid_db;
+
+message region
+{
+    required uint32 id = 1;
+    required uint32 node_count = 2;
+    required router master_router = 3;
+    repeated router slave_routers = 4;
+}

@@ -1,0 +1,9 @@
+message endianess
+{
+    enum type
+    {
+	LITTLE = 0;
+	BIG = 1;
+    }
+    required type value = 1 [default = LITTLE];
+}

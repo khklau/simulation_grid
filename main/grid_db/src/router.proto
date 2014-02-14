@@ -1,0 +1,9 @@
+import "tcp_ip.proto";
+
+package simulation_grid.grid_db;
+
+message router
+{
+    required ip4_address address = 1;
+    required uint32 port = 2;
+}
