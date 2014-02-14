@@ -100,8 +100,8 @@ def check_protobuf(self):
 	self.fatal('%s is not readable' % headerPath)
     self.end_msg('ok')
     self.start_msg('Checking Protocol Buffer libraries')
-    for lib in self.env['SHLIB_PROTOBUF']: 
-	libPath = join(self.env['SHLIBPATH_PROTOBUF'], "lib%s.a" % lib)
+    for lib in self.env['LIB_PROTOBUF']: 
+	libPath = join(self.env['LIBPATH_PROTOBUF'], "lib%s.a" % lib)
 	if not os.access(libPath, os.R_OK):
 	    self.fatal('%s is not readable' % libPath)
     self.end_msg('ok')
@@ -139,8 +139,8 @@ def configure(confCtx):
 
     confCtx.env['PROTOC'] = protocpath
     confCtx.env['INCLUDES_PROTOBUF'] = incpath
-    confCtx.env['SHLIBPATH_PROTOBUF'] = libpath
-    confCtx.env['SHLIB_PROTOBUF'] = ['protobuf-lite']
+    confCtx.env['LIBPATH_PROTOBUF'] = libpath
+    confCtx.env['LIB_PROTOBUF'] = ['protobuf']
     confCtx.env['PROTOC_ST'] = '-I%s'
 
     confCtx.check_protobuf()
