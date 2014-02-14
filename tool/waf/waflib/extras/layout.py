@@ -98,17 +98,32 @@ class OutputTree:
     def binNode(self, context):
 	return context.root.make_node(self.bin)
 
+    def binPathFromBuild(self, context):
+	return self.binNode(context).path_from(context.path.get_bld())
+
     def libNode(self, context):
 	return context.root.make_node(self.lib)
+
+    def libPathFromBuild(self, context):
+	return self.libNode(context).path_from(context.path.get_bld())
 
     def docNode(self, context):
 	return context.root.make_node(self.doc)
 
+    def docPathFromBuild(self, context):
+	return self.docNode(context).path_from(context.path.get_bld())
+
     def includeNode(self, context):
 	return context.root.make_node(self.include)
 
+    def includePathFromBuild(self, context):
+	return self.includeNode(context).path_from(context.path.get_bld())
+
     def testNode(self, context):
 	return context.root.make_node(self.test)
+
+    def testPathFromBuild(self, context):
+	return self.testNode(context).path_from(context.path.get_bld())
 
 
 class Component:
@@ -239,7 +254,7 @@ class Solution:
 		installNode.make_node('include'), installNode.make_node('test'))
 	include_path_list = [buildInclude.abspath()]
 	lib_path_list = [buildLib.abspath()]
-	rpath_list = ['\$ORIGIN/../lib', installLib.abspath()] + lib_path_list
+	rpath_list = ['$ORIGIN/../lib', installLib.abspath()] + lib_path_list
 	return cls(build_tree, install_tree, include_path_list, lib_path_list, rpath_list, dict())
 
     def __repr__(self):
