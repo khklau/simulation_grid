@@ -2,11 +2,14 @@ from os.path import join
 import waflib.extras.protobuf
 
 proto_files=[
+	'abi.proto',
+	'tcp_ip.proto',
+	'router.proto',
+	'region.proto',
 	'header.proto',
 	'entry.proto']
 
 def build(buildCtx):
-    relativeIncludePath = buildCtx.env.component.build_tree.includeNode(buildCtx).path_from(buildCtx.path.get_bld())
     ccNodeList=[]
     protoTaskList=[]
     for proto in proto_files:
@@ -26,12 +29,13 @@ def build(buildCtx):
 		name=publishTask,
 		rule='cp ${SRC} ${TGT}',
 		source=hNode,
-		target=join(relativeIncludePath, str(hNode)),
+		target=join(buildCtx.env.component.build_tree.includePathFromBuild(buildCtx), str(hNode)),
 		after=compileTask)
 	protoTaskList.append(publishTask)
     buildCtx.shlib(
+	    name='shlib_grid_db',
 	    source=ccNodeList + [buildCtx.path.find_node('handle.cxx')],
-	    target='grid_db',
+	    target=join(buildCtx.env.component.build_tree.libPathFromBuild(buildCtx), 'grid_db'),
 	    includes=buildCtx.env.component.include_path_list,
 	    libpath=buildCtx.env.component.lib_path_list,
 	    cxxflags=['-Wl,-z,origin'],

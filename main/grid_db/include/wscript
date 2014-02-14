@@ -1,11 +1,13 @@
 from os.path import join
 
 def build(buildCtx):
-    relativeIncludePath = buildCtx.env.component.build_tree.includeNode(buildCtx).path_from(buildCtx.path.get_bld())
     for header in [
 	    'exception.hpp',
 	    'handle.hpp']:
-	buildCtx(rule='cp ${SRC} ${TGT}', source=header, target=join(relativeIncludePath, header))
+	buildCtx(
+		rule='cp ${SRC} ${TGT}',
+		source=header,
+		target=join(buildCtx.env.component.build_tree.includePathFromBuild(buildCtx), header))
 
 def install(buildCtx):
     return
