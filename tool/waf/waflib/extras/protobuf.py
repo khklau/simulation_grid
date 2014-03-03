@@ -101,7 +101,7 @@ def check_protobuf(self):
     self.end_msg('ok')
     self.start_msg('Checking Protocol Buffer libraries')
     for lib in self.env['LIB_PROTOBUF']: 
-	libPath = join(self.env['LIBPATH_PROTOBUF'], "lib%s.a" % lib)
+	libPath = join(self.env['LIBPATH_PROTOBUF'], "lib%s.so" % lib)
 	if not os.access(libPath, os.R_OK):
 	    self.fatal('%s is not readable' % libPath)
     self.end_msg('ok')
