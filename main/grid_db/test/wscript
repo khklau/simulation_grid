@@ -1,5 +1,19 @@
+from os.path import join
+
 def build(buildCtx):
-    return
+    buildCtx.program(
+	    name='program_mmap_container_test',
+	    source='mmap_container_test.cxx',
+	    target=join(buildCtx.env.component.build_tree.testPathFromBuild(buildCtx), 'mmap_container_test'),
+	    defines=['GTEST_HAS_PTHREAD=1'],
+	    includes=buildCtx.env.component.include_path_list,
+	    cxxflags=buildCtx.env.CXXFLAGS,
+	    linkflags=buildCtx.env.LDFLAGS,
+	    use=['BOOST', 'PROTOBUF', 'GTEST', 'shlib_grid_db'],
+	    libpath=buildCtx.env.component.lib_path_list,
+	    rpath=buildCtx.env.component.rpath_list,
+	    install_path=buildCtx.env.component.install_tree.test,
+	    after=['shlib_grid_db'])
 
 def install(installCtx):
     return

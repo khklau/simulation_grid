@@ -2,7 +2,11 @@ from os.path import join
 
 def build(buildCtx):
     for header in [
+	    'mmap_container.hpp',
+	    'mmap_container.hxx',
 	    'exception.hpp',
+	    'primitive.hpp',
+	    'role.hpp',
 	    'handle.hpp']:
 	buildCtx(
 		rule='cp ${SRC} ${TGT}',

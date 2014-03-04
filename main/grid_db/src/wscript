@@ -4,10 +4,11 @@ import waflib.extras.protobuf
 proto_files=[
 	'abi.proto',
 	'tcp_ip.proto',
+	'grid.proto',
+	'change.proto',
 	'router.proto',
 	'region.proto',
-	'header.proto',
-	'entry.proto']
+	'header.proto']
 
 def build(buildCtx):
     ccNodeList=[]
@@ -30,15 +31,16 @@ def build(buildCtx):
 		rule='cp ${SRC} ${TGT}',
 		source=hNode,
 		target=join(buildCtx.env.component.build_tree.includePathFromBuild(buildCtx), str(hNode)),
-		after=compileTask)
+		after=[compileTask])
 	protoTaskList.append(publishTask)
     buildCtx.shlib(
 	    name='shlib_grid_db',
-	    source=ccNodeList + [buildCtx.path.find_node('handle.cxx')],
+	    source=ccNodeList + [
+		    buildCtx.path.find_node('mmap_container.cxx')],
 	    target=join(buildCtx.env.component.build_tree.libPathFromBuild(buildCtx), 'grid_db'),
 	    includes=buildCtx.env.component.include_path_list,
 	    libpath=buildCtx.env.component.lib_path_list,
-	    cxxflags=['-Wl,-z,origin'],
+	    cxxflags=buildCtx.env.CXXFLAGS,
 	    rpath=buildCtx.env.component.rpath_list,
 	    install_path=buildCtx.env.component.install_tree.lib,
 	    after=protoTaskList)

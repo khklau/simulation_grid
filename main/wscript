@@ -7,13 +7,17 @@ def options(optCtx):
 
 def configure(confCtx):
     confCtx.load('compiler_cxx cxx boost protobuf gtest gmock')
-    confCtx.check_boost('program_options')
+    confCtx.check_boost('system exception program_options filesystem')
     confCtx.env.product = Product.fromContext(confCtx, NAME, confCtx.env.solution)
     confCtx.env.solution.addProduct(confCtx.env.product)
     confCtx.env.product.include_path_list.append(confCtx.env['INCLUDES_BOOST'])
     confCtx.env.product.include_path_list.append(confCtx.env['INCLUDES_PROTOBUF'])
+    confCtx.env.product.include_path_list.append(confCtx.env['INCLUDES_GTEST'])
+    confCtx.env.product.include_path_list.append(confCtx.env['INCLUDES_GMOCK'])
     confCtx.env.product.lib_path_list.extend(confCtx.env['LIBPATH_BOOST'])
     confCtx.env.product.lib_path_list.append(confCtx.env['LIBPATH_PROTOBUF'])
+    confCtx.env.product.lib_path_list.append(confCtx.env['STLIBPATH_GTEST'])
+    confCtx.env.product.lib_path_list.append(confCtx.env['STLIBPATH_GMOCK'])
     confCtx.env.product.rpath_list.extend(confCtx.env['LIBPATH_BOOST'])
     confCtx.env.product.rpath_list.append(confCtx.env['LIBPATH_PROTOBUF'])
     confCtx.recurse('grid_db')

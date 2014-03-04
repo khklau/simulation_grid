@@ -6,11 +6,9 @@ def options(optCtx):
 def configure(confCtx):
     solution = Solution.fromContext(confCtx)
     confCtx.env.solution = solution
-    confCtx.env.append_value('CXXFLAGS', ['-Wall', '-Wextra', '-O2', '-g', '-std=c++0x', 
+    confCtx.env.append_value('CXXFLAGS', ['-Wall', '-Wextra', '-O2', '-g',
 	    '-fno-builtin-malloc', '-fno-builtin-calloc', '-fno-builtin-realloc', 
-	    '-fno-builtin-free', '-pthread'])
-    confCtx.env.append_value('LDFLAGS', ["-rpath=\$ORIGIN/../lib:%s:%s" % (
-	    solution.build_tree.lib, solution.install_tree.lib), '-z origin'])
+	    '-fno-builtin-free', '-pthread', '-Wl,-z,origin'])
 
 def build(buildCtx):
     return
