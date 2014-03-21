@@ -36,6 +36,7 @@ def build(buildCtx):
     buildCtx.shlib(
 	    name='shlib_grid_db',
 	    source=ccNodeList + [
+		    buildCtx.path.find_node('about.cxx'),
 		    buildCtx.path.find_node('mmap_container.cxx')],
 	    target=join(buildCtx.env.component.build_tree.libPathFromBuild(buildCtx), 'grid_db'),
 	    includes=buildCtx.env.component.include_path_list,

@@ -7,7 +7,7 @@ def options(optCtx):
 
 def configure(confCtx):
     confCtx.load('compiler_cxx cxx boost protobuf gtest gmock')
-    confCtx.check_boost('system exception program_options filesystem')
+    confCtx.check_boost('system exception program_options filesystem date_time')
     confCtx.env.product = Product.fromContext(confCtx, NAME, confCtx.env.solution)
     confCtx.env.solution.addProduct(confCtx.env.product)
     confCtx.env.product.include_path_list.append(confCtx.env['INCLUDES_BOOST'])

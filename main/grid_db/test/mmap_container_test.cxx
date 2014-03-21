@@ -2,8 +2,8 @@
 #include <fstream>
 #include <gtest/gtest.h>
 #include <boost/filesystem.hpp>
-#include <simulation_grid/grid_db/mmap_container.hpp>
-#include <simulation_grid/grid_db/mmap_container.hxx>
+#include "mmap_container.hpp"
+#include "mmap_container.hxx"
 
 namespace bf = boost::filesystem;
 namespace gd = simulation_grid::grid_db;
