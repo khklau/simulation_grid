@@ -19,10 +19,10 @@
 namespace simulation_grid {
 namespace grid_db {
 
-typedef boost::uint16_t reader_quantity;
-typedef boost::uint16_t writer_quantity;
+typedef boost::uint16_t reader_token_id;
+typedef boost::uint16_t writer_token_id;
 
-static const size_t MVCC_READER_LIMIT = (1 << std::numeric_limits<reader_quantity>::digits) - 4; // due to boost::lockfree limit
+static const size_t MVCC_READER_LIMIT = (1 << std::numeric_limits<reader_token_id>::digits) - 4; // due to boost::lockfree limit
 static const size_t MVCC_WRITER_LIMIT = 1;
 
 // TODO: replace the following with type aliases after moving to a C++11 compiler
@@ -62,8 +62,8 @@ struct mvcc_mmap_header;
 struct mvcc_mmap_metadata;
 struct mvcc_mmap_resource;
 
-typedef mmap_queue<reader_quantity, MVCC_READER_LIMIT>::type mvcc_mmap_reader_token_list;
-typedef mmap_queue<writer_quantity, MVCC_WRITER_LIMIT>::type mvcc_mmap_writer_token_list;
+typedef mmap_queue<reader_token_id, MVCC_READER_LIMIT>::type mvcc_mmap_reader_token_list;
+typedef mmap_queue<writer_token_id, MVCC_WRITER_LIMIT>::type mvcc_mmap_writer_token_list;
 
 class mvcc_mmap_container
 {
@@ -84,10 +84,13 @@ public:
     mvcc_mmap_writer_token_list* get_mutable_writer_free_list();
     const boost::filesystem::path& get_path() const;
     size_t get_size() const;
+    reader_token_id acquire_reader_token();
+    void release_reader_token(const reader_token_id& id);
 private:
     void init();
     void check() const;
     bool exists_;
+    role role_;
     mutable boost::interprocess::managed_mapped_file file_;
     const boost::filesystem::path path_;
 };
@@ -101,7 +104,7 @@ public:
     template <class content_t> const content_t& read(const char* id);
 private:
     mvcc_mmap_container container_;
-    const reader_quantity token_id_;
+    const reader_token_id token_id_;
 };
 
 } // namespace grid_db

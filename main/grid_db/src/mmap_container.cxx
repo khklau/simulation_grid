@@ -1,11 +1,16 @@
 #include <cstring>
 #include <boost/bind.hpp>
-#include <boost/function.hpp>
+#include <boost/chrono/chrono.hpp>
 #include <boost/crc.hpp>
+#include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/filesystem/operations.hpp>
+#include <boost/function.hpp>
 #include <boost/interprocess/creation_tags.hpp>
 #include <boost/optional.hpp>
-#include <boost/variant.hpp>
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/uniform_int_distribution.hpp>
+#include <boost/thread/thread.hpp>
+#include <boost/thread/thread_time.hpp>
 #include <simulation_grid/grid_db/exception.hpp>
 #include "mmap_container.hpp"
 
@@ -13,6 +18,7 @@ namespace bf = boost::filesystem;
 namespace bi = boost::interprocess;
 namespace bl = boost::lockfree;
 namespace bg = boost::gregorian;
+namespace br = boost::random;
 
 namespace simulation_grid {
 namespace grid_db {
@@ -28,6 +34,8 @@ static const char* WRITER_FREE_LIST_KEY = "@@WRITER_FREE_LIST@@";
 static const char* MVCC_MMAP_FILE_TYPE_TAG = "simulation_grid::grid_db::mvcc_mmap_container";
 static const size_t HISTORY_DEPTH_SIZE = 1 <<  std::numeric_limits<history_depth>::digits;
 
+namespace {
+
 struct mvcc_mmap_reader_token
 {
     boost::optional<mvcc_revision> read_revision;
@@ -37,6 +45,8 @@ struct mvcc_mmap_writer_token
 {
     boost::optional<bg::date> last_flush;
 };
+
+} // anonymous namespace
 
 struct mvcc_mmap_resource
 {
@@ -79,8 +89,8 @@ struct mvcc_mmap_header
 const version mvcc_mmap_container::MIN_SUPPORTED_VERSION(1, 1, 1, 1);
 const version mvcc_mmap_container::MAX_SUPPORTED_VERSION(1, 1, 1, 1);
 
-mvcc_mmap_container::mvcc_mmap_container(const owner_t, const bf::path& path, size_t size) :
-    exists_(bf::exists(path)), file_(bi::open_or_create, path.string().c_str(), size), path_(path)
+mvcc_mmap_container::mvcc_mmap_container(const owner_t role, const bf::path& path, size_t size) :
+    exists_(bf::exists(path)), role_(role), file_(bi::open_or_create, path.string().c_str(), size), path_(path)
 {
     if (exists_)
     {
@@ -93,8 +103,8 @@ mvcc_mmap_container::mvcc_mmap_container(const owner_t, const bf::path& path, si
     }
 }
 
-mvcc_mmap_container::mvcc_mmap_container(const reader_t, const bf::path& path) :
-    exists_(bf::exists(path)), file_(bi::open_only, path.string().c_str()), path_(path)
+mvcc_mmap_container::mvcc_mmap_container(const reader_t role, const bf::path& path) :
+    exists_(bf::exists(path)), role_(role), file_(bi::open_only, path.string().c_str()), path_(path)
 {
     if (exists_)
     {
@@ -108,14 +118,14 @@ void mvcc_mmap_container::init()
     mvcc_mmap_metadata* metadata = file_.construct<mvcc_mmap_metadata>(METADATA_KEY)();
     file_.construct<mvcc_mmap_resource>(RESOURCE_KEY)();
     mvcc_mmap_reader_token_list* reader_list = file_.construct<mvcc_mmap_reader_token_list>(READER_FREE_LIST_KEY)(file_.get_segment_manager());
-    for (reader_quantity token_id = 0; token_id < MVCC_READER_LIMIT; ++token_id)
+    for (reader_token_id id = 0; id < MVCC_READER_LIMIT; ++id)
     {
-	reader_list->push(token_id);
+	reader_list->push(id);
     }
     mvcc_mmap_writer_token_list* writer_list = file_.construct<mvcc_mmap_writer_token_list>(WRITER_FREE_LIST_KEY)(file_.get_segment_manager());
-    for (writer_quantity token_id = 0; token_id < MVCC_WRITER_LIMIT; ++token_id)
+    for (writer_token_id id = 0; id < MVCC_WRITER_LIMIT; ++id)
     {
-	writer_list->push(token_id);
+	writer_list->push(id);
     }
     metadata->cached_revision = 0;
     metadata->flushed_revision = 0;
@@ -231,25 +241,35 @@ size_t mvcc_mmap_container::get_size() const
     return file_.get_size();
 }
 
-reader_quantity reserve_mvcc_reader_token(mvcc_mmap_container& container)
+reader_token_id mvcc_mmap_container::acquire_reader_token()
 {
-    reader_quantity reservation;
-    if (!container.get_mutable_reader_free_list()->pop(reservation))
+    reader_token_id reservation;
+    if (!get_mutable_reader_free_list()->pop(reservation))
     {
 	throw busy_condition("No reader token available")
-		<< info_db_identity(container.get_path().string())
+		<< info_db_identity(get_path().string())
 		<< info_component_identity("mvcc_mmap_container");
     }
     return reservation;
 }
 
+void mvcc_mmap_container::release_reader_token(const reader_token_id& id)
+{
+    br::mt19937 seed;
+    br::uniform_int_distribution<> generator(100, 200);
+    while (!get_mutable_reader_free_list()->push(id))
+    {
+	boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
+    }
+}
+
 mvcc_mmap_reader::mvcc_mmap_reader(const bf::path& path) :
-    container_(reader, path), token_id_(reserve_mvcc_reader_token(container_))
+    container_(reader, path), token_id_(container_.acquire_reader_token())
 { }
 
 mvcc_mmap_reader::~mvcc_mmap_reader()
 {
-    while (!container_.get_mutable_reader_free_list()->push(token_id_));
+    container_.release_reader_token(token_id_);
 }
 
 } // namespace grid_db
