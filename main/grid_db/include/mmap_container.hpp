@@ -58,44 +58,18 @@ struct mmap_queue
     typedef boost::lockfree::queue<content_t, capacity, fixed, allocator_t> type;
 };
 
-struct mvcc_mmap_header;
-struct mvcc_mmap_metadata;
-struct mvcc_mmap_resource;
-
-typedef mmap_queue<reader_token_id, MVCC_READER_LIMIT>::type mvcc_mmap_reader_token_list;
-typedef mmap_queue<writer_token_id, MVCC_WRITER_LIMIT>::type mvcc_mmap_writer_token_list;
-
-class mvcc_mmap_container
+struct mvcc_mmap_container
 {
-public:
     static const version MIN_SUPPORTED_VERSION;
     static const version MAX_SUPPORTED_VERSION;
     mvcc_mmap_container(const owner_t, const boost::filesystem::path& path, size_t size);
     mvcc_mmap_container(const reader_t, const boost::filesystem::path& path);
-    const mvcc_mmap_header* get_header() const;
-    mvcc_mmap_header* get_mutable_header();
-    const mvcc_mmap_metadata* get_metadata() const;
-    mvcc_mmap_metadata* get_mutable_metadata();
-    const mvcc_mmap_resource* get_resource() const;
-    mvcc_mmap_resource* get_mutable_resource();
-    const mvcc_mmap_reader_token_list* get_reader_free_list() const;
-    mvcc_mmap_reader_token_list* get_mutable_reader_free_list();
-    const mvcc_mmap_writer_token_list* get_writer_free_list() const;
-    mvcc_mmap_writer_token_list* get_mutable_writer_free_list();
-    const boost::filesystem::path& get_path() const;
-    size_t get_size() const;
-    reader_token_id acquire_reader_token();
-    void release_reader_token(const reader_token_id& id);
-private:
-    void init();
-    void check() const;
-    bool exists_;
-    role role_;
-    mutable boost::interprocess::managed_mapped_file file_;
-    const boost::filesystem::path path_;
+    bool exists;
+    boost::interprocess::managed_mapped_file file;
+    const boost::filesystem::path path;
 };
 
-class mvcc_mmap_reader
+class mvcc_mmap_reader : private boost::noncopyable
 {
 public:
     mvcc_mmap_reader(const boost::filesystem::path& path);

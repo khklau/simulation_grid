@@ -22,11 +22,11 @@ bool mvcc_mmap_reader::exists(const char* id)
 template <class content_t>
 const content_t& mvcc_mmap_reader::read(const char* id)
 {
-    const content_t* ptr = container_.file_.find<content_t>(id).first;
+    const content_t* ptr = container_.file.find<content_t>(id).first;
     if (BOOST_UNLIKELY(!ptr))
     {
 	throw malformed_db_error("Could not find data")
-		<< info_db_identity(container_.get_path().string())
+		<< info_db_identity(container_.path.string())
 		<< info_component_identity("mvcc_mmap_reader")
 		<< info_data_identity(id);
     }
