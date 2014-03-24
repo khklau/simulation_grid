@@ -1,18 +1,20 @@
 #ifndef SIMULATION_GRID_GRID_DB_MMAP_CONTAINER_HPP
 #define SIMULATION_GRID_GRID_DB_MMAP_CONTAINER_HPP
 
-#include <utility>
+#include <string>
 #include <limits>
+#include <utility>
 #include <boost/cstdint.hpp>
-#include <boost/noncopyable.hpp>
 #include <boost/filesystem/path.hpp>
-#include <boost/interprocess/segment_manager.hpp>
-#include <boost/interprocess/managed_mapped_file.hpp>
+#include <boost/interprocess/allocators/allocator.hpp>
 #include <boost/interprocess/containers/stable_vector.hpp>
 #include <boost/interprocess/containers/map.hpp>
-#include <boost/interprocess/allocators/allocator.hpp>
+#include <boost/interprocess/containers/string.hpp>
+#include <boost/interprocess/managed_mapped_file.hpp>
+#include <boost/interprocess/segment_manager.hpp>
 #include <boost/lockfree/policies.hpp>
 #include <boost/lockfree/queue.hpp>
+#include <boost/noncopyable.hpp>
 #include <simulation_grid/grid_db/about.hpp>
 #include "role.hpp"
 
@@ -33,6 +35,8 @@ struct mmap_allocator
     typedef boost::interprocess::allocator<content_t, 
 	    boost::interprocess::managed_mapped_file::segment_manager> type;
 };
+
+typedef boost::interprocess::basic_string<char, std::char_traits<char>, mmap_allocator<char>::type> mmap_string;
 
 template <class content_t>
 struct mmap_vector 
@@ -74,8 +78,8 @@ class mvcc_mmap_reader : private boost::noncopyable
 public:
     mvcc_mmap_reader(const boost::filesystem::path& path);
     ~mvcc_mmap_reader();
-    template <class content_t> bool exists(const char* id);
-    template <class content_t> const content_t& read(const char* id);
+    template <class content_t> bool exists(const char* id) const;
+    template <class content_t> const content_t& read(const char* id) const;
 private:
     mvcc_mmap_container container_;
     const reader_token_id token_id_;
