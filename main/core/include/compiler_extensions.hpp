@@ -4,11 +4,17 @@
 #if defined(__GNUC__) || defined(__clang__)
 #if defined(__has_builtin)
 #if __has_builtin(__builtin_expect)
-#define likely(x) __builtin_expect(x, 1)
-#define unlikely(x) __builtin_expect(x, 0)
+#define LIKELY_EXT(x) __builtin_expect(x, 1)
+#define UNLIKELY_EXT(x) __builtin_expect(x, 0)
 #endif
 #endif
-#else 
-#define likely(x) x
-#define unlikely(x) x
+#endif
+
+#if !defined(LIKELY_EXT)
+#define LIKELY_EXT(x) x
+#endif
+#if !defined(UNLIKELY_EXT)
+#define UNLIKELY_EXT(x) x
+#endif
+
 #endif
