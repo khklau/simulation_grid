@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # encoding: utf-8
-# Philipp Bender, 2012
-# Matt Clarkson, 2012
+# Kean H Lau, 2014
 
 '''
 This is an extra tool, not bundled with the default waf binary.
