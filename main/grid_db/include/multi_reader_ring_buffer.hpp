@@ -33,15 +33,11 @@ public:
     bool empty() const;
     bool full() const;
 private:
-    typedef boost::interprocess::deleter<boost::interprocess::interprocess_sharable_mutex, typename memory_t::segment_manager>  mutex_deleter_t;
-    typedef boost::interprocess::deleter<boost::circular_buffer<element_t, allocator_t>, typename memory_t::segment_manager>  ringbuf_deleter_t;
-    //boost::interprocess::interprocess_sharable_mutex mutex_;
-    //boost::circular_buffer<element_t, allocator_t> buffer_;
+    typedef boost::interprocess::deleter<boost::circular_buffer<element_t, allocator_t>, typename memory_t::segment_manager>  deleter_t;
     allocator_t allocator_;
-    mutex_deleter_t mdeleter_;
-    ringbuf_deleter_t rdeleter_;
-    boost::interprocess::scoped_ptr<boost::interprocess::interprocess_sharable_mutex, mutex_deleter_t> mutex_;
-    boost::interprocess::scoped_ptr<boost::circular_buffer<element_t, allocator_t>, ringbuf_deleter_t> ringbuf_;
+    deleter_t deleter_;
+    boost::interprocess::interprocess_sharable_mutex mutex_;
+    boost::interprocess::scoped_ptr<boost::circular_buffer<element_t, allocator_t>, deleter_t> ringbuf_;
 };
 
 // TODO : replace the following with type aliases after moving to a C++11 compiler
