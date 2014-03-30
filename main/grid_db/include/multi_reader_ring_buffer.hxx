@@ -3,6 +3,7 @@
 
 #include <boost/circular_buffer.hpp>
 #include <boost/interprocess/managed_mapped_file.hpp>
+#include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/sync/scoped_lock.hpp>
 #include <boost/interprocess/sync/sharable_lock.hpp>
 #include "multi_reader_ring_buffer.hpp"

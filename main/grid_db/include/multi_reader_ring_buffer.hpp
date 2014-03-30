@@ -45,10 +45,17 @@ private:
 };
 
 // TODO : replace the following with type aliases after moving to a C++11 compiler
+
 template <class element_t>
 struct mmap_multi_reader_ring_buffer
 {
     typedef multi_reader_ring_buffer<element_t, boost::interprocess::managed_mapped_file> type;
+};
+
+template <class element_t>
+struct shmem_multi_reader_ring_buffer
+{
+    typedef multi_reader_ring_buffer<element_t, boost::interprocess::managed_shared_memory> type;
 };
 
 } // namespace grid_db
