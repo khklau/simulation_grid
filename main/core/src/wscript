@@ -1,5 +1,17 @@
+from os.path import join
+
 def build(buildCtx):
-    return
+    buildCtx.shlib(
+	    name='shlib_simgrid_core',
+	    source=[buildCtx.path.find_node('process_utility.cxx')],
+	    target=join(buildCtx.env.component.build_tree.libPathFromBuild(buildCtx), 'simgrid_core'),
+	    includes=buildCtx.env.component.include_path_list,
+	    cxxflags=buildCtx.env.CXXFLAGS,
+	    linkflags=buildCtx.env.LDFLAGS,
+	    use=['BOOST'],
+	    libpath=buildCtx.env.component.lib_path_list,
+	    rpath=buildCtx.env.component.rpath_list,
+	    install_path=buildCtx.env.component.install_tree.lib)
 
 def install(installCtx):
     return
