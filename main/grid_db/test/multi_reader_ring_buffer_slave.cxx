@@ -159,21 +159,58 @@ public:
 	MALFORMED = 1
     };
     instruction_msg(size_t first, size_t last);
+    void serialize(zmq::socket_t& socket);
     msg_status deserialize(zmq::socket_t& socket);
-    const sgd::instruction& get() const { return instr_; }
+    inline bool is_terminate() { return msg_.opcode() == sgd::instruction::TERMINATE; }
+    inline bool is_query_front() { return msg_.opcode() == sgd::instruction::QUERY_FRONT; }
+    inline bool is_query_back() { return msg_.opcode() == sgd::instruction::QUERY_BACK; }
+    inline bool is_query_capacity() { return msg_.opcode() == sgd::instruction::QUERY_CAPACITY; }
+    inline bool is_query_count() { return msg_.opcode() == sgd::instruction::QUERY_COUNT; }
+    inline bool is_query_empty() { return msg_.opcode() == sgd::instruction::QUERY_EMPTY; }
+    inline bool is_query_full() { return msg_.opcode() == sgd::instruction::QUERY_FULL; }
+    inline bool is_push_front() { return msg_.opcode() == sgd::instruction::PUSH_FRONT; }
+    inline bool is_pop_back() { return msg_.opcode() == sgd::instruction::POP_BACK; }
+    inline bool is_export_element() { return msg_.opcode() == sgd::instruction::EXPORT_ELEMENT; }
+    inline const sgd::terminate_instr& get_terminate() { return msg_.terminate(); }
+    inline const sgd::query_front_instr& get_query_front() { return msg_.query_front(); }
+    inline const sgd::query_back_instr& get_query_back() { return msg_.query_back(); }
+    inline const sgd::query_capacity_instr& get_query_capacity() { return msg_.query_capacity(); }
+    inline const sgd::query_count_instr& get_query_count() { return msg_.query_count(); }
+    inline const sgd::query_empty_instr& get_query_empty() { return msg_.query_empty(); }
+    inline const sgd::query_full_instr& get_query_full() { return msg_.query_full(); }
+    inline const sgd::push_front_instr& get_push_front() { return msg_.push_front(); }
+    inline const sgd::pop_back_instr& get_pop_back() { return msg_.pop_back(); }
+    inline const sgd::export_element_instr& get_export_element() { return msg_.export_element(); }
+    void set_terminate(const sgd::terminate_instr& instr);
+    void set_query_front(const sgd::query_front_instr& instr);
+    void set_query_back(const sgd::query_back_instr& instr);
+    void set_query_capacity(const sgd::query_capacity_instr& instr);
+    void set_query_count(const sgd::query_count_instr& instr);
+    void set_query_empty(const sgd::query_empty_instr& instr);
+    void set_query_full(const sgd::query_full_instr& instr);
+    void set_push_front(const sgd::push_front_instr& instr);
+    void set_pop_back(const sgd::pop_back_instr& instr);
+    void set_export_element(const sgd::export_element_instr& instr);
 private:
-    sgd::instruction instr_;
+    sgd::instruction msg_;
     zmq::message_t buf_;
     size_t first_register_;
     size_t last_register_;
 };
 
 instruction_msg::instruction_msg(size_t first, size_t last) :
-    instr_(),
-    buf_(static_cast<size_t>(instr_.SpaceUsed())),
+    msg_(),
+    buf_(static_cast<size_t>(msg_.SpaceUsed())),
     first_register_(first),
     last_register_(last)
 { }
+
+void instruction_msg::serialize(zmq::socket_t& socket)
+{
+    buf_.rebuild(static_cast<size_t>(msg_.ByteSize()));
+    msg_.SerializeToArray(buf_.data(), buf_.size());
+    socket.send(buf_);
+}
 
 /**
  * Unfortunately we need this because Protocol Buffers doesn't support unions, so we have to fake it which is not type safe
@@ -182,17 +219,18 @@ instruction_msg::msg_status instruction_msg::deserialize(zmq::socket_t& socket)
 {
     msg_status status = MALFORMED;
     socket.recv(&buf_);
-    if (instr_.ParseFromArray(buf_.data(), buf_.size()))
+    if (msg_.ParseFromArray(buf_.data(), buf_.size()))
     {
-	if ((instr_.opcode() == sgd::instruction::TERMINATE && instr_.has_terminate()) ||
-	    (instr_.opcode() == sgd::instruction::QUERY_FRONT && instr_.has_query_front()) ||
-	    (instr_.opcode() == sgd::instruction::QUERY_BACK && instr_.has_query_back()) ||
-	    (instr_.opcode() == sgd::instruction::QUERY_CAPACITY && instr_.has_query_capacity()) ||
-	    (instr_.opcode() == sgd::instruction::QUERY_BACK && instr_.has_query_empty()) ||
-	    (instr_.opcode() == sgd::instruction::QUERY_BACK && instr_.has_query_full()) ||
-	    (instr_.opcode() == sgd::instruction::PUSH_FRONT && instr_.has_push_front()) || 
-	    (instr_.opcode() == sgd::instruction::POP_BACK && instr_.has_pop_back()) ||
-	    (instr_.opcode() == sgd::instruction::EXPORT_ELEMENT && instr_.has_export_element()))
+	if ((is_terminate() && msg_.has_terminate()) ||
+	    (is_query_front() && msg_.has_query_front()) ||
+	    (is_query_back() && msg_.has_query_back()) ||
+	    (is_query_capacity() && msg_.has_query_capacity()) ||
+	    (is_query_count() && msg_.has_query_count()) ||
+	    (is_query_empty() && msg_.has_query_empty()) ||
+	    (is_query_full() && msg_.has_query_full()) ||
+	    (is_push_front() && msg_.has_push_front()) || 
+	    (is_pop_back() && msg_.has_pop_back()) ||
+	    (is_export_element() && msg_.has_export_element()))
 	{
 	    status = WELLFORMED;
 	}
@@ -200,67 +238,170 @@ instruction_msg::msg_status instruction_msg::deserialize(zmq::socket_t& socket)
     return status;
 }
 
+void instruction_msg::set_terminate(const sgd::terminate_instr& instr)
+{
+    msg_.set_opcode(sgd::instruction::TERMINATE);
+    *msg_.mutable_terminate() = instr;
+}
+
+void instruction_msg::set_query_front(const sgd::query_front_instr& instr)
+{
+    msg_.set_opcode(sgd::instruction::QUERY_FRONT);
+    *msg_.mutable_query_front() = instr;
+}
+
+void instruction_msg::set_query_back(const sgd::query_back_instr& instr)
+{
+    msg_.set_opcode(sgd::instruction::QUERY_BACK);
+    *msg_.mutable_query_back() = instr;
+}
+
+void instruction_msg::set_query_capacity(const sgd::query_capacity_instr& instr)
+{
+    msg_.set_opcode(sgd::instruction::QUERY_CAPACITY);
+    *msg_.mutable_query_capacity() = instr;
+}
+
+void instruction_msg::set_query_count(const sgd::query_count_instr& instr)
+{
+    msg_.set_opcode(sgd::instruction::QUERY_COUNT);
+    *msg_.mutable_query_count() = instr;
+}
+
+void instruction_msg::set_query_empty(const sgd::query_empty_instr& instr)
+{
+    msg_.set_opcode(sgd::instruction::QUERY_EMPTY);
+    *msg_.mutable_query_empty() = instr;
+}
+
+void instruction_msg::set_query_full(const sgd::query_full_instr& instr)
+{
+    msg_.set_opcode(sgd::instruction::QUERY_FULL);
+    *msg_.mutable_query_full() = instr;
+}
+
+void instruction_msg::set_push_front(const sgd::push_front_instr& instr)
+{
+    msg_.set_opcode(sgd::instruction::PUSH_FRONT);
+    *msg_.mutable_push_front() = instr;
+}
+
+void instruction_msg::set_pop_back(const sgd::pop_back_instr& instr)
+{
+    msg_.set_opcode(sgd::instruction::POP_BACK);
+    *msg_.mutable_pop_back() = instr;
+}
+
+void instruction_msg::set_export_element(const sgd::export_element_instr& instr)
+{
+    msg_.set_opcode(sgd::instruction::EXPORT_ELEMENT);
+    *msg_.mutable_export_element() = instr;
+}
+
+
 class result_msg
 {
 public:
+    enum msg_status
+    {
+	WELLFORMED = 0,
+	MALFORMED = 1
+    };
     result_msg();
-    const sgd::result& get() const { return result_; }
     void serialize(zmq::socket_t& socket);
-    void set_malformed_message(sgd::malformed_message_result& result);
-    void set_invalid_argument(sgd::invalid_argument_result& result);
-    void set_confirmation(sgd::confirmation_result& result);
-    void set_element(sgd::element_result& result);
-    void set_size(sgd::size_result& result);
-    void set_predicate(sgd::predicate_result& result);
+    msg_status deserialize(zmq::socket_t& socket);
+    inline bool is_malformed_message() { return msg_.opcode() == sgd::result::MALFORMED_MESSAGE; }
+    inline bool is_invalid_argument() { return msg_.opcode() == sgd::result::INVALID_ARGUMENT; }
+    inline bool is_confirmation() { return msg_.opcode() == sgd::result::CONFIRMATION; }
+    inline bool is_element() { return msg_.opcode() == sgd::result::ELEMENT; }
+    inline bool is_size() { return msg_.opcode() == sgd::result::SIZE; }
+    inline bool is_predicate() { return msg_.opcode() == sgd::result::PREDICATE; }
+    inline const sgd::malformed_message_result& get_malformed_message() { return msg_.malformed_message(); }
+    inline const sgd::invalid_argument_result& get_invalid_argument() { return msg_.invalid_argument(); }
+    inline const sgd::confirmation_result& get_confirmation() { return msg_.confirmation(); }
+    inline const sgd::element_result& get_element() { return msg_.element(); }
+    inline const sgd::size_result& get_size() { return msg_.size(); }
+    inline const sgd::predicate_result& get_predicate() { return msg_.predicate(); }
+    void set_malformed_message(const sgd::malformed_message_result& result);
+    void set_invalid_argument(const sgd::invalid_argument_result& result);
+    void set_confirmation(const sgd::confirmation_result& result);
+    void set_element(const sgd::element_result& result);
+    void set_size(const sgd::size_result& result);
+    void set_predicate(const sgd::predicate_result& result);
 private:
-    sgd::result result_;
+    sgd::result msg_;
     zmq::message_t buf_;
 };
 
 result_msg::result_msg() :
-     result_(), buf_(static_cast<size_t>(result_.SpaceUsed()))
+     msg_(), buf_(static_cast<size_t>(msg_.SpaceUsed()))
 {
-    result_.set_opcode(sgd::result::CONFIRMATION);
+    msg_.set_opcode(sgd::result::CONFIRMATION);
 }
 
 void result_msg::serialize(zmq::socket_t& socket)
 {
+    buf_.rebuild(static_cast<size_t>(msg_.ByteSize()));
+    msg_.SerializeToArray(buf_.data(), buf_.size());
+    socket.send(buf_);
 }
 
-void result_msg::set_malformed_message(sgd::malformed_message_result& result)
+/**
+ * Unfortunately we need this because Protocol Buffers doesn't support unions, so we have to fake it which is not type safe
+ */
+result_msg::msg_status result_msg::deserialize(zmq::socket_t& socket)
 {
-    result_.set_opcode(sgd::result::MALFORMED_MESSAGE);
-    *result_.mutable_malformed_message() = result;
+    msg_status status = MALFORMED;
+    socket.recv(&buf_);
+    if (msg_.ParseFromArray(buf_.data(), buf_.size()))
+    {
+	if ((is_malformed_message() && msg_.has_malformed_message()) ||
+	    (is_invalid_argument() && msg_.has_invalid_argument()) ||
+	    (is_confirmation() && msg_.has_confirmation()) ||
+	    (is_element() && msg_.has_element()) ||
+	    (is_size() && msg_.has_size()) ||
+	    (is_predicate() && msg_.has_predicate()))
+	{
+	    status = WELLFORMED;
+	}
+    }
+    return status;
 }
 
-void result_msg::set_invalid_argument(sgd::invalid_argument_result& result)
+void result_msg::set_malformed_message(const sgd::malformed_message_result& result)
 {
-    result_.set_opcode(sgd::result::INVALID_ARGUMENT);
-    *result_.mutable_invalid_argument() = result;
+    msg_.set_opcode(sgd::result::MALFORMED_MESSAGE);
+    *msg_.mutable_malformed_message() = result;
 }
 
-void result_msg::set_confirmation(sgd::confirmation_result& result)
+void result_msg::set_invalid_argument(const sgd::invalid_argument_result& result)
 {
-    result_.set_opcode(sgd::result::CONFIRMATION);
-    *result_.mutable_confirmation() = result;
+    msg_.set_opcode(sgd::result::INVALID_ARGUMENT);
+    *msg_.mutable_invalid_argument() = result;
 }
 
-void result_msg::set_element(sgd::element_result& result)
+void result_msg::set_confirmation(const sgd::confirmation_result& result)
 {
-    result_.set_opcode(sgd::result::ELEMENT);
-    *result_.mutable_element() = result;
+    msg_.set_opcode(sgd::result::CONFIRMATION);
+    *msg_.mutable_confirmation() = result;
 }
 
-void result_msg::set_size(sgd::size_result& result)
+void result_msg::set_element(const sgd::element_result& result)
 {
-    result_.set_opcode(sgd::result::SIZE);
-    *result_.mutable_size() = result;
+    msg_.set_opcode(sgd::result::ELEMENT);
+    *msg_.mutable_element() = result;
 }
 
-void result_msg::set_predicate(sgd::predicate_result& result)
+void result_msg::set_size(const sgd::size_result& result)
 {
-    result_.set_opcode(sgd::result::PREDICATE);
-    *result_.mutable_predicate() = result;
+    msg_.set_opcode(sgd::result::SIZE);
+    *msg_.mutable_size() = result;
+}
+
+void result_msg::set_predicate(const sgd::predicate_result& result)
+{
+    msg_.set_opcode(sgd::result::PREDICATE);
+    *msg_.mutable_predicate() = result;
 }
 
 template <class element_t, class memory_t>
@@ -360,58 +501,50 @@ void ringbuf_service<element_t, memory_t>::receive(const boost::system::error_co
 	    sgd::malformed_message_result tmp;
 	    result_.set_malformed_message(tmp);
 	}
-	switch (instr_.get().opcode())
+	else if (instr_.is_terminate())
 	{
-	    case sgd::instruction::TERMINATE:
-	    {
-		exec_terminate(instr_.get().terminate(), result_);
-		break;
-	    }
-	    case sgd::instruction::QUERY_FRONT:
-	    {
-		exec_query_front(instr_.get().query_front(), result_);
-		break;
-	    }
-	    case sgd::instruction::QUERY_BACK:
-	    {
-		exec_query_back(instr_.get().query_back(), result_);
-		break;
-	    }
-	    case sgd::instruction::QUERY_CAPACITY:
-	    {
-		exec_query_capacity(instr_.get().query_capacity(), result_);
-		break;
-	    }
-	    case sgd::instruction::QUERY_COUNT:
-	    {
-		exec_query_count(instr_.get().query_count(), result_);
-		break;
-	    }
-	    case sgd::instruction::QUERY_EMPTY:
-	    {
-		exec_query_empty(instr_.get().query_empty(), result_);
-		break;
-	    }
-	    case sgd::instruction::QUERY_FULL:
-	    {
-		exec_query_full(instr_.get().query_full(), result_);
-		break;
-	    }
-	    case sgd::instruction::PUSH_FRONT:
-	    {
-		exec_push_front(instr_.get().push_front(), result_);
-		break;
-	    }
-	    case sgd::instruction::POP_BACK:
-	    {
-		exec_pop_back(instr_.get().pop_back(), result_);
-		break;
-	    }
-	    case sgd::instruction::EXPORT_ELEMENT:
-	    {
-		exec_export_element(instr_.get().export_element(), result_);
-		break;
-	    }
+	    exec_terminate(instr_.get_terminate(), result_);
+	}
+	else if (instr_.is_query_front())
+	{
+	    exec_query_front(instr_.get_query_front(), result_);
+	}
+	else if (instr_.is_query_back())
+	{
+	    exec_query_back(instr_.get_query_back(), result_);
+	}
+	else if (instr_.is_query_capacity())
+	{
+	    exec_query_capacity(instr_.get_query_capacity(), result_);
+	}
+	else if (instr_.is_query_count())
+	{
+	    exec_query_count(instr_.get_query_count(), result_);
+	}
+	else if (instr_.is_query_empty())
+	{
+	    exec_query_empty(instr_.get_query_empty(), result_);
+	}
+	else if (instr_.is_query_full())
+	{
+	    exec_query_full(instr_.get_query_full(), result_);
+	}
+	else if (instr_.is_push_front())
+	{
+	    exec_push_front(instr_.get_push_front(), result_);
+	}
+	else if (instr_.is_pop_back())
+	{
+	    exec_pop_back(instr_.get_pop_back(), result_);
+	}
+	else if (instr_.is_export_element())
+	{
+	    exec_export_element(instr_.get_export_element(), result_);
+	}
+	else
+	{
+	    sgd::malformed_message_result tmp;
+	    result_.set_malformed_message(tmp);
 	}
 	result_.serialize(socket_);
 	socket_.getsockopt(ZMQ_EVENTS, &event, &size);
