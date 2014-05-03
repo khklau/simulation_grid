@@ -1,0 +1,137 @@
+package simulation_grid.grid_db;
+
+message terminate_instr
+{
+    required fixed32 sequence = 1;
+}
+
+message query_front_instr
+{
+    required fixed32 sequence = 1;
+    required fixed64 out_register = 2;
+}
+
+message query_back_instr
+{
+    required fixed32 sequence = 1;
+    required fixed64 out_register = 2;
+}
+
+message query_capacity_instr
+{
+    required fixed32 sequence = 1;
+}
+
+message query_count_instr
+{
+    required fixed32 sequence = 1;
+}
+
+message query_empty_instr
+{
+    required fixed32 sequence = 1;
+}
+
+message query_full_instr
+{
+    required fixed32 sequence = 1;
+}
+
+message push_front_instr
+{
+    required fixed32 sequence = 1;
+    required sfixed32 element = 2;
+}
+
+message pop_back_instr
+{
+    required fixed32 sequence = 1;
+    required fixed64 in_register = 2;
+}
+
+message export_element_instr
+{
+    required fixed32 sequence = 1;
+    required fixed64 in_register = 2;
+}
+
+message instruction
+{
+    enum opcode_t
+    {
+	TERMINATE = 0;
+	QUERY_FRONT = 1;
+	QUERY_BACK = 2;
+	QUERY_CAPACITY = 3;
+	QUERY_COUNT = 4;
+	QUERY_EMPTY = 5;
+	QUERY_FULL = 6;
+	PUSH_FRONT = 7;
+	POP_BACK = 8;
+	EXPORT_ELEMENT = 9;
+    }
+    required opcode_t opcode = 1;
+    optional terminate_instr terminate = 2;
+    optional query_front_instr query_front = 3;
+    optional query_back_instr query_back = 4;
+    optional query_capacity_instr query_capacity = 5;
+    optional query_count_instr query_count = 6;
+    optional query_empty_instr query_empty = 7;
+    optional query_full_instr query_full = 8;
+    optional push_front_instr push_front = 9;
+    optional pop_back_instr pop_back = 10;
+    optional export_element_instr export_element = 11;
+}
+
+message malformed_message_result
+{
+    optional fixed32 sequence = 1;
+}
+
+message invalid_argument_result
+{
+    optional fixed32 sequence = 1;
+}
+
+message confirmation_result
+{
+    required fixed32 sequence = 1;
+}
+
+message element_result
+{
+    required fixed32 sequence = 1;
+    required sfixed32 element = 2;
+}
+
+message size_result
+{
+    required fixed32 sequence = 1;
+    required fixed64 size = 2;
+}
+
+message predicate_result
+{
+    required fixed32 sequence = 1;
+    required bool predicate = 2;
+}
+
+message result
+{
+    enum opcode_t
+    {
+	MALFORMED_MESSAGE = 0;
+	INVALID_ARGUMENT = 1;
+	CONFIRMATION = 2;
+	ELEMENT = 3;
+	SIZE = 4;
+	PREDICATE = 5;
+    }
+    required opcode_t opcode = 1;
+    optional malformed_message_result malformed_message = 2;
+    optional invalid_argument_result invalid_argument = 3;
+    optional confirmation_result confirmation = 4;
+    optional element_result element = 5;
+    optional size_result size = 6;
+    optional predicate_result predicate = 7;
+}
