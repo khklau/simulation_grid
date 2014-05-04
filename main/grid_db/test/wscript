@@ -32,6 +32,15 @@ def build(buildCtx):
 	    rpath=buildCtx.env.component.rpath_list,
 	    install_path=buildCtx.env.component.install_tree.test,
 	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'])
+    buildCtx.stlib(
+	    name='stlib_ringbuf_msg',
+	    source=ccNodeList + [buildCtx.path.find_node('ringbuf_msg.cxx')],
+	    target='ringbuf_msg',
+	    includes=['.'] + buildCtx.env.component.include_path_list,
+	    libpath=buildCtx.env.component.lib_path_list,
+	    cxxflags=buildCtx.env.CXXFLAGS,
+	    install_path=buildCtx.env.component.install_tree.lib,
+	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'] + protoTaskList)
     buildCtx.program(
 	    name='program_multi_reader_ring_buffer_slave',
 	    source=ccNodeList + [buildCtx.path.find_node('multi_reader_ring_buffer_slave.cxx')],
@@ -40,7 +49,7 @@ def build(buildCtx):
 	    includes=['.'] + buildCtx.env.component.include_path_list,
 	    cxxflags=buildCtx.env.CXXFLAGS,
 	    linkflags=buildCtx.env.LDFLAGS,
-	    use=['BOOST', 'PROTOBUF', 'ZEROMQ', 'shlib_simgrid_core', 'shlib_simgrid_grid_db'],
+	    use=['BOOST', 'PROTOBUF', 'ZEROMQ', 'shlib_simgrid_core', 'shlib_simgrid_grid_db', 'stlib_ringbuf_msg'],
 	    libpath=buildCtx.env.component.lib_path_list,
 	    rpath=buildCtx.env.component.rpath_list,
 	    install_path=buildCtx.env.component.install_tree.test,
@@ -53,7 +62,7 @@ def build(buildCtx):
 	    includes=['.'] + buildCtx.env.component.include_path_list,
 	    cxxflags=buildCtx.env.CXXFLAGS,
 	    linkflags=buildCtx.env.LDFLAGS,
-	    use=['BOOST', 'PROTOBUF', 'GTEST', 'ZEROMQ', 'shlib_simgrid_core', 'shlib_simgrid_grid_db'],
+	    use=['BOOST', 'PROTOBUF', 'GTEST', 'ZEROMQ', 'shlib_simgrid_core', 'shlib_simgrid_grid_db', 'stlib_ringbuf_msg'],
 	    libpath=buildCtx.env.component.lib_path_list,
 	    rpath=buildCtx.env.component.rpath_list,
 	    install_path=buildCtx.env.component.install_tree.test,
