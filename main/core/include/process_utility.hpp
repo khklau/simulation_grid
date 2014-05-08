@@ -11,7 +11,7 @@ namespace process_utility {
 boost::filesystem::path current_exe_path();
 #endif
 
-} // process_utility
+} // namespace process_utility
 } // namespace core
 } // namespace simulation_grid
 
