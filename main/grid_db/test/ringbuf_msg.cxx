@@ -3,12 +3,28 @@
 
 namespace sgd = simulation_grid::grid_db;
 
-instruction_msg::instruction_msg(size_t first, size_t last) :
+namespace simulation_grid {
+namespace grid_db {
+
+instruction_msg::instruction_msg() :
     msg_(),
-    buf_(static_cast<size_t>(msg_.SpaceUsed())),
-    first_register_(first),
-    last_register_(last)
+    buf_(static_cast<size_t>(msg_.SpaceUsed()))
 { }
+
+instruction_msg::instruction_msg(const instruction_msg& other) :
+    msg_(other.msg_),
+    buf_(static_cast<size_t>(other.msg_.SpaceUsed()))
+{ }
+
+instruction_msg& instruction_msg::operator=(const instruction_msg& other)
+{
+    if (&other != this)
+    {
+	msg_ = other.msg_;
+	buf_.rebuild();
+    }
+    return *this;
+}
 
 void instruction_msg::serialize(zmq::socket_t& socket)
 {
@@ -43,70 +59,86 @@ instruction_msg::msg_status instruction_msg::deserialize(zmq::socket_t& socket)
     return status;
 }
 
-void instruction_msg::set_terminate(const sgd::terminate_instr& instr)
+void instruction_msg::set_terminate(const terminate_instr& instr)
 {
-    msg_.set_opcode(sgd::instruction::TERMINATE);
+    msg_.set_opcode(instruction::TERMINATE);
     *msg_.mutable_terminate() = instr;
 }
 
-void instruction_msg::set_query_front(const sgd::query_front_instr& instr)
+void instruction_msg::set_query_front(const query_front_instr& instr)
 {
-    msg_.set_opcode(sgd::instruction::QUERY_FRONT);
+    msg_.set_opcode(instruction::QUERY_FRONT);
     *msg_.mutable_query_front() = instr;
 }
 
-void instruction_msg::set_query_back(const sgd::query_back_instr& instr)
+void instruction_msg::set_query_back(const query_back_instr& instr)
 {
-    msg_.set_opcode(sgd::instruction::QUERY_BACK);
+    msg_.set_opcode(instruction::QUERY_BACK);
     *msg_.mutable_query_back() = instr;
 }
 
-void instruction_msg::set_query_capacity(const sgd::query_capacity_instr& instr)
+void instruction_msg::set_query_capacity(const query_capacity_instr& instr)
 {
-    msg_.set_opcode(sgd::instruction::QUERY_CAPACITY);
+    msg_.set_opcode(instruction::QUERY_CAPACITY);
     *msg_.mutable_query_capacity() = instr;
 }
 
-void instruction_msg::set_query_count(const sgd::query_count_instr& instr)
+void instruction_msg::set_query_count(const query_count_instr& instr)
 {
-    msg_.set_opcode(sgd::instruction::QUERY_COUNT);
+    msg_.set_opcode(instruction::QUERY_COUNT);
     *msg_.mutable_query_count() = instr;
 }
 
-void instruction_msg::set_query_empty(const sgd::query_empty_instr& instr)
+void instruction_msg::set_query_empty(const query_empty_instr& instr)
 {
-    msg_.set_opcode(sgd::instruction::QUERY_EMPTY);
+    msg_.set_opcode(instruction::QUERY_EMPTY);
     *msg_.mutable_query_empty() = instr;
 }
 
-void instruction_msg::set_query_full(const sgd::query_full_instr& instr)
+void instruction_msg::set_query_full(const query_full_instr& instr)
 {
-    msg_.set_opcode(sgd::instruction::QUERY_FULL);
+    msg_.set_opcode(instruction::QUERY_FULL);
     *msg_.mutable_query_full() = instr;
 }
 
-void instruction_msg::set_push_front(const sgd::push_front_instr& instr)
+void instruction_msg::set_push_front(const push_front_instr& instr)
 {
-    msg_.set_opcode(sgd::instruction::PUSH_FRONT);
+    msg_.set_opcode(instruction::PUSH_FRONT);
     *msg_.mutable_push_front() = instr;
 }
 
-void instruction_msg::set_pop_back(const sgd::pop_back_instr& instr)
+void instruction_msg::set_pop_back(const pop_back_instr& instr)
 {
-    msg_.set_opcode(sgd::instruction::POP_BACK);
+    msg_.set_opcode(instruction::POP_BACK);
     *msg_.mutable_pop_back() = instr;
 }
 
-void instruction_msg::set_export_element(const sgd::export_element_instr& instr)
+void instruction_msg::set_export_element(const export_element_instr& instr)
 {
-    msg_.set_opcode(sgd::instruction::EXPORT_ELEMENT);
+    msg_.set_opcode(instruction::EXPORT_ELEMENT);
     *msg_.mutable_export_element() = instr;
 }
 
 result_msg::result_msg() :
-     msg_(), buf_(static_cast<size_t>(msg_.SpaceUsed()))
+     msg_(),
+     buf_(static_cast<size_t>(msg_.SpaceUsed()))
 {
-    msg_.set_opcode(sgd::result::CONFIRMATION);
+    msg_.set_opcode(result::CONFIRMATION);
+}
+
+result_msg::result_msg(const result_msg& other) :
+    msg_(other.msg_),
+    buf_(static_cast<size_t>(other.msg_.SpaceUsed()))
+{ }
+
+result_msg& result_msg::operator=(const result_msg& other)
+{
+    if (&other != this)
+    {
+	msg_ = other.msg_;
+	buf_.rebuild();
+    }
+    return *this;
 }
 
 void result_msg::serialize(zmq::socket_t& socket)
@@ -138,38 +170,41 @@ result_msg::msg_status result_msg::deserialize(zmq::socket_t& socket)
     return status;
 }
 
-void result_msg::set_malformed_message(const sgd::malformed_message_result& result)
+void result_msg::set_malformed_message(const malformed_message_result& result)
 {
-    msg_.set_opcode(sgd::result::MALFORMED_MESSAGE);
+    msg_.set_opcode(result::MALFORMED_MESSAGE);
     *msg_.mutable_malformed_message() = result;
 }
 
-void result_msg::set_invalid_argument(const sgd::invalid_argument_result& result)
+void result_msg::set_invalid_argument(const invalid_argument_result& result)
 {
-    msg_.set_opcode(sgd::result::INVALID_ARGUMENT);
+    msg_.set_opcode(result::INVALID_ARGUMENT);
     *msg_.mutable_invalid_argument() = result;
 }
 
-void result_msg::set_confirmation(const sgd::confirmation_result& result)
+void result_msg::set_confirmation(const confirmation_result& result)
 {
-    msg_.set_opcode(sgd::result::CONFIRMATION);
+    msg_.set_opcode(result::CONFIRMATION);
     *msg_.mutable_confirmation() = result;
 }
 
-void result_msg::set_element(const sgd::element_result& result)
+void result_msg::set_element(const element_result& result)
 {
-    msg_.set_opcode(sgd::result::ELEMENT);
+    msg_.set_opcode(result::ELEMENT);
     *msg_.mutable_element() = result;
 }
 
-void result_msg::set_size(const sgd::size_result& result)
+void result_msg::set_size(const size_result& result)
 {
-    msg_.set_opcode(sgd::result::SIZE);
+    msg_.set_opcode(result::SIZE);
     *msg_.mutable_size() = result;
 }
 
-void result_msg::set_predicate(const sgd::predicate_result& result)
+void result_msg::set_predicate(const predicate_result& result)
 {
-    msg_.set_opcode(sgd::result::PREDICATE);
+    msg_.set_opcode(result::PREDICATE);
     *msg_.mutable_predicate() = result;
 }
+
+} // namespace grid_db
+} // namespace simulation_grid

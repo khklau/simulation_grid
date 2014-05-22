@@ -1,9 +1,12 @@
-#ifndef RINGBUF_MSG_HPP
-#define RINGBUF_MSG_HPP
+#ifndef SIMULATION_GRID_GRID_DB_RINGBUF_MSG_HPP
+#define SIMULATION_GRID_GRID_DB_RINGBUF_MSG_HPP
 
 #include <google/protobuf/message.h>
 #include <zmq.hpp>
 #include "multi_reader_ring_buffer_slave.pb.h"
+
+namespace simulation_grid {
+namespace grid_db {
 
 class instruction_msg
 {
@@ -13,7 +16,9 @@ public:
 	WELLFORMED = 0,
 	MALFORMED = 1
     };
-    instruction_msg(size_t first, size_t last);
+    instruction_msg();
+    instruction_msg(const instruction_msg& other);
+    instruction_msg& operator=(const instruction_msg& other);
     void serialize(zmq::socket_t& socket);
     msg_status deserialize(zmq::socket_t& socket);
     inline bool is_terminate() { return msg_.opcode() == simulation_grid::grid_db::instruction::TERMINATE; }
@@ -49,8 +54,6 @@ public:
 private:
     simulation_grid::grid_db::instruction msg_;
     zmq::message_t buf_;
-    size_t first_register_;
-    size_t last_register_;
 };
 
 class result_msg
@@ -62,6 +65,8 @@ public:
 	MALFORMED = 1
     };
     result_msg();
+    result_msg(const result_msg& other);
+    result_msg& operator=(const result_msg& other);
     void serialize(zmq::socket_t& socket);
     msg_status deserialize(zmq::socket_t& socket);
     inline bool is_malformed_message() { return msg_.opcode() == simulation_grid::grid_db::result::MALFORMED_MESSAGE; }
@@ -86,5 +91,8 @@ private:
     simulation_grid::grid_db::result msg_;
     zmq::message_t buf_;
 };
+
+} // namespace grid_db
+} // namespace simulation_grid
 
 #endif
