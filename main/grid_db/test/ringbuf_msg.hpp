@@ -3,7 +3,7 @@
 
 #include <google/protobuf/message.h>
 #include <zmq.hpp>
-#include "multi_reader_ring_buffer_slave.pb.h"
+#include "ringbuf_msg.pb.h"
 
 namespace simulation_grid {
 namespace grid_db {

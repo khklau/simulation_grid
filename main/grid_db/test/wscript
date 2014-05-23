@@ -2,7 +2,7 @@ from os.path import join
 import waflib.extras.protobuf
 
 proto_files=[
-	'multi_reader_ring_buffer_slave.proto']
+	'ringbuf_msg.proto']
 
 def build(buildCtx):
     ccNodeList=[]
