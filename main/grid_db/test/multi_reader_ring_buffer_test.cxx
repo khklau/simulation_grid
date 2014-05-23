@@ -281,7 +281,7 @@ ringbuf_slave::ringbuf_slave(const config& config) :
     }
     while (!bfs::exists(ipcpath))
     {
-	boost::this_thread::sleep_for(boost::chrono::milliseconds(50));
+	boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
     }
 }
 
@@ -312,8 +312,7 @@ int ringbuf_slave::wait()
 
 TEST(multi_reader_ring_buffer_test, mmap_front_reference_lifetime)
 {
-    bfs::path tmp_path = bfs::absolute(bfs::unique_path());
-    config conf(ipc::mmap, tmp_path.string());
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     ringbuf_slave slave(conf);
     mmap_ringbuf_master master(conf);
 
@@ -356,8 +355,7 @@ TEST(multi_reader_ring_buffer_test, mmap_front_reference_lifetime)
 
 TEST(multi_reader_ring_buffer_test, mmap_already_popped_back_element)
 {
-    bfs::path tmp_path = bfs::absolute(bfs::unique_path());
-    config conf(ipc::mmap, tmp_path.string(), DEFAULT_PORT, DEFAULT_SIZE, 2);
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string(), DEFAULT_PORT, DEFAULT_SIZE, 2U);
     ringbuf_slave slave(conf);
     mmap_ringbuf_master master(conf);
 
@@ -459,77 +457,317 @@ TEST(multi_reader_ring_buffer_test, mmap_already_popped_back_element)
 
 TEST(multi_reader_ring_buffer_test, mmap_overfill)
 {
-    bfs::path tmp_path = bfs::unique_path();
-    bip::managed_mapped_file file(bip::create_only, tmp_path.string().c_str(), 4096);
-    sgd::mmap_multi_reader_ring_buffer<boost::int32_t>::type* buf = file.construct<sgd::mmap_multi_reader_ring_buffer<boost::int32_t>::type>("RB")(4, &file);
-    EXPECT_TRUE(buf->empty()) << "initial state of ring buffer is not empty";
-    buf->push_front(1);
-    buf->push_front(2);
-    buf->push_front(3);
-    buf->push_front(4);
-    EXPECT_TRUE(buf->full()) << "ring buffer not filled to capacity";
-    const boost::int32_t& expected1 = buf->back();
-    buf->push_front(5);
-    const boost::int32_t& actual1 = buf->back();
-    ASSERT_NE(expected1, actual1) << "back element was not popped";
-    bfs::remove(tmp_path);
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string(), DEFAULT_PORT, DEFAULT_SIZE, 2U);
+    ringbuf_slave slave(conf);
+    mmap_ringbuf_master master(conf);
+
+    const boost::int32_t expected1 = 1;
+    ASSERT_TRUE(master.get_ringbuf().empty()) << "ringbuf is not empty";
+    sgd::instruction_msg inmsg1;
+    sgd::push_front_instr instr1;
+    instr1.set_sequence(1U);
+    instr1.set_element(expected1);
+    inmsg1.set_push_front(instr1);
+    sgd::result_msg outmsg1(master.send(inmsg1));
+    ASSERT_TRUE(outmsg1.is_confirmation()) << "unexpected push_front result";
+    ASSERT_EQ(inmsg1.get_push_front().sequence(), outmsg1.get_confirmation().sequence()) << "sequence number mismatch";
+
+    const boost::int32_t expected2 = 2;
+    sgd::instruction_msg inmsg2;
+    sgd::push_front_instr instr2;
+    instr2.set_sequence(2U);
+    instr2.set_element(expected2);
+    inmsg2.set_push_front(instr2);
+    sgd::result_msg outmsg2(master.send(inmsg2));
+    ASSERT_TRUE(outmsg2.is_confirmation()) << "unexpected push_front result";
+    ASSERT_EQ(inmsg2.get_push_front().sequence(), outmsg2.get_confirmation().sequence()) << "sequence number mismatch";
+    ASSERT_TRUE(master.get_ringbuf().full()) << "ring buffer not filled to capacity";
+
+    sgd::instruction_msg inmsg3;
+    sgd::query_back_instr instr3;
+    instr3.set_sequence(3U);
+    instr3.set_out_register(0U);
+    inmsg3.set_query_back(instr3);
+    sgd::result_msg outmsg3(master.send(inmsg3));
+    ASSERT_TRUE(outmsg3.is_confirmation()) << "unexpected query_back result";
+    ASSERT_EQ(inmsg3.get_query_back().sequence(), outmsg3.get_confirmation().sequence()) << "sequence number mismatch";
+
+    sgd::instruction_msg inmsg4;
+    sgd::export_element_instr instr4;
+    instr4.set_sequence(4U);
+    instr4.set_in_register(0U);
+    inmsg4.set_export_element(instr4);
+    sgd::result_msg outmsg4(master.send(inmsg4));
+    ASSERT_TRUE(outmsg4.is_element()) << "unexpected export_element result";
+    ASSERT_EQ(inmsg4.get_export_element().sequence(), outmsg4.get_element().sequence()) << "sequence number mismatch";
+    const boost::int32_t actual4 = outmsg4.get_element().element();
+
+    const boost::int32_t expected5 = 5;
+    sgd::instruction_msg inmsg5;
+    sgd::push_front_instr instr5;
+    instr5.set_sequence(5U);
+    instr5.set_element(expected5);
+    inmsg5.set_push_front(instr5);
+    sgd::result_msg outmsg5(master.send(inmsg5));
+    ASSERT_TRUE(outmsg5.is_confirmation()) << "unexpected push_front result";
+    ASSERT_EQ(inmsg5.get_push_front().sequence(), outmsg5.get_confirmation().sequence()) << "sequence number mismatch";
+
+    sgd::instruction_msg inmsg6;
+    sgd::query_back_instr instr6;
+    instr6.set_sequence(6U);
+    instr6.set_out_register(1U);
+    inmsg6.set_query_back(instr6);
+    sgd::result_msg outmsg6(master.send(inmsg6));
+    ASSERT_TRUE(outmsg6.is_confirmation()) << "unexpected query_back result";
+    ASSERT_EQ(inmsg6.get_query_back().sequence(), outmsg6.get_confirmation().sequence()) << "sequence number mismatch";
+
+    sgd::instruction_msg inmsg7;
+    sgd::export_element_instr instr7;
+    instr7.set_sequence(7U);
+    instr7.set_in_register(1U);
+    inmsg7.set_export_element(instr7);
+    sgd::result_msg outmsg7(master.send(inmsg7));
+    ASSERT_TRUE(outmsg7.is_element()) << "unexpected export_element result";
+    ASSERT_EQ(inmsg7.get_export_element().sequence(), outmsg7.get_element().sequence()) << "sequence number mismatch";
+    const boost::int32_t actual7 = outmsg7.get_element().element();
+    ASSERT_NE(actual4, actual7) << "back element was not popped";
+
+    sgd::instruction_msg inmsg9;
+    sgd::terminate_instr instr9;
+    instr9.set_sequence(9U);
+    inmsg9.set_terminate(instr9);
+    sgd::result_msg outmsg9(master.send(inmsg9));
+    ASSERT_TRUE(outmsg9.is_confirmation()) << "Unexpected terminate result";
+    ASSERT_EQ(inmsg9.get_terminate().sequence(), outmsg9.get_confirmation().sequence()) << "Sequence number mismatch";
 }
 
 TEST(multi_reader_ring_buffer_test, shmem_front_reference_lifetime)
 {
-    bip::managed_shared_memory shmem(bip::create_only, "shmem_front_reference_lifetime", 4096);
-    sgd::shmem_multi_reader_ring_buffer<boost::int32_t>::type* buf = shmem.construct<sgd::shmem_multi_reader_ring_buffer<boost::int32_t>::type>("RB")(4, &shmem);
+    config conf(ipc::shm, bfs::unique_path().string());
+    ringbuf_slave slave(conf);
+    shm_ringbuf_master master(conf);
+
     const boost::int32_t expected1 = 1;
-    buf->push_front(expected1);
-    const boost::int32_t& actual1 = buf->front();
+    ASSERT_TRUE(master.get_ringbuf().empty()) << "ringbuf is not empty";
+    sgd::instruction_msg inmsg1;
+    sgd::push_front_instr instr1;
+    instr1.set_sequence(1U);
+    instr1.set_element(expected1);
+    inmsg1.set_push_front(instr1);
+    sgd::result_msg outmsg1(master.send(inmsg1));
+    ASSERT_TRUE(outmsg1.is_confirmation()) << "unexpected push_front result";
+    ASSERT_EQ(inmsg1.get_push_front().sequence(), outmsg1.get_confirmation().sequence()) << "sequence number mismatch";
+    const boost::int32_t& actual1 = master.get_ringbuf().front();
     EXPECT_EQ(expected1, actual1) << "front element is not just pushed element";
-    EXPECT_EQ(1U, buf->element_count()) << "element count is wrong";
+    ASSERT_EQ(1U, master.get_ringbuf().element_count()) << "element_count is wrong";
+
     const boost::int32_t expected2 = 2;
-    buf->push_front(expected2);
-    const boost::int32_t& actual2 = buf->front();
+    sgd::instruction_msg inmsg2;
+    sgd::push_front_instr instr2;
+    instr2.set_sequence(2U);
+    instr2.set_element(expected2);
+    inmsg2.set_push_front(instr2);
+    sgd::result_msg outmsg2(master.send(inmsg2));
+    ASSERT_TRUE(outmsg2.is_confirmation()) << "unexpected push_front result";
+    ASSERT_EQ(inmsg2.get_push_front().sequence(), outmsg2.get_confirmation().sequence()) << "sequence number mismatch";
+    const boost::int32_t& actual2 = master.get_ringbuf().front();
     EXPECT_EQ(expected2, actual2) << "front element is not just pushed element";
-    EXPECT_EQ(2U, buf->element_count()) << "element count is wrong";
+    EXPECT_EQ(2U, master.get_ringbuf().element_count()) << "element count is wrong";
     ASSERT_EQ(expected1, actual1) << "reference to original front element is lost after subsequent push";
-    bip::shared_memory_object::remove("shmem_front_reference_lifetime");
+
+    sgd::instruction_msg inmsg3;
+    sgd::terminate_instr instr3;
+    instr3.set_sequence(3U);
+    inmsg3.set_terminate(instr3);
+    sgd::result_msg outmsg3(master.send(inmsg3));
+    ASSERT_TRUE(outmsg3.is_confirmation()) << "Unexpected terminate result";
+    ASSERT_EQ(inmsg3.get_terminate().sequence(), outmsg3.get_confirmation().sequence()) << "Sequence number mismatch";
 }
 
 TEST(multi_reader_ring_buffer_test, shmem_already_popped_back_element)
 {
-    bip::managed_shared_memory shmem(bip::create_only, "shmem_already_popped_back_element", 4096);
-    sgd::shmem_multi_reader_ring_buffer<boost::int32_t>::type* buf = shmem.construct<sgd::shmem_multi_reader_ring_buffer<boost::int32_t>::type>("RB")(4, &shmem);
+    config conf(ipc::shm, bfs::unique_path().string(), DEFAULT_PORT, DEFAULT_SIZE, 2U);
+    ringbuf_slave slave(conf);
+    shm_ringbuf_master master(conf);
+
     const boost::int32_t expected1 = 1;
-    buf->push_front(expected1);
-    const boost::int32_t& actual1 = buf->back();
+    ASSERT_TRUE(master.get_ringbuf().empty()) << "ringbuf is not empty";
+    sgd::instruction_msg inmsg1;
+    sgd::push_front_instr instr1;
+    instr1.set_sequence(1U);
+    instr1.set_element(expected1);
+    inmsg1.set_push_front(instr1);
+    sgd::result_msg outmsg1(master.send(inmsg1));
+    ASSERT_TRUE(outmsg1.is_confirmation()) << "unexpected push_front result";
+    ASSERT_EQ(inmsg1.get_push_front().sequence(), outmsg1.get_confirmation().sequence()) << "sequence number mismatch";
+    const boost::int32_t& actual1 = master.get_ringbuf().back();
     EXPECT_EQ(expected1, actual1) << "back element is not first element pushed";
-    EXPECT_EQ(1U, buf->element_count()) << "element count is wrong";
-    const boost::int32_t expected2 = buf->back();
-    buf->push_front(2);
-    const boost::int32_t& actual2 = buf->back();
+    EXPECT_EQ(1U, master.get_ringbuf().element_count()) << "element count is wrong";
+
+    const boost::int32_t expected2 = master.get_ringbuf().back();
+    sgd::instruction_msg inmsg2;
+    sgd::push_front_instr instr2;
+    instr2.set_sequence(2U);
+    instr2.set_element(2);
+    inmsg2.set_push_front(instr2);
+    sgd::result_msg outmsg2(master.send(inmsg2));
+    ASSERT_TRUE(outmsg2.is_confirmation()) << "unexpected push_front result";
+    ASSERT_EQ(inmsg2.get_push_front().sequence(), outmsg2.get_confirmation().sequence()) << "sequence number mismatch";
+    const boost::int32_t& actual2 = master.get_ringbuf().back();
     EXPECT_EQ(expected2, actual2) << "back element is not the same after push";
-    EXPECT_EQ(2U, buf->element_count()) << "element count is wrong";
-    const boost::int32_t& expected3 = buf->back();
-    buf->pop_back(expected3);
-    const boost::int32_t& actual3 = buf->back();
-    EXPECT_NE(expected3, actual3) << "back element was not popped";
-    EXPECT_EQ(1U, buf->element_count()) << "element count is wrong";
-    buf->pop_back(expected3);
-    ASSERT_EQ(1U, buf->element_count()) << "attempting to pop an element that was already popped should have failed";
-    bip::shared_memory_object::remove("shmem_already_popped_back_element");
+    EXPECT_EQ(2U, master.get_ringbuf().element_count()) << "element count is wrong";
+
+    sgd::instruction_msg inmsg3;
+    sgd::query_back_instr instr3;
+    instr3.set_sequence(3U);
+    instr3.set_out_register(0U);
+    inmsg3.set_query_back(instr3);
+    sgd::result_msg outmsg3(master.send(inmsg3));
+    ASSERT_TRUE(outmsg3.is_confirmation()) << "unexpected query_back result";
+    ASSERT_EQ(inmsg3.get_query_back().sequence(), outmsg3.get_confirmation().sequence()) << "sequence number mismatch";
+
+    sgd::instruction_msg inmsg4;
+    sgd::export_element_instr instr4;
+    instr4.set_sequence(4U);
+    instr4.set_in_register(0U);
+    inmsg4.set_export_element(instr4);
+    sgd::result_msg outmsg4(master.send(inmsg4));
+    ASSERT_TRUE(outmsg4.is_element()) << "unexpected export_element result";
+    ASSERT_EQ(inmsg4.get_export_element().sequence(), outmsg4.get_element().sequence()) << "sequence number mismatch";
+    const boost::int32_t actual4 = outmsg4.get_element().element();
+    EXPECT_EQ(expected1, actual4) << "back element is not the original pushed element";
+
+    sgd::instruction_msg inmsg5;
+    sgd::pop_back_instr instr5;
+    instr5.set_sequence(5U);
+    instr5.set_in_register(0U);
+    inmsg5.set_pop_back(instr5);
+    sgd::result_msg outmsg5(master.send(inmsg5));
+    ASSERT_TRUE(outmsg5.is_confirmation()) << "unexpected push_front result";
+    ASSERT_EQ(inmsg5.get_pop_back().sequence(), outmsg5.get_confirmation().sequence()) << "sequence number mismatch";
+
+    sgd::instruction_msg inmsg6;
+    sgd::query_back_instr instr6;
+    instr6.set_sequence(6U);
+    instr6.set_out_register(1U);
+    inmsg6.set_query_back(instr6);
+    sgd::result_msg outmsg6(master.send(inmsg6));
+    ASSERT_TRUE(outmsg6.is_confirmation()) << "unexpected query_back result";
+    ASSERT_EQ(inmsg6.get_query_back().sequence(), outmsg6.get_confirmation().sequence()) << "sequence number mismatch";
+
+    sgd::instruction_msg inmsg7;
+    sgd::export_element_instr instr7;
+    instr7.set_sequence(7U);
+    instr7.set_in_register(1U);
+    inmsg7.set_export_element(instr7);
+    sgd::result_msg outmsg7(master.send(inmsg7));
+    ASSERT_TRUE(outmsg7.is_element()) << "unexpected export_element result";
+    ASSERT_EQ(inmsg7.get_export_element().sequence(), outmsg7.get_element().sequence()) << "sequence number mismatch";
+    const boost::int32_t actual7 = outmsg7.get_element().element();
+    EXPECT_NE(expected1, actual7) << "back element was not popped";
+    EXPECT_EQ(1U, master.get_ringbuf().element_count()) << "element count is wrong";
+
+    sgd::instruction_msg inmsg8;
+    sgd::pop_back_instr instr8;
+    instr8.set_sequence(8U);
+    instr8.set_in_register(0U);
+    inmsg8.set_pop_back(instr8);
+    sgd::result_msg outmsg8(master.send(inmsg8));
+    ASSERT_TRUE(outmsg8.is_confirmation()) << "unexpected push_front result";
+    ASSERT_EQ(inmsg8.get_pop_back().sequence(), outmsg8.get_confirmation().sequence()) << "sequence number mismatch";
+    EXPECT_EQ(1U, master.get_ringbuf().element_count()) << "attempting to pop an element that was already popped should have failed";
+
+    sgd::instruction_msg inmsg9;
+    sgd::terminate_instr instr9;
+    instr9.set_sequence(9U);
+    inmsg9.set_terminate(instr9);
+    sgd::result_msg outmsg9(master.send(inmsg9));
+    ASSERT_TRUE(outmsg9.is_confirmation()) << "Unexpected terminate result";
+    ASSERT_EQ(inmsg9.get_terminate().sequence(), outmsg9.get_confirmation().sequence()) << "Sequence number mismatch";
 }
 
 TEST(multi_reader_ring_buffer_test, shmem_overfill)
 {
-    bip::managed_shared_memory shmem(bip::create_only, "shmem_overfill", 4096);
-    sgd::shmem_multi_reader_ring_buffer<boost::int32_t>::type* buf = shmem.construct<sgd::shmem_multi_reader_ring_buffer<boost::int32_t>::type>("RB")(4, &shmem);
-    EXPECT_TRUE(buf->empty()) << "initial state of ring buffer is not empty";
-    buf->push_front(1);
-    buf->push_front(2);
-    buf->push_front(3);
-    buf->push_front(4);
-    EXPECT_TRUE(buf->full()) << "ring buffer not filled to capacity";
-    const boost::int32_t& expected1 = buf->back();
-    buf->push_front(5);
-    const boost::int32_t& actual1 = buf->back();
-    ASSERT_NE(expected1, actual1) << "back element was not popped";
-    bip::shared_memory_object::remove("shmem_overfill");
+    config conf(ipc::shm, bfs::unique_path().string(), DEFAULT_PORT, DEFAULT_SIZE, 2U);
+    ringbuf_slave slave(conf);
+    shm_ringbuf_master master(conf);
+
+    const boost::int32_t expected1 = 1;
+    ASSERT_TRUE(master.get_ringbuf().empty()) << "ringbuf is not empty";
+    sgd::instruction_msg inmsg1;
+    sgd::push_front_instr instr1;
+    instr1.set_sequence(1U);
+    instr1.set_element(expected1);
+    inmsg1.set_push_front(instr1);
+    sgd::result_msg outmsg1(master.send(inmsg1));
+    ASSERT_TRUE(outmsg1.is_confirmation()) << "unexpected push_front result";
+    ASSERT_EQ(inmsg1.get_push_front().sequence(), outmsg1.get_confirmation().sequence()) << "sequence number mismatch";
+
+    const boost::int32_t expected2 = 2;
+    sgd::instruction_msg inmsg2;
+    sgd::push_front_instr instr2;
+    instr2.set_sequence(2U);
+    instr2.set_element(expected2);
+    inmsg2.set_push_front(instr2);
+    sgd::result_msg outmsg2(master.send(inmsg2));
+    ASSERT_TRUE(outmsg2.is_confirmation()) << "unexpected push_front result";
+    ASSERT_EQ(inmsg2.get_push_front().sequence(), outmsg2.get_confirmation().sequence()) << "sequence number mismatch";
+    ASSERT_TRUE(master.get_ringbuf().full()) << "ring buffer not filled to capacity";
+
+    sgd::instruction_msg inmsg3;
+    sgd::query_back_instr instr3;
+    instr3.set_sequence(3U);
+    instr3.set_out_register(0U);
+    inmsg3.set_query_back(instr3);
+    sgd::result_msg outmsg3(master.send(inmsg3));
+    ASSERT_TRUE(outmsg3.is_confirmation()) << "unexpected query_back result";
+    ASSERT_EQ(inmsg3.get_query_back().sequence(), outmsg3.get_confirmation().sequence()) << "sequence number mismatch";
+
+    sgd::instruction_msg inmsg4;
+    sgd::export_element_instr instr4;
+    instr4.set_sequence(4U);
+    instr4.set_in_register(0U);
+    inmsg4.set_export_element(instr4);
+    sgd::result_msg outmsg4(master.send(inmsg4));
+    ASSERT_TRUE(outmsg4.is_element()) << "unexpected export_element result";
+    ASSERT_EQ(inmsg4.get_export_element().sequence(), outmsg4.get_element().sequence()) << "sequence number mismatch";
+    const boost::int32_t actual4 = outmsg4.get_element().element();
+
+    const boost::int32_t expected5 = 5;
+    sgd::instruction_msg inmsg5;
+    sgd::push_front_instr instr5;
+    instr5.set_sequence(5U);
+    instr5.set_element(expected5);
+    inmsg5.set_push_front(instr5);
+    sgd::result_msg outmsg5(master.send(inmsg5));
+    ASSERT_TRUE(outmsg5.is_confirmation()) << "unexpected push_front result";
+    ASSERT_EQ(inmsg5.get_push_front().sequence(), outmsg5.get_confirmation().sequence()) << "sequence number mismatch";
+
+    sgd::instruction_msg inmsg6;
+    sgd::query_back_instr instr6;
+    instr6.set_sequence(6U);
+    instr6.set_out_register(1U);
+    inmsg6.set_query_back(instr6);
+    sgd::result_msg outmsg6(master.send(inmsg6));
+    ASSERT_TRUE(outmsg6.is_confirmation()) << "unexpected query_back result";
+    ASSERT_EQ(inmsg6.get_query_back().sequence(), outmsg6.get_confirmation().sequence()) << "sequence number mismatch";
+
+    sgd::instruction_msg inmsg7;
+    sgd::export_element_instr instr7;
+    instr7.set_sequence(7U);
+    instr7.set_in_register(1U);
+    inmsg7.set_export_element(instr7);
+    sgd::result_msg outmsg7(master.send(inmsg7));
+    ASSERT_TRUE(outmsg7.is_element()) << "unexpected export_element result";
+    ASSERT_EQ(inmsg7.get_export_element().sequence(), outmsg7.get_element().sequence()) << "sequence number mismatch";
+    const boost::int32_t actual7 = outmsg7.get_element().element();
+    ASSERT_NE(actual4, actual7) << "back element was not popped";
+
+    sgd::instruction_msg inmsg9;
+    sgd::terminate_instr instr9;
+    instr9.set_sequence(9U);
+    inmsg9.set_terminate(instr9);
+    sgd::result_msg outmsg9(master.send(inmsg9));
+    ASSERT_TRUE(outmsg9.is_confirmation()) << "Unexpected terminate result";
+    ASSERT_EQ(inmsg9.get_terminate().sequence(), outmsg9.get_confirmation().sequence()) << "Sequence number mismatch";
 }
