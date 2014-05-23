@@ -42,9 +42,9 @@ def build(buildCtx):
 	    install_path=buildCtx.env.component.install_tree.test,
 	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'] + protoTaskList)
     buildCtx.program(
-	    name='program_multi_reader_ring_buffer_slave',
-	    source=ccNodeList + [buildCtx.path.find_node('multi_reader_ring_buffer_slave.cxx')],
-	    target=join(buildCtx.env.component.build_tree.testPathFromBuild(buildCtx), 'multi_reader_ring_buffer_slave'),
+	    name='program_multi_reader_ring_buffer_service',
+	    source=ccNodeList + [buildCtx.path.find_node('multi_reader_ring_buffer_service.cxx')],
+	    target=join(buildCtx.env.component.build_tree.testPathFromBuild(buildCtx), 'multi_reader_ring_buffer_service'),
 	    defines=['GTEST_HAS_PTHREAD=1', 'BOOST_CB_DISABLE_DEBUG=1'],
 	    includes=['.'] + buildCtx.env.component.include_path_list,
 	    cxxflags=buildCtx.env.CXXFLAGS,

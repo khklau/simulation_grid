@@ -220,7 +220,7 @@ private:
 ringbuf_slave::ringbuf_slave(const config& config) :
     has_terminated(false)
 {
-    static const char SLAVE_NAME[] = "multi_reader_ring_buffer_slave";
+    static const char SLAVE_NAME[] = "multi_reader_ring_buffer_service";
     boost::array <char, sizeof(SLAVE_NAME)> slave_name;
     strncpy(slave_name.c_array(), SLAVE_NAME, slave_name.max_size());
 
