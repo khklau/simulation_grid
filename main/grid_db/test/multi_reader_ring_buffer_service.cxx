@@ -117,7 +117,7 @@ parse_result parse_cmd_line(const int argc, char* const argv[], std::ostringstre
 {
     parse_result result;
     config tmp;
-    bpo::options_description descr("Usage: multi_reader_ring_buffer_slave [options] ipc name");
+    bpo::options_description descr("Usage: multi_reader_ring_buffer_service [options] ipc name");
     descr.add_options()
             ("help,h", "This help text")
             ("port,p", bpo::value<port_t>(&tmp.port)->default_value(DEFAULT_PORT),
@@ -155,11 +155,11 @@ parse_result parse_cmd_line(const int argc, char* const argv[], std::ostringstre
 }
 
 template <class element_t, class memory_t>
-class ringbuf_slave
+class ringbuf_service
 {
 public:
-    ringbuf_slave(const config& config);
-    ~ringbuf_slave();
+    ringbuf_service(const config& config);
+    ~ringbuf_service();
     void run();
     void receive(const boost::system::error_code& error, size_t);
     void exec_terminate(const sgd::terminate_instr& input, sgd::result_msg& output);
@@ -192,7 +192,7 @@ private:
 };
 
 template <class element_t, class memory_t>
-ringbuf_slave<element_t, memory_t>::ringbuf_slave(const config& config) :
+ringbuf_service<element_t, memory_t>::ringbuf_service(const config& config) :
     context_(1),
     socket_(context_, ZMQ_REP),
     service_(),
@@ -206,7 +206,7 @@ ringbuf_slave<element_t, memory_t>::ringbuf_slave(const config& config) :
 { }
 
 template <class element_t, class memory_t>
-ringbuf_slave<element_t, memory_t>::~ringbuf_slave()
+ringbuf_service<element_t, memory_t>::~ringbuf_service()
 {
     stream_.release();
     service_.stop();
@@ -215,15 +215,15 @@ ringbuf_slave<element_t, memory_t>::~ringbuf_slave()
 }
 
 template <class element_t, class memory_t>
-void ringbuf_slave<element_t, memory_t>::run()
+void ringbuf_service<element_t, memory_t>::run()
 {
-    boost::function2<void, const boost::system::error_code&, size_t> func(boost::bind(&ringbuf_slave::receive, this, _1, _2));
+    boost::function2<void, const boost::system::error_code&, size_t> func(boost::bind(&ringbuf_service::receive, this, _1, _2));
     stream_.async_read_some(boost::asio::null_buffers(), func);
     service_.run();
 }
 
 template <class element_t, class memory_t>
-void ringbuf_slave<element_t, memory_t>::receive(const boost::system::error_code& error, size_t)
+void ringbuf_service<element_t, memory_t>::receive(const boost::system::error_code& error, size_t)
 {
     int event = 0;
     size_t size = sizeof(event);
@@ -285,7 +285,7 @@ void ringbuf_slave<element_t, memory_t>::receive(const boost::system::error_code
 	result_.serialize(socket_);
 	socket_.getsockopt(ZMQ_EVENTS, &event, &size);
     }
-    boost::function2<void, const boost::system::error_code&, size_t> func(boost::bind(&ringbuf_slave::receive, this, _1, _2));
+    boost::function2<void, const boost::system::error_code&, size_t> func(boost::bind(&ringbuf_service::receive, this, _1, _2));
     if (state_ != FINISHED)
     {
 	stream_.async_read_some(boost::asio::null_buffers(), func);
@@ -293,7 +293,7 @@ void ringbuf_slave<element_t, memory_t>::receive(const boost::system::error_code
 }
 
 template <class element_t, class memory_t>
-void ringbuf_slave<element_t, memory_t>::exec_terminate(const sgd::terminate_instr& input, sgd::result_msg& output)
+void ringbuf_service<element_t, memory_t>::exec_terminate(const sgd::terminate_instr& input, sgd::result_msg& output)
 {
     state_ = FINISHED;
     sgd::confirmation_result tmp;
@@ -302,7 +302,7 @@ void ringbuf_slave<element_t, memory_t>::exec_terminate(const sgd::terminate_ins
 }
 
 template <class element_t, class memory_t>
-void ringbuf_slave<element_t, memory_t>::exec_query_front(const sgd::query_front_instr& input, sgd::result_msg& output)
+void ringbuf_service<element_t, memory_t>::exec_query_front(const sgd::query_front_instr& input, sgd::result_msg& output)
 {
     if (UNLIKELY_EXT(input.out_register() >= register_set_.size()))
     {
@@ -319,7 +319,7 @@ void ringbuf_slave<element_t, memory_t>::exec_query_front(const sgd::query_front
 }
 
 template <class element_t, class memory_t>
-void ringbuf_slave<element_t, memory_t>::exec_query_back(const sgd::query_back_instr& input, sgd::result_msg& output)
+void ringbuf_service<element_t, memory_t>::exec_query_back(const sgd::query_back_instr& input, sgd::result_msg& output)
 {
     if (UNLIKELY_EXT(input.out_register() >= register_set_.size()))
     {
@@ -336,7 +336,7 @@ void ringbuf_slave<element_t, memory_t>::exec_query_back(const sgd::query_back_i
 }
 
 template <class element_t, class memory_t>
-void ringbuf_slave<element_t, memory_t>::exec_query_capacity(const sgd::query_capacity_instr& input, sgd::result_msg& output)
+void ringbuf_service<element_t, memory_t>::exec_query_capacity(const sgd::query_capacity_instr& input, sgd::result_msg& output)
 {
     sgd::size_result tmp;
     tmp.set_sequence(input.sequence());
@@ -345,7 +345,7 @@ void ringbuf_slave<element_t, memory_t>::exec_query_capacity(const sgd::query_ca
 }
 
 template <class element_t, class memory_t>
-void ringbuf_slave<element_t, memory_t>::exec_query_count(const sgd::query_count_instr& input, sgd::result_msg& output)
+void ringbuf_service<element_t, memory_t>::exec_query_count(const sgd::query_count_instr& input, sgd::result_msg& output)
 {
     sgd::size_result tmp;
     tmp.set_sequence(input.sequence());
@@ -354,7 +354,7 @@ void ringbuf_slave<element_t, memory_t>::exec_query_count(const sgd::query_count
 }
 
 template <class element_t, class memory_t>
-void ringbuf_slave<element_t, memory_t>::exec_query_empty(const sgd::query_empty_instr& input, sgd::result_msg& output)
+void ringbuf_service<element_t, memory_t>::exec_query_empty(const sgd::query_empty_instr& input, sgd::result_msg& output)
 {
     sgd::predicate_result tmp;
     tmp.set_sequence(input.sequence());
@@ -363,7 +363,7 @@ void ringbuf_slave<element_t, memory_t>::exec_query_empty(const sgd::query_empty
 }
 
 template <class element_t, class memory_t>
-void ringbuf_slave<element_t, memory_t>::exec_query_full(const sgd::query_full_instr& input, sgd::result_msg& output)
+void ringbuf_service<element_t, memory_t>::exec_query_full(const sgd::query_full_instr& input, sgd::result_msg& output)
 {
     sgd::predicate_result tmp;
     tmp.set_sequence(input.sequence());
@@ -372,7 +372,7 @@ void ringbuf_slave<element_t, memory_t>::exec_query_full(const sgd::query_full_i
 }
 
 template <class element_t, class memory_t>
-void ringbuf_slave<element_t, memory_t>::exec_push_front(const sgd::push_front_instr& input, sgd::result_msg& output)
+void ringbuf_service<element_t, memory_t>::exec_push_front(const sgd::push_front_instr& input, sgd::result_msg& output)
 {
     sgd::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
@@ -382,7 +382,7 @@ void ringbuf_slave<element_t, memory_t>::exec_push_front(const sgd::push_front_i
 }
 
 template <class element_t, class memory_t>
-void ringbuf_slave<element_t, memory_t>::exec_pop_back(const sgd::pop_back_instr& input, sgd::result_msg& output)
+void ringbuf_service<element_t, memory_t>::exec_pop_back(const sgd::pop_back_instr& input, sgd::result_msg& output)
 {
     if (UNLIKELY_EXT(input.in_register() >= register_set_.size()))
     {
@@ -404,7 +404,7 @@ void ringbuf_slave<element_t, memory_t>::exec_pop_back(const sgd::pop_back_instr
 }
 
 template <class element_t, class memory_t>
-void ringbuf_slave<element_t, memory_t>::exec_export_element(const sgd::export_element_instr& input, sgd::result_msg& output)
+void ringbuf_service<element_t, memory_t>::exec_export_element(const sgd::export_element_instr& input, sgd::result_msg& output)
 {
     if (UNLIKELY_EXT(input.in_register() >= register_set_.size()))
     {
@@ -430,7 +430,7 @@ void ringbuf_slave<element_t, memory_t>::exec_export_element(const sgd::export_e
 }
 
 template <class element_t, class memory_t>
-int ringbuf_slave<element_t, memory_t>::init_zmq_socket(zmq::socket_t& socket, const config& config)
+int ringbuf_service<element_t, memory_t>::init_zmq_socket(zmq::socket_t& socket, const config& config)
 {
     std::string address(str(boost::format("tcp://127.0.0.1:%d") % config.port));
     socket.bind(address.c_str());
@@ -446,8 +446,8 @@ int ringbuf_slave<element_t, memory_t>::init_zmq_socket(zmq::socket_t& socket, c
     return fd;
 }
 
-typedef ringbuf_slave<boost::int32_t, bip::managed_mapped_file> mmap_ringbuf_slave;
-typedef ringbuf_slave<boost::int32_t, bip::managed_shared_memory> shm_ringbuf_slave;
+typedef ringbuf_service<boost::int32_t, bip::managed_mapped_file> mmap_ringbuf_service;
+typedef ringbuf_service<boost::int32_t, bip::managed_shared_memory> shm_ringbuf_service;
 
 } // anonymous namespace
 
@@ -466,7 +466,7 @@ int main(int argc, char* argv[])
 	case ipc::shm:
 	{
 	    {
-		shm_ringbuf_slave service(config.get());
+		shm_ringbuf_service service(config.get());
 		service.run();
 	    }
 	    bip::shared_memory_object::remove(config.get().name.c_str());
@@ -475,7 +475,7 @@ int main(int argc, char* argv[])
 	case ipc::mmap:
 	{
 	    {
-		mmap_ringbuf_slave service(config.get());
+		mmap_ringbuf_service service(config.get());
 		service.run();
 	    }
 	    bfs::remove(config.get().name);
