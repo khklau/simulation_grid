@@ -3,9 +3,12 @@
 #include <string>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
 #include <boost/algorithm/string/case_conv.hpp>
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/posix/stream_descriptor.hpp>
+#include <boost/asio/placeholders.hpp>
+#include <boost/asio/signal_set.hpp>
 #include <boost/bind.hpp>
 #include <boost/cstdint.hpp>
 #include <boost/filesystem.hpp>
@@ -14,6 +17,8 @@
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/managed_mapped_file.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
+#include <boost/make_shared.hpp>
+#include <boost/noncopyable.hpp>
 #include <boost/program_options/errors.hpp>
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/parsers.hpp>
@@ -21,9 +26,13 @@
 #include <boost/program_options/value_semantic.hpp>
 #include <boost/program_options/variables_map.hpp>
 #include <boost/optional.hpp>
+#include <boost/ref.hpp>
+#include <boost/signals2.hpp>
+#include <boost/thread/thread.hpp>
 #include <google/protobuf/message.h>
 #include <simulation_grid/core/compiler_extensions.hpp>
 #include <zmq.hpp>
+#include <signal.h>
 #include "multi_reader_ring_buffer.hpp"
 #include "multi_reader_ring_buffer.hxx"
 #include "ringbuf_msg.hpp"
@@ -32,6 +41,8 @@ namespace bas = boost::asio;
 namespace bfs = boost::filesystem;
 namespace bip = boost::interprocess;
 namespace bpo = boost::program_options;
+namespace bsi = boost::signals2;
+namespace bsy = boost::system;
 namespace sgd = simulation_grid::grid_db;
 
 namespace {
@@ -154,6 +165,66 @@ parse_result parse_cmd_line(const int argc, char* const argv[], std::ostringstre
     return result;
 }
 
+class signal_notifier : private boost::noncopyable
+{
+public:
+    typedef bsi::signal<void ()> channel;
+    typedef boost::function<void ()> receiver;
+    signal_notifier();
+    ~signal_notifier();
+    void add(int signal, const receiver& slot);
+    void run();
+    void handle(const bsy::error_code& error, int signal);
+private:
+    static const size_t MAX_SIGNAL = 64U; // TODO : work out how to base this on SIGRTMAX
+    bas::io_service service_;
+    bas::signal_set sigset_;
+    channel chanset_[MAX_SIGNAL];
+};
+
+signal_notifier::signal_notifier() :
+    service_(), sigset_(service_, SIGTERM)
+{ }
+
+signal_notifier::~signal_notifier()
+{
+    for (std::size_t iter = 0; iter < MAX_SIGNAL; ++iter)
+    {
+	chanset_[iter].disconnect_all_slots();
+    }
+}
+
+void signal_notifier::add(int signal, const receiver& slot)
+{
+    std::size_t usignal = static_cast<std::size_t>(signal);
+    if (usignal < MAX_SIGNAL)
+    {
+	chanset_[usignal].connect(slot);
+	sigset_.add(signal);
+    }
+}
+
+void signal_notifier::run()
+{
+    boost::function2<void, const bsy::error_code&, int> handle(
+	    boost::bind(&signal_notifier::handle, this, 
+	    bas::placeholders::error, bas::placeholders::signal_number));
+    sigset_.async_wait(handle);
+}
+
+void signal_notifier::handle(const bsy::error_code& error, int signal)
+{
+    std::size_t usignal = static_cast<std::size_t>(signal);
+    if (!error && usignal < MAX_SIGNAL)
+    {
+	chanset_[usignal]();
+    }
+    boost::function2<void, const bsy::error_code&, int> handle(
+	    boost::bind(&signal_notifier::handle, this,
+	    bas::placeholders::error, bas::placeholders::signal_number));
+    sigset_.async_wait(handle);
+}
+
 template <class element_t, class memory_t>
 class ringbuf_service
 {
@@ -161,7 +232,9 @@ public:
     ringbuf_service(const config& config);
     ~ringbuf_service();
     void run();
-    void receive(const boost::system::error_code& error, size_t);
+    void terminate();
+    void receive_sigterm();
+    void receive_instruction(const bsy::error_code& error, size_t);
     void exec_terminate(const sgd::terminate_instr& input, sgd::result_msg& output);
     void exec_query_front(const sgd::query_front_instr& input, sgd::result_msg& output);
     void exec_query_back(const sgd::query_back_instr& input, sgd::result_msg& output);
@@ -217,14 +290,35 @@ ringbuf_service<element_t, memory_t>::~ringbuf_service()
 template <class element_t, class memory_t>
 void ringbuf_service<element_t, memory_t>::run()
 {
-    boost::function2<void, const boost::system::error_code&, size_t> func(boost::bind(&ringbuf_service::receive, this, _1, _2));
+    if (state_ == FINISHED)
+    {
+	return;
+    }
+    boost::function2<void, const bsy::error_code&, size_t> func(
+	    boost::bind(&ringbuf_service::receive_instruction, this, _1, _2));
     stream_.async_read_some(boost::asio::null_buffers(), func);
     service_.run();
 }
 
 template <class element_t, class memory_t>
-void ringbuf_service<element_t, memory_t>::receive(const boost::system::error_code& error, size_t)
+void ringbuf_service<element_t, memory_t>::terminate()
 {
+    state_ = FINISHED;
+}
+
+template <class element_t, class memory_t>
+void ringbuf_service<element_t, memory_t>::receive_sigterm()
+{
+    service_.post(boost::bind(&ringbuf_service::terminate, this));
+}
+
+template <class element_t, class memory_t>
+void ringbuf_service<element_t, memory_t>::receive_instruction(const bsy::error_code& error, size_t)
+{
+    if (state_ == FINISHED)
+    {
+	return;
+    }
     int event = 0;
     size_t size = sizeof(event);
     socket_.getsockopt(ZMQ_EVENTS, &event, &size);
@@ -285,7 +379,7 @@ void ringbuf_service<element_t, memory_t>::receive(const boost::system::error_co
 	result_.serialize(socket_);
 	socket_.getsockopt(ZMQ_EVENTS, &event, &size);
     }
-    boost::function2<void, const boost::system::error_code&, size_t> func(boost::bind(&ringbuf_service::receive, this, _1, _2));
+    boost::function2<void, const bsy::error_code&, size_t> func(boost::bind(&ringbuf_service::receive_instruction, this, _1, _2));
     if (state_ != FINISHED)
     {
 	stream_.async_read_some(boost::asio::null_buffers(), func);
@@ -295,7 +389,7 @@ void ringbuf_service<element_t, memory_t>::receive(const boost::system::error_co
 template <class element_t, class memory_t>
 void ringbuf_service<element_t, memory_t>::exec_terminate(const sgd::terminate_instr& input, sgd::result_msg& output)
 {
-    state_ = FINISHED;
+    terminate();
     sgd::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
     output.set_confirmation(tmp);
@@ -461,13 +555,19 @@ int main(int argc, char* argv[])
 	std::cerr << err.str() << std::endl;
 	return 1;
     }
+    signal_notifier notifier;
     switch (config.get().ipc)
     {
 	case ipc::shm:
 	{
 	    {
-		shm_ringbuf_service service(config.get());
-		service.run();
+		boost::shared_ptr<shm_ringbuf_service> service = boost::make_shared<shm_ringbuf_service>(config.get());
+		notifier.add(SIGTERM, boost::bind(&shm_ringbuf_service::receive_sigterm, service));
+		notifier.add(SIGINT, boost::bind(&shm_ringbuf_service::receive_sigterm, service));
+		notifier.run();
+		boost::function<void ()> entry(boost::bind(&shm_ringbuf_service::run, service));
+		boost::thread thread(entry);
+		thread.join();
 	    }
 	    bip::shared_memory_object::remove(config.get().name.c_str());
 	    break;
@@ -475,8 +575,13 @@ int main(int argc, char* argv[])
 	case ipc::mmap:
 	{
 	    {
-		mmap_ringbuf_service service(config.get());
-		service.run();
+		boost::shared_ptr<mmap_ringbuf_service> service = boost::make_shared<mmap_ringbuf_service>(config.get());
+		notifier.add(SIGTERM, boost::bind(&mmap_ringbuf_service::receive_sigterm, service));
+		notifier.add(SIGINT, boost::bind(&mmap_ringbuf_service::receive_sigterm, service));
+		notifier.run();
+		boost::function<void ()> entry(boost::bind(&mmap_ringbuf_service::run, service));
+		boost::thread thread(entry);
+		thread.join();
 	    }
 	    bfs::remove(config.get().name);
 	    break;
