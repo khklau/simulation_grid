@@ -210,6 +210,7 @@ void signal_notifier::run()
 	    boost::bind(&signal_notifier::handle, this, 
 	    bas::placeholders::error, bas::placeholders::signal_number));
     sigset_.async_wait(handle);
+    service_.run();
 }
 
 void signal_notifier::handle(const bsy::error_code& error, int signal)
@@ -309,7 +310,8 @@ void ringbuf_service<element_t, memory_t>::terminate()
 template <class element_t, class memory_t>
 void ringbuf_service<element_t, memory_t>::receive_sigterm()
 {
-    service_.post(boost::bind(&ringbuf_service::terminate, this));
+    service_.dispatch(boost::bind(&ringbuf_service::terminate, this));
+    service_.stop();
 }
 
 template <class element_t, class memory_t>
@@ -564,9 +566,9 @@ int main(int argc, char* argv[])
 		boost::shared_ptr<shm_ringbuf_service> service = boost::make_shared<shm_ringbuf_service>(config.get());
 		notifier.add(SIGTERM, boost::bind(&shm_ringbuf_service::receive_sigterm, service));
 		notifier.add(SIGINT, boost::bind(&shm_ringbuf_service::receive_sigterm, service));
-		notifier.run();
 		boost::function<void ()> entry(boost::bind(&shm_ringbuf_service::run, service));
 		boost::thread thread(entry);
+		notifier.run();
 		thread.join();
 	    }
 	    bip::shared_memory_object::remove(config.get().name.c_str());
@@ -578,9 +580,9 @@ int main(int argc, char* argv[])
 		boost::shared_ptr<mmap_ringbuf_service> service = boost::make_shared<mmap_ringbuf_service>(config.get());
 		notifier.add(SIGTERM, boost::bind(&mmap_ringbuf_service::receive_sigterm, service));
 		notifier.add(SIGINT, boost::bind(&mmap_ringbuf_service::receive_sigterm, service));
-		notifier.run();
 		boost::function<void ()> entry(boost::bind(&mmap_ringbuf_service::run, service));
 		boost::thread thread(entry);
+		notifier.run();
 		thread.join();
 	    }
 	    bfs::remove(config.get().name);
