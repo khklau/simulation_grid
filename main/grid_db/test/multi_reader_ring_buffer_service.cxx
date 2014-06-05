@@ -220,10 +220,6 @@ void signal_notifier::handle(const bsy::error_code& error, int signal)
     {
 	chanset_[usignal]();
     }
-    boost::function2<void, const bsy::error_code&, int> handle(
-	    boost::bind(&signal_notifier::handle, this,
-	    bas::placeholders::error, bas::placeholders::signal_number));
-    sigset_.async_wait(handle);
 }
 
 template <class element_t, class memory_t>
