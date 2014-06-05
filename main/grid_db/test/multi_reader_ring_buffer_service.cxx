@@ -173,10 +173,11 @@ public:
     signal_notifier();
     ~signal_notifier();
     void add(int signal, const receiver& slot);
-    void run();
-    void handle(const bsy::error_code& error, int signal);
+    void start();
+    void stop();
 private:
     static const size_t MAX_SIGNAL = 64U; // TODO : work out how to base this on SIGRTMAX
+    void handle(const bsy::error_code& error, int signal);
     bas::io_service service_;
     bas::signal_set sigset_;
     channel chanset_[MAX_SIGNAL];
@@ -192,6 +193,10 @@ signal_notifier::~signal_notifier()
     {
 	chanset_[iter].disconnect_all_slots();
     }
+    if (!service_.stopped())
+    {
+	service_.stop();
+    }
 }
 
 void signal_notifier::add(int signal, const receiver& slot)
@@ -204,13 +209,18 @@ void signal_notifier::add(int signal, const receiver& slot)
     }
 }
 
-void signal_notifier::run()
+void signal_notifier::start()
 {
     boost::function2<void, const bsy::error_code&, int> handle(
 	    boost::bind(&signal_notifier::handle, this, 
 	    bas::placeholders::error, bas::placeholders::signal_number));
     sigset_.async_wait(handle);
     service_.run();
+}
+
+void signal_notifier::stop()
+{
+    service_.stop();
 }
 
 void signal_notifier::handle(const bsy::error_code& error, int signal)
@@ -228,9 +238,9 @@ class ringbuf_service
 public:
     ringbuf_service(const config& config);
     ~ringbuf_service();
-    void run();
+    void start();
     void terminate();
-    void receive_sigterm();
+    void stop();
     void receive_instruction(const bsy::error_code& error, size_t);
     void exec_terminate(const sgd::terminate_instr& input, sgd::result_msg& output);
     void exec_query_front(const sgd::query_front_instr& input, sgd::result_msg& output);
@@ -285,7 +295,7 @@ ringbuf_service<element_t, memory_t>::~ringbuf_service()
 }
 
 template <class element_t, class memory_t>
-void ringbuf_service<element_t, memory_t>::run()
+void ringbuf_service<element_t, memory_t>::start()
 {
     if (state_ == FINISHED)
     {
@@ -304,7 +314,7 @@ void ringbuf_service<element_t, memory_t>::terminate()
 }
 
 template <class element_t, class memory_t>
-void ringbuf_service<element_t, memory_t>::receive_sigterm()
+void ringbuf_service<element_t, memory_t>::stop()
 {
     service_.dispatch(boost::bind(&ringbuf_service::terminate, this));
     service_.stop();
@@ -560,11 +570,11 @@ int main(int argc, char* argv[])
 	{
 	    {
 		boost::shared_ptr<shm_ringbuf_service> service = boost::make_shared<shm_ringbuf_service>(config.get());
-		notifier.add(SIGTERM, boost::bind(&shm_ringbuf_service::receive_sigterm, service));
-		notifier.add(SIGINT, boost::bind(&shm_ringbuf_service::receive_sigterm, service));
-		boost::function<void ()> entry(boost::bind(&shm_ringbuf_service::run, service));
+		notifier.add(SIGTERM, boost::bind(&shm_ringbuf_service::stop, service));
+		notifier.add(SIGINT, boost::bind(&shm_ringbuf_service::stop, service));
+		boost::function<void ()> entry(boost::bind(&shm_ringbuf_service::start, service));
 		boost::thread thread(entry);
-		notifier.run();
+		notifier.start();
 		thread.join();
 	    }
 	    bip::shared_memory_object::remove(config.get().name.c_str());
@@ -574,11 +584,11 @@ int main(int argc, char* argv[])
 	{
 	    {
 		boost::shared_ptr<mmap_ringbuf_service> service = boost::make_shared<mmap_ringbuf_service>(config.get());
-		notifier.add(SIGTERM, boost::bind(&mmap_ringbuf_service::receive_sigterm, service));
-		notifier.add(SIGINT, boost::bind(&mmap_ringbuf_service::receive_sigterm, service));
-		boost::function<void ()> entry(boost::bind(&mmap_ringbuf_service::run, service));
+		notifier.add(SIGTERM, boost::bind(&mmap_ringbuf_service::stop, service));
+		notifier.add(SIGINT, boost::bind(&mmap_ringbuf_service::stop, service));
+		boost::function<void ()> entry(boost::bind(&mmap_ringbuf_service::start, service));
 		boost::thread thread(entry);
-		notifier.run();
+		notifier.start();
 		thread.join();
 	    }
 	    bfs::remove(config.get().name);
