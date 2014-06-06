@@ -17,7 +17,6 @@
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/managed_mapped_file.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
-#include <boost/make_shared.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/program_options/errors.hpp>
 #include <boost/program_options/options_description.hpp>
@@ -602,10 +601,8 @@ int main(int argc, char* argv[])
 	case ipc::shm:
 	{
 	    {
-		boost::shared_ptr<shm_ringbuf_service> service = boost::make_shared<shm_ringbuf_service>(config.get());
-		boost::function<void ()> entry(boost::bind(&shm_ringbuf_service::start, service));
-		boost::thread thread(entry);
-		thread.join();
+		shm_ringbuf_service service(config.get());
+		service.start();
 	    }
 	    bip::shared_memory_object::remove(config.get().name.c_str());
 	    break;
@@ -613,10 +610,8 @@ int main(int argc, char* argv[])
 	case ipc::mmap:
 	{
 	    {
-		boost::shared_ptr<mmap_ringbuf_service> service = boost::make_shared<mmap_ringbuf_service>(config.get());
-		boost::function<void ()> entry(boost::bind(&mmap_ringbuf_service::start, service));
-		boost::thread thread(entry);
-		thread.join();
+		mmap_ringbuf_service service(config.get());
+		service.start();
 	    }
 	    bfs::remove(config.get().name);
 	    break;
