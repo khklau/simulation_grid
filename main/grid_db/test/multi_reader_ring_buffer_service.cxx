@@ -172,37 +172,52 @@ public:
     typedef boost::function<void ()> receiver;
     signal_notifier();
     ~signal_notifier();
+    bool running() { return thread_ != 0; }
     void add(int signal, const receiver& slot);
     void start();
     void stop();
 private:
     static const size_t MAX_SIGNAL = 64U; // TODO : work out how to base this on SIGRTMAX
+    void run();
     void handle(const bsy::error_code& error, int signal);
+    boost::thread* thread_;
     bas::io_service service_;
     bas::signal_set sigset_;
     channel chanset_[MAX_SIGNAL];
 };
 
 signal_notifier::signal_notifier() :
-    service_(), sigset_(service_, SIGTERM)
+    thread_(0), service_(), sigset_(service_)
 { }
 
 signal_notifier::~signal_notifier()
 {
-    for (std::size_t iter = 0; iter < MAX_SIGNAL; ++iter)
+    try
     {
-	chanset_[iter].disconnect_all_slots();
+	for (std::size_t iter = 0; iter < MAX_SIGNAL; ++iter)
+	{
+		chanset_[iter].disconnect_all_slots();
+	}
+	if (!service_.stopped())
+	{
+	    service_.stop();
+	    if (running())
+	    {
+		thread_->join();
+		delete thread_;
+	    }
+	}
     }
-    if (!service_.stopped())
+    catch (...)
     {
-	service_.stop();
+	// do nothing
     }
 }
 
 void signal_notifier::add(int signal, const receiver& slot)
 {
     std::size_t usignal = static_cast<std::size_t>(signal);
-    if (usignal < MAX_SIGNAL)
+    if (!running() && usignal < MAX_SIGNAL)
     {
 	chanset_[usignal].connect(slot);
 	sigset_.add(signal);
@@ -211,16 +226,28 @@ void signal_notifier::add(int signal, const receiver& slot)
 
 void signal_notifier::start()
 {
-    boost::function2<void, const bsy::error_code&, int> handle(
-	    boost::bind(&signal_notifier::handle, this, 
-	    bas::placeholders::error, bas::placeholders::signal_number));
-    sigset_.async_wait(handle);
-    service_.run();
+    if (!running())
+    {
+	boost::function<void ()> entry(boost::bind(&signal_notifier::run, this));
+	thread_ = new boost::thread(entry);
+    }
 }
 
 void signal_notifier::stop()
 {
     service_.stop();
+}
+
+void signal_notifier::run()
+{
+    boost::function2<void, const bsy::error_code&, int> handle(
+	    boost::bind(&signal_notifier::handle, this, 
+	    bas::placeholders::error, bas::placeholders::signal_number));
+    while (!service_.stopped())
+    {
+	sigset_.async_wait(handle);
+	service_.run_one();
+    }
 }
 
 void signal_notifier::handle(const bsy::error_code& error, int signal)
