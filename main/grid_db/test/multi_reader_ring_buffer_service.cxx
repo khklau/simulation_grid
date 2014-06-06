@@ -286,6 +286,7 @@ private:
 	FINISHED = 1
     };
     static int init_zmq_socket(zmq::socket_t& socket, const config& config);
+    signal_notifier notifier_;
     zmq::context_t context_;
     zmq::socket_t socket_;
     bas::io_service service_;
@@ -300,6 +301,7 @@ private:
 
 template <class element_t, class memory_t>
 ringbuf_service<element_t, memory_t>::ringbuf_service(const config& config) :
+    notifier_(),
     context_(1),
     socket_(context_, ZMQ_REP),
     service_(),
@@ -310,7 +312,11 @@ ringbuf_service<element_t, memory_t>::ringbuf_service(const config& config) :
     instr_(),
     result_(),
     state_(READY)
-{ }
+{
+    notifier_.add(SIGTERM, boost::bind(&ringbuf_service::stop, this));
+    notifier_.add(SIGINT, boost::bind(&ringbuf_service::stop, this));
+    notifier_.start();
+}
 
 template <class element_t, class memory_t>
 ringbuf_service<element_t, memory_t>::~ringbuf_service()
@@ -319,6 +325,7 @@ ringbuf_service<element_t, memory_t>::~ringbuf_service()
     service_.stop();
     socket_.close();
     context_.close();
+    notifier_.stop();
 }
 
 template <class element_t, class memory_t>
@@ -590,18 +597,14 @@ int main(int argc, char* argv[])
 	std::cerr << err.str() << std::endl;
 	return 1;
     }
-    signal_notifier notifier;
     switch (config.get().ipc)
     {
 	case ipc::shm:
 	{
 	    {
 		boost::shared_ptr<shm_ringbuf_service> service = boost::make_shared<shm_ringbuf_service>(config.get());
-		notifier.add(SIGTERM, boost::bind(&shm_ringbuf_service::stop, service));
-		notifier.add(SIGINT, boost::bind(&shm_ringbuf_service::stop, service));
 		boost::function<void ()> entry(boost::bind(&shm_ringbuf_service::start, service));
 		boost::thread thread(entry);
-		notifier.start();
 		thread.join();
 	    }
 	    bip::shared_memory_object::remove(config.get().name.c_str());
@@ -611,11 +614,8 @@ int main(int argc, char* argv[])
 	{
 	    {
 		boost::shared_ptr<mmap_ringbuf_service> service = boost::make_shared<mmap_ringbuf_service>(config.get());
-		notifier.add(SIGTERM, boost::bind(&mmap_ringbuf_service::stop, service));
-		notifier.add(SIGINT, boost::bind(&mmap_ringbuf_service::stop, service));
 		boost::function<void ()> entry(boost::bind(&mmap_ringbuf_service::start, service));
 		boost::thread thread(entry);
-		notifier.start();
 		thread.join();
 	    }
 	    bfs::remove(config.get().name);
