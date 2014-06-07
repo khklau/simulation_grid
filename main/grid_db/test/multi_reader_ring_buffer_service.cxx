@@ -267,6 +267,13 @@ public:
     void start();
     void terminate();
     void stop();
+private:
+    enum state
+    {
+	READY = 0,
+	FINISHED = 1
+    };
+    static int init_zmq_socket(zmq::socket_t& socket, const config& config);
     void receive_instruction(const bsy::error_code& error, size_t);
     void exec_terminate(const sgd::terminate_instr& input, sgd::result_msg& output);
     void exec_query_front(const sgd::query_front_instr& input, sgd::result_msg& output);
@@ -278,13 +285,6 @@ public:
     void exec_push_front(const sgd::push_front_instr& input, sgd::result_msg& output);
     void exec_pop_back(const sgd::pop_back_instr& input, sgd::result_msg& output);
     void exec_export_element(const sgd::export_element_instr& input, sgd::result_msg& output);
-private:
-    enum state
-    {
-	READY = 0,
-	FINISHED = 1
-    };
-    static int init_zmq_socket(zmq::socket_t& socket, const config& config);
     signal_notifier notifier_;
     zmq::context_t context_;
     zmq::socket_t socket_;
