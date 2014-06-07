@@ -265,15 +265,10 @@ public:
     ringbuf_service(const config& config);
     ~ringbuf_service();
     void start();
-    void terminate();
     void stop();
 private:
-    enum state
-    {
-	READY = 0,
-	FINISHED = 1
-    };
     static int init_zmq_socket(zmq::socket_t& socket, const config& config);
+    void run();
     void receive_instruction(const bsy::error_code& error, size_t);
     void exec_terminate(const sgd::terminate_instr& input, sgd::result_msg& output);
     void exec_query_front(const sgd::query_front_instr& input, sgd::result_msg& output);
@@ -295,7 +290,6 @@ private:
     std::vector<const element_t*> register_set_;
     sgd::instruction_msg instr_;
     sgd::result_msg result_;
-    state state_;
 };
 
 template <class element_t, class memory_t>
@@ -309,8 +303,7 @@ ringbuf_service<element_t, memory_t>::ringbuf_service(const config& config) :
     ringbuf_(memory_.template construct< sgd::multi_reader_ring_buffer<element_t, memory_t> >(config.name.c_str())(config.capacity, &memory_)),
     register_set_(config.capacity, 0),
     instr_(),
-    result_(),
-    state_(READY)
+    result_()
 {
     notifier_.add(SIGTERM, boost::bind(&ringbuf_service::stop, this));
     notifier_.add(SIGINT, boost::bind(&ringbuf_service::stop, this));
@@ -330,36 +323,51 @@ ringbuf_service<element_t, memory_t>::~ringbuf_service()
 template <class element_t, class memory_t>
 void ringbuf_service<element_t, memory_t>::start()
 {
-    if (state_ == FINISHED)
+    if (service_.stopped())
     {
-	return;
+	service_.reset();
     }
-    boost::function2<void, const bsy::error_code&, size_t> func(
-	    boost::bind(&ringbuf_service::receive_instruction, this, _1, _2));
-    stream_.async_read_some(boost::asio::null_buffers(), func);
-    service_.run();
-}
-
-template <class element_t, class memory_t>
-void ringbuf_service<element_t, memory_t>::terminate()
-{
-    state_ = FINISHED;
+    run();
 }
 
 template <class element_t, class memory_t>
 void ringbuf_service<element_t, memory_t>::stop()
 {
-    service_.dispatch(boost::bind(&ringbuf_service::terminate, this));
     service_.stop();
+}
+
+template <class element_t, class memory_t>
+int ringbuf_service<element_t, memory_t>::init_zmq_socket(zmq::socket_t& socket, const config& config)
+{
+    std::string address(str(boost::format("tcp://127.0.0.1:%d") % config.port));
+    socket.bind(address.c_str());
+
+    // TODO this is currently POSIX specific, add a Windows version
+    int fd = 0;
+    size_t size = sizeof(fd);
+    socket.getsockopt(ZMQ_FD, &fd, &size);
+    if (UNLIKELY_EXT(size != sizeof(fd)))
+    {
+	throw std::runtime_error("Can't find ZeroMQ socket file descriptor");
+    }
+    return fd;
+}
+
+template <class element_t, class memory_t>
+void ringbuf_service<element_t, memory_t>::run()
+{
+    if (!service_.stopped())
+    {
+	boost::function2<void, const bsy::error_code&, size_t> func(
+		boost::bind(&ringbuf_service::receive_instruction, this, _1, _2));
+	stream_.async_read_some(boost::asio::null_buffers(), func);
+	service_.run_one();
+    }
 }
 
 template <class element_t, class memory_t>
 void ringbuf_service<element_t, memory_t>::receive_instruction(const bsy::error_code& error, size_t)
 {
-    if (state_ == FINISHED)
-    {
-	return;
-    }
     int event = 0;
     size_t size = sizeof(event);
     socket_.getsockopt(ZMQ_EVENTS, &event, &size);
@@ -420,17 +428,19 @@ void ringbuf_service<element_t, memory_t>::receive_instruction(const bsy::error_
 	result_.serialize(socket_);
 	socket_.getsockopt(ZMQ_EVENTS, &event, &size);
     }
-    boost::function2<void, const bsy::error_code&, size_t> func(boost::bind(&ringbuf_service::receive_instruction, this, _1, _2));
-    if (state_ != FINISHED)
+    if (!service_.stopped())
     {
+	boost::function2<void, const bsy::error_code&, size_t> func(
+		boost::bind(&ringbuf_service::receive_instruction, this, _1, _2));
 	stream_.async_read_some(boost::asio::null_buffers(), func);
+	service_.run_one();
     }
 }
 
 template <class element_t, class memory_t>
 void ringbuf_service<element_t, memory_t>::exec_terminate(const sgd::terminate_instr& input, sgd::result_msg& output)
 {
-    terminate();
+    stop();
     sgd::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
     output.set_confirmation(tmp);
@@ -562,23 +572,6 @@ void ringbuf_service<element_t, memory_t>::exec_export_element(const sgd::export
 	    output.set_element(tmp);
 	}
     }
-}
-
-template <class element_t, class memory_t>
-int ringbuf_service<element_t, memory_t>::init_zmq_socket(zmq::socket_t& socket, const config& config)
-{
-    std::string address(str(boost::format("tcp://127.0.0.1:%d") % config.port));
-    socket.bind(address.c_str());
-
-    // TODO this is currently POSIX specific, add a Windows version
-    int fd = 0;
-    size_t size = sizeof(fd);
-    socket.getsockopt(ZMQ_FD, &fd, &size);
-    if (UNLIKELY_EXT(size != sizeof(fd)))
-    {
-	throw std::runtime_error("Can't find ZeroMQ socket file descriptor");
-    }
-    return fd;
 }
 
 typedef ringbuf_service<boost::int32_t, bip::managed_mapped_file> mmap_ringbuf_service;
