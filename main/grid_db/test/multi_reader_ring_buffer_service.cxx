@@ -171,8 +171,9 @@ public:
     typedef boost::function<void ()> receiver;
     signal_notifier();
     ~signal_notifier();
-    bool running() { return thread_ != 0; }
+    bool running() const { return thread_ != 0; }
     void add(int signal, const receiver& slot);
+    void reset();
     void start();
     void stop();
 private:
@@ -187,7 +188,9 @@ private:
 
 signal_notifier::signal_notifier() :
     thread_(0), service_(), sigset_(service_)
-{ }
+{
+    reset();
+}
 
 signal_notifier::~signal_notifier()
 {
@@ -223,6 +226,15 @@ void signal_notifier::add(int signal, const receiver& slot)
     }
 }
 
+void signal_notifier::reset()
+{
+    service_.reset();
+    boost::function2<void, const bsy::error_code&, int> handler(
+	    boost::bind(&signal_notifier::handle, this, 
+	    bas::placeholders::error, bas::placeholders::signal_number));
+    sigset_.async_wait(handler);
+}
+
 void signal_notifier::start()
 {
     if (!running())
@@ -239,14 +251,7 @@ void signal_notifier::stop()
 
 void signal_notifier::run()
 {
-    boost::function2<void, const bsy::error_code&, int> handle(
-	    boost::bind(&signal_notifier::handle, this, 
-	    bas::placeholders::error, bas::placeholders::signal_number));
-    while (!service_.stopped())
-    {
-	sigset_.async_wait(handle);
-	service_.run_one();
-    }
+    service_.run();
 }
 
 void signal_notifier::handle(const bsy::error_code& error, int signal)
@@ -256,6 +261,7 @@ void signal_notifier::handle(const bsy::error_code& error, int signal)
     {
 	chanset_[usignal]();
     }
+    reset();
 }
 
 template <class element_t, class memory_t>
@@ -266,6 +272,7 @@ public:
     ~ringbuf_service();
     void start();
     void stop();
+    bool terminated() const { return service_.stopped(); }
 private:
     static int init_zmq_socket(zmq::socket_t& socket, const config& config);
     void run();
@@ -280,10 +287,10 @@ private:
     void exec_push_front(const sgd::push_front_instr& input, sgd::result_msg& output);
     void exec_pop_back(const sgd::pop_back_instr& input, sgd::result_msg& output);
     void exec_export_element(const sgd::export_element_instr& input, sgd::result_msg& output);
+    bas::io_service service_;
     signal_notifier notifier_;
     zmq::context_t context_;
     zmq::socket_t socket_;
-    bas::io_service service_;
     bas::posix::stream_descriptor stream_;
     memory_t memory_;
     sgd::multi_reader_ring_buffer<element_t, memory_t>* ringbuf_;
@@ -294,10 +301,10 @@ private:
 
 template <class element_t, class memory_t>
 ringbuf_service<element_t, memory_t>::ringbuf_service(const config& config) :
+    service_(),
     notifier_(),
     context_(1),
     socket_(context_, ZMQ_REP),
-    service_(),
     stream_(service_, init_zmq_socket(socket_, config)),
     memory_(bip::create_only, config.name.c_str(), config.size),
     ringbuf_(memory_.template construct< sgd::multi_reader_ring_buffer<element_t, memory_t> >(config.name.c_str())(config.capacity, &memory_)),
@@ -314,10 +321,10 @@ template <class element_t, class memory_t>
 ringbuf_service<element_t, memory_t>::~ringbuf_service()
 {
     stream_.release();
-    service_.stop();
     socket_.close();
     context_.close();
     notifier_.stop();
+    stop();
 }
 
 template <class element_t, class memory_t>
@@ -356,12 +363,12 @@ int ringbuf_service<element_t, memory_t>::init_zmq_socket(zmq::socket_t& socket,
 template <class element_t, class memory_t>
 void ringbuf_service<element_t, memory_t>::run()
 {
-    if (!service_.stopped())
+    if (!terminated())
     {
 	boost::function2<void, const bsy::error_code&, size_t> func(
 		boost::bind(&ringbuf_service::receive_instruction, this, _1, _2));
 	stream_.async_read_some(boost::asio::null_buffers(), func);
-	service_.run_one();
+	service_.run();
     }
 }
 
@@ -428,7 +435,7 @@ void ringbuf_service<element_t, memory_t>::receive_instruction(const bsy::error_
 	result_.serialize(socket_);
 	socket_.getsockopt(ZMQ_EVENTS, &event, &size);
     }
-    if (!service_.stopped())
+    if (!terminated())
     {
 	boost::function2<void, const bsy::error_code&, size_t> func(
 		boost::bind(&ringbuf_service::receive_instruction, this, _1, _2));
