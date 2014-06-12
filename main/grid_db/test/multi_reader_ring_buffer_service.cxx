@@ -188,9 +188,7 @@ private:
 
 signal_notifier::signal_notifier() :
     thread_(0), service_(), sigset_(service_)
-{
-    reset();
-}
+{ }
 
 signal_notifier::~signal_notifier()
 {
@@ -228,7 +226,6 @@ void signal_notifier::add(int signal, const receiver& slot)
 
 void signal_notifier::reset()
 {
-    service_.reset();
     boost::function2<void, const bsy::error_code&, int> handler(
 	    boost::bind(&signal_notifier::handle, this, 
 	    bas::placeholders::error, bas::placeholders::signal_number));
@@ -251,6 +248,7 @@ void signal_notifier::stop()
 
 void signal_notifier::run()
 {
+    reset();
     service_.run();
 }
 
