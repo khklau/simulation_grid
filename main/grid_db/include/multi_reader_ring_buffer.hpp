@@ -5,7 +5,6 @@
 #include <boost/noncopyable.hpp>
 #include <boost/interprocess/interprocess_fwd.hpp>
 #include <boost/interprocess/allocators/allocator.hpp>
-#include <boost/interprocess/smart_ptr/deleter.hpp>
 #include <boost/interprocess/sync/interprocess_sharable_mutex.hpp>
 #include <boost/circular_buffer.hpp>
 
