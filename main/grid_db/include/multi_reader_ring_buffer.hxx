@@ -16,8 +16,7 @@ namespace grid_db {
 template <class element_t, class memory_t>
 multi_reader_ring_buffer<element_t, memory_t>::multi_reader_ring_buffer(size_type capacity, memory_t* file) :
     allocator_(file->get_segment_manager()),
-    deleter_(file->get_segment_manager()),
-    ringbuf_(file->template construct<boost::circular_buffer<element_t, allocator_t> >(bi::anonymous_instance)(capacity, allocator_), deleter_)
+    ringbuf_(file->template construct<boost::circular_buffer<element_t, allocator_t> >(bi::anonymous_instance)(capacity, allocator_))
 {
     ringbuf_->set_capacity(capacity);
 }

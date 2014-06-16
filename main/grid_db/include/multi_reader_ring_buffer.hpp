@@ -6,7 +6,6 @@
 #include <boost/interprocess/interprocess_fwd.hpp>
 #include <boost/interprocess/allocators/allocator.hpp>
 #include <boost/interprocess/smart_ptr/deleter.hpp>
-#include <boost/interprocess/smart_ptr/scoped_ptr.hpp>
 #include <boost/interprocess/sync/interprocess_sharable_mutex.hpp>
 #include <boost/circular_buffer.hpp>
 
@@ -33,11 +32,9 @@ public:
     bool empty() const;
     bool full() const;
 private:
-    typedef boost::interprocess::deleter<boost::circular_buffer<element_t, allocator_t>, typename memory_t::segment_manager>  deleter_t;
     allocator_t allocator_;
-    deleter_t deleter_;
     boost::interprocess::interprocess_sharable_mutex mutex_;
-    boost::interprocess::scoped_ptr<boost::circular_buffer<element_t, allocator_t>, deleter_t> ringbuf_;
+    boost::interprocess::offset_ptr< boost::circular_buffer<element_t, allocator_t> > ringbuf_;
 };
 
 // TODO : replace the following with type aliases after moving to a C++11 compiler

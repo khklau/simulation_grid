@@ -541,7 +541,75 @@ TEST(multi_reader_ring_buffer_test, mmap_overfill)
     ASSERT_EQ(inmsg9.get_terminate().sequence(), outmsg9.get_confirmation().sequence()) << "Sequence number mismatch";
 }
 
-TEST(multi_reader_ring_buffer_test, shmem_front_reference_lifetime)
+TEST(multi_reader_ring_buffer_test, mmap_multi_read_sequence)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string(), DEFAULT_PORT, DEFAULT_SIZE, 4U);
+    service_launcher launcher(conf);
+
+    {
+	mmap_service_client client1(conf);
+
+	const boost::int32_t expected1 = 1;
+	ASSERT_TRUE(client1.get_ringbuf().empty()) << "ringbuf is not empty";
+	sgd::instruction_msg inmsg1;
+	sgd::push_front_instr instr1;
+	instr1.set_sequence(1U);
+	instr1.set_element(expected1);
+	inmsg1.set_push_front(instr1);
+	sgd::result_msg outmsg1(client1.send(inmsg1));
+	ASSERT_TRUE(outmsg1.is_confirmation()) << "unexpected push_front result";
+	ASSERT_EQ(inmsg1.get_push_front().sequence(), outmsg1.get_confirmation().sequence()) << "sequence number mismatch";
+
+	const boost::int32_t expected2 = 2;
+	sgd::instruction_msg inmsg2;
+	sgd::push_front_instr instr2;
+	instr2.set_sequence(2U);
+	instr2.set_element(expected2);
+	inmsg2.set_push_front(instr2);
+	sgd::result_msg outmsg2(client1.send(inmsg2));
+	ASSERT_TRUE(outmsg2.is_confirmation()) << "unexpected push_front result";
+	ASSERT_EQ(inmsg2.get_push_front().sequence(), outmsg2.get_confirmation().sequence()) << "sequence number mismatch";
+
+	ASSERT_EQ(2U, client1.get_ringbuf().element_count()) << "element_count is wrong";
+    }
+
+    {
+	mmap_service_client client2(conf);
+
+	const boost::int32_t expected3 = 3;
+	ASSERT_FALSE(client2.get_ringbuf().empty()) << "ringbuf is empty";
+	sgd::instruction_msg inmsg3;
+	sgd::push_front_instr instr3;
+	instr3.set_sequence(3U);
+	instr3.set_element(expected3);
+	inmsg3.set_push_front(instr3);
+	sgd::result_msg outmsg3(client2.send(inmsg3));
+	ASSERT_TRUE(outmsg3.is_confirmation()) << "unexpected push_front result";
+	ASSERT_EQ(inmsg3.get_push_front().sequence(), outmsg3.get_confirmation().sequence()) << "sequence number mismatch";
+
+	const boost::int32_t expected4 = 2;
+	sgd::instruction_msg inmsg4;
+	sgd::push_front_instr instr4;
+	instr4.set_sequence(2U);
+	instr4.set_element(expected4);
+	inmsg4.set_push_front(instr4);
+	sgd::result_msg outmsg4(client2.send(inmsg4));
+	ASSERT_TRUE(outmsg4.is_confirmation()) << "unexpected push_front result";
+	ASSERT_EQ(inmsg4.get_push_front().sequence(), outmsg4.get_confirmation().sequence()) << "sequence number mismatch";
+
+	ASSERT_EQ(4U, client2.get_ringbuf().element_count()) << "element_count is wrong";
+
+	sgd::instruction_msg inmsg5;
+	sgd::terminate_instr instr5;
+	instr5.set_sequence(5U);
+	inmsg5.set_terminate(instr5);
+	sgd::result_msg outmsg5(client2.send(inmsg5));
+	ASSERT_TRUE(outmsg5.is_confirmation()) << "Unexpected terminate result";
+	ASSERT_EQ(inmsg5.get_terminate().sequence(), outmsg5.get_confirmation().sequence()) << "Sequence number mismatch";
+    }
+}
+
+TEST(multi_reader_ring_buffer_test, shm_front_reference_lifetime)
 {
     config conf(ipc::shm, bfs::unique_path().string());
     service_launcher launcher(conf);
@@ -584,7 +652,7 @@ TEST(multi_reader_ring_buffer_test, shmem_front_reference_lifetime)
     ASSERT_EQ(inmsg3.get_terminate().sequence(), outmsg3.get_confirmation().sequence()) << "Sequence number mismatch";
 }
 
-TEST(multi_reader_ring_buffer_test, shmem_already_popped_back_element)
+TEST(multi_reader_ring_buffer_test, shm_already_popped_back_element)
 {
     config conf(ipc::shm, bfs::unique_path().string(), DEFAULT_PORT, DEFAULT_SIZE, 2U);
     service_launcher launcher(conf);
@@ -686,7 +754,7 @@ TEST(multi_reader_ring_buffer_test, shmem_already_popped_back_element)
     ASSERT_EQ(inmsg9.get_terminate().sequence(), outmsg9.get_confirmation().sequence()) << "Sequence number mismatch";
 }
 
-TEST(multi_reader_ring_buffer_test, shmem_overfill)
+TEST(multi_reader_ring_buffer_test, shm_overfill)
 {
     config conf(ipc::shm, bfs::unique_path().string(), DEFAULT_PORT, DEFAULT_SIZE, 2U);
     service_launcher launcher(conf);
@@ -770,4 +838,72 @@ TEST(multi_reader_ring_buffer_test, shmem_overfill)
     sgd::result_msg outmsg9(client.send(inmsg9));
     ASSERT_TRUE(outmsg9.is_confirmation()) << "Unexpected terminate result";
     ASSERT_EQ(inmsg9.get_terminate().sequence(), outmsg9.get_confirmation().sequence()) << "Sequence number mismatch";
+}
+
+TEST(multi_reader_ring_buffer_test, shm_multi_read_sequence)
+{
+    config conf(ipc::shm, bfs::unique_path().string(), DEFAULT_PORT, DEFAULT_SIZE, 4U);
+    service_launcher launcher(conf);
+
+    {
+	shm_service_client client1(conf);
+
+	const boost::int32_t expected1 = 1;
+	ASSERT_TRUE(client1.get_ringbuf().empty()) << "ringbuf is not empty";
+	sgd::instruction_msg inmsg1;
+	sgd::push_front_instr instr1;
+	instr1.set_sequence(1U);
+	instr1.set_element(expected1);
+	inmsg1.set_push_front(instr1);
+	sgd::result_msg outmsg1(client1.send(inmsg1));
+	ASSERT_TRUE(outmsg1.is_confirmation()) << "unexpected push_front result";
+	ASSERT_EQ(inmsg1.get_push_front().sequence(), outmsg1.get_confirmation().sequence()) << "sequence number mismatch";
+
+	const boost::int32_t expected2 = 2;
+	sgd::instruction_msg inmsg2;
+	sgd::push_front_instr instr2;
+	instr2.set_sequence(2U);
+	instr2.set_element(expected2);
+	inmsg2.set_push_front(instr2);
+	sgd::result_msg outmsg2(client1.send(inmsg2));
+	ASSERT_TRUE(outmsg2.is_confirmation()) << "unexpected push_front result";
+	ASSERT_EQ(inmsg2.get_push_front().sequence(), outmsg2.get_confirmation().sequence()) << "sequence number mismatch";
+
+	ASSERT_EQ(2U, client1.get_ringbuf().element_count()) << "element_count is wrong";
+    }
+
+    {
+	shm_service_client client2(conf);
+
+	const boost::int32_t expected3 = 3;
+	ASSERT_FALSE(client2.get_ringbuf().empty()) << "ringbuf is empty";
+	sgd::instruction_msg inmsg3;
+	sgd::push_front_instr instr3;
+	instr3.set_sequence(3U);
+	instr3.set_element(expected3);
+	inmsg3.set_push_front(instr3);
+	sgd::result_msg outmsg3(client2.send(inmsg3));
+	ASSERT_TRUE(outmsg3.is_confirmation()) << "unexpected push_front result";
+	ASSERT_EQ(inmsg3.get_push_front().sequence(), outmsg3.get_confirmation().sequence()) << "sequence number mismatch";
+
+	const boost::int32_t expected4 = 2;
+	sgd::instruction_msg inmsg4;
+	sgd::push_front_instr instr4;
+	instr4.set_sequence(2U);
+	instr4.set_element(expected4);
+	inmsg4.set_push_front(instr4);
+	sgd::result_msg outmsg4(client2.send(inmsg4));
+	ASSERT_TRUE(outmsg4.is_confirmation()) << "unexpected push_front result";
+	ASSERT_EQ(inmsg4.get_push_front().sequence(), outmsg4.get_confirmation().sequence()) << "sequence number mismatch";
+
+	ASSERT_EQ(4U, client2.get_ringbuf().element_count()) << "element_count is wrong";
+
+	sgd::instruction_msg inmsg5;
+	sgd::terminate_instr instr5;
+	instr5.set_sequence(5U);
+	inmsg5.set_terminate(instr5);
+	sgd::result_msg outmsg5(client2.send(inmsg5));
+	ASSERT_TRUE(outmsg5.is_confirmation()) << "Unexpected terminate result";
+	ASSERT_EQ(inmsg5.get_terminate().sequence(), outmsg5.get_confirmation().sequence()) << "Sequence number mismatch";
+    }
 }
