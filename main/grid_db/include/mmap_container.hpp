@@ -75,7 +75,7 @@ struct mvcc_mmap_container
     const boost::filesystem::path path;
     boost::interprocess::managed_mapped_file file;
     boost::interprocess::offset_ptr<mvcc_mmap_header> header;
-    boost::interprocess::offset_ptr<mvcc_mmap_resource_pool> pool;
+    mutable boost::interprocess::offset_ptr<mvcc_mmap_resource_pool> pool;
 };
 
 class mvcc_mmap_reader : private boost::noncopyable

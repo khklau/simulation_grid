@@ -41,44 +41,44 @@ namespace grid_db {
 
 namespace mvcc_mmap_utility {
 
-const mvcc_mmap_header& get_header(const mvcc_mmap_container& container)
+const mvcc_mmap_header& get_const_header(const mvcc_mmap_container& container)
 {
-    return *find<const mvcc_mmap_header>(container, HEADER_KEY);
+    return *find_const<const mvcc_mmap_header>(container, HEADER_KEY);
 }
 
-mvcc_mmap_header& get_mutable_header(const mvcc_mmap_container& container)
+mvcc_mmap_header& get_mut_header(mvcc_mmap_container& container)
 {
-    return *find<mvcc_mmap_header>(container, HEADER_KEY);
+    return *find_mut<mvcc_mmap_header>(container, HEADER_KEY);
 }
 
-const mvcc_mmap_resource_pool& get_resource_pool(const mvcc_mmap_container& container)
+const mvcc_mmap_resource_pool& get_const_resource_pool(const mvcc_mmap_container& container)
 {
-    return *find<const mvcc_mmap_resource_pool>(container, RESOURCE_POOL_KEY);
+    return *find_const<const mvcc_mmap_resource_pool>(container, RESOURCE_POOL_KEY);
 }
 
-mvcc_mmap_resource_pool& get_mutable_resource_pool(const mvcc_mmap_container& container)
+mvcc_mmap_resource_pool& get_mut_resource_pool(mvcc_mmap_container& container)
 {
-    return *find<mvcc_mmap_resource_pool>(container, RESOURCE_POOL_KEY);
+    return *find_mut<mvcc_mmap_resource_pool>(container, RESOURCE_POOL_KEY);
 }
 
-const mvcc_mmap_reader_token_list& get_reader_free_list(const mvcc_mmap_container& container)
+const mvcc_mmap_reader_token_list& get_const_reader_free_list(const mvcc_mmap_container& container)
 {
-    return *find<const mvcc_mmap_reader_token_list>(container, READER_FREE_LIST_KEY);
+    return *find_const<const mvcc_mmap_reader_token_list>(container, READER_FREE_LIST_KEY);
 }
 
-mvcc_mmap_reader_token_list& get_mutable_reader_free_list(const mvcc_mmap_container& container)
+mvcc_mmap_reader_token_list& get_mut_reader_free_list(mvcc_mmap_container& container)
 {
-    return *find<mvcc_mmap_reader_token_list>(container, READER_FREE_LIST_KEY);
+    return *find_mut<mvcc_mmap_reader_token_list>(container, READER_FREE_LIST_KEY);
 }
 
-const mvcc_mmap_writer_token_list& get_writer_free_list(const mvcc_mmap_container& container)
+const mvcc_mmap_writer_token_list& get_const_writer_free_list(const mvcc_mmap_container& container)
 {
-    return *find<const mvcc_mmap_writer_token_list>(container, WRITER_FREE_LIST_KEY);
+    return *find_const<const mvcc_mmap_writer_token_list>(container, WRITER_FREE_LIST_KEY);
 }
 
-mvcc_mmap_writer_token_list& get_mutable_writer_free_list(const mvcc_mmap_container& container)
+mvcc_mmap_writer_token_list& get_mut_writer_free_list(mvcc_mmap_container& container)
 {
-    return *find<mvcc_mmap_writer_token_list>(container, WRITER_FREE_LIST_KEY);
+    return *find_mut<mvcc_mmap_writer_token_list>(container, WRITER_FREE_LIST_KEY);
 }
 
 size_t get_size(const mvcc_mmap_container& container)
@@ -109,7 +109,7 @@ void init(mvcc_mmap_container& container)
 
 void check(const mvcc_mmap_container& container)
 {
-    const mvcc_mmap_header* header = find<mvcc_mmap_header>(container, HEADER_KEY);
+    const mvcc_mmap_header* header = find_const<mvcc_mmap_header>(container, HEADER_KEY);
     if (UNLIKELY_EXT(!header))
     {
 	throw malformed_db_error("Could not find header")
@@ -154,7 +154,7 @@ void check(const mvcc_mmap_container& container)
 reader_token_id acquire_reader_token(mvcc_mmap_container& container)
 {
     reader_token_id reservation;
-    if (!get_mutable_reader_free_list(container).pop(reservation))
+    if (!get_mut_reader_free_list(container).pop(reservation))
     {
 	throw busy_condition("No reader token available")
 		<< info_db_identity(container.path.string())
@@ -167,7 +167,7 @@ void release_reader_token(mvcc_mmap_container& container, const reader_token_id&
 {
     br::mt19937 seed;
     br::uniform_int_distribution<> generator(100, 200);
-    while (!get_mutable_reader_free_list(container).push(id))
+    while (!get_mut_reader_free_list(container).push(id))
     {
 	boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
     }
@@ -176,7 +176,7 @@ void release_reader_token(mvcc_mmap_container& container, const reader_token_id&
 writer_token_id acquire_writer_token(mvcc_mmap_container& container)
 {
     writer_token_id reservation;
-    if (!get_mutable_writer_free_list(container).pop(reservation))
+    if (!get_mut_writer_free_list(container).pop(reservation))
     {
 	throw busy_condition("No writer token available")
 		<< info_db_identity(container.path.string())
@@ -189,7 +189,7 @@ void release_writer_token(mvcc_mmap_container& container, const writer_token_id&
 {
     br::mt19937 seed;
     br::uniform_int_distribution<> generator(100, 200);
-    while (!get_mutable_writer_free_list(container).push(id))
+    while (!get_mut_writer_free_list(container).push(id))
     {
 	boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
     }

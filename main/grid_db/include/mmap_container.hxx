@@ -45,12 +45,18 @@ namespace mvcc_mmap_utility {
 using namespace simulation_grid::grid_db;
 
 template <class value_t>
-value_t* find(const mvcc_mmap_container& container, const bi::managed_mapped_file::char_type* key)
+const value_t* find_const(const mvcc_mmap_container& container, const bi::managed_mapped_file::char_type* key)
 {
     // Unfortunately boost::interprocess::managed_mapped_file::find is not a const function
     // due to use of internal locks which were not declared as mutable, so this function
     // has been provided to fake constness
     return const_cast<mvcc_mmap_container&>(container).file.find<value_t>(key).first;
+}
+
+template <class value_t>
+value_t* find_mut(mvcc_mmap_container& container, const bi::managed_mapped_file::char_type* key)
+{
+    return container.file.find<value_t>(key).first;
 }
 
 const mvcc_mmap_resource_pool& get_resource_pool(const mvcc_mmap_container& container);
@@ -94,7 +100,7 @@ template <class element_t>
 bool mvcc_mmap_reader::exists(const char* id) const
 {
     typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type value_t;
-    const value_t* ringbuf = mvcc_mmap_utility::find<const value_t>(container_, id);
+    const value_t* ringbuf = mvcc_mmap_utility::find_const<value_t>(container_, id);
     return ringbuf && !ringbuf->empty();
 }
 
@@ -102,7 +108,7 @@ template <class element_t>
 const element_t& mvcc_mmap_reader::read(const char* id) const
 {
     typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type value_t;
-    const value_t* ringbuf = mvcc_mmap_utility::find<const value_t>(container_, id);
+    const value_t* ringbuf = mvcc_mmap_utility::find_const<value_t>(container_, id);
     if (UNLIKELY_EXT(!ringbuf || ringbuf->empty()))
     {
 	throw malformed_db_error("Could not find data")
