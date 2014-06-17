@@ -2,11 +2,13 @@
 #define SIMULATION_GRID_GRID_DB_MMAP_CONTAINER_HXX
 
 #include <cstring>
-#include <boost/config.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/interprocess/creation_tags.hpp>
 #include <boost/optional.hpp>
+#include <simulation_grid/core/compiler_extensions.hpp>
 #include <simulation_grid/grid_db/exception.hpp>
+#include "multi_reader_ring_buffer.hpp"
+#include "multi_reader_ring_buffer.hxx"
 #include "mmap_container.hpp"
 
 namespace bi = boost::interprocess;
@@ -18,71 +20,101 @@ using namespace simulation_grid::grid_db;
 
 typedef boost::uint64_t mvcc_revision;
 
-static const char* RESOURCE_KEY = "@@RESOURCE@@";
-
-struct mvcc_mmap_reader_token
+template <class value_t>
+struct mvcc_record
 {
-    boost::optional<mvcc_revision> read_revision;
+    value_t value;
+    mvcc_revision revision;
+    bg::date timestamp;
 };
-
-struct mvcc_mmap_writer_token
-{
-    boost::optional<bg::date> last_flush;
-};
-
-struct mvcc_mmap_resource
-{
-    mvcc_mmap_reader_token reader_token_pool[MVCC_READER_LIMIT];
-    mvcc_mmap_writer_token writer_token_pool[MVCC_WRITER_LIMIT];
-};
-
-namespace mvcc_utility {
 
 template <class content_t>
-content_t* find(const mvcc_mmap_container& container, const bi::managed_mapped_file::char_type* key)
+struct mmap_ring_buffer
 {
-    // Unfortunately boost::interprocess::managed_mapped_file::find is not a const function
-    // due to use of internal locks which were not declared as mutable, so this function
-    // has been provided to fake constness
-    return const_cast<mvcc_mmap_container&>(container).file.find<content_t>(key).first;
-}
-
-const mvcc_mmap_resource& get_resource(const mvcc_mmap_container& container)
-{
-    return *find<mvcc_mmap_resource>(container, RESOURCE_KEY);
-}
-
-mvcc_mmap_resource& get_mutable_resource(const mvcc_mmap_container& container)
-{
-    return *find<mvcc_mmap_resource>(container, RESOURCE_KEY);
-}
-
-} // namespace mvcc_utility
+    typedef typename mmap_allocator<content_t>::type allocator_t;
+    typedef multi_reader_ring_buffer<content_t, allocator_t> type;
+};
 
 } // anonymous namespace
 
 namespace simulation_grid {
 namespace grid_db {
 
-template <class content_t>
-bool mvcc_mmap_reader::exists(const char* id) const
+namespace mvcc_mmap_utility {
+
+using namespace simulation_grid::grid_db;
+
+template <class value_t>
+value_t* find(const mvcc_mmap_container& container, const bi::managed_mapped_file::char_type* key)
 {
-    return mvcc_utility::find<content_t>(container_, id).first != 0;
+    // Unfortunately boost::interprocess::managed_mapped_file::find is not a const function
+    // due to use of internal locks which were not declared as mutable, so this function
+    // has been provided to fake constness
+    return const_cast<mvcc_mmap_container&>(container).file.find<value_t>(key).first;
 }
 
-template <class content_t>
-const content_t& mvcc_mmap_reader::read(const char* id) const
+const mvcc_mmap_resource_pool& get_resource_pool(const mvcc_mmap_container& container);
+mvcc_mmap_resource_pool& get_mutable_resource_pool(const mvcc_mmap_container& container);
+
+} // namespace mvcc_mmap_utility
+
+typedef mmap_queue<reader_token_id, MVCC_READER_LIMIT>::type mvcc_mmap_reader_token_list;
+typedef mmap_queue<writer_token_id, MVCC_WRITER_LIMIT>::type mvcc_mmap_writer_token_list;
+
+struct mvcc_mmap_header
 {
-    const content_t* ptr = mvcc_utility::find<content_t>(container_, id).first;
-    if (BOOST_UNLIKELY(!ptr))
+    boost::uint16_t endianess_indicator;
+    char file_type_tag[48];
+    version container_version;
+    boost::uint16_t header_size;
+    mvcc_mmap_header();
+};
+
+struct mvcc_mmap_reader_token
+{
+    boost::optional<mvcc_revision> last_read_revision;
+    boost::optional<bg::date> last_read_timestamp;
+};
+
+struct mvcc_mmap_writer_token
+{
+    boost::optional<mvcc_revision> last_write_revision;
+    boost::optional<bg::date> last_write_timestamp;
+    boost::optional<mvcc_revision> last_flushed_revision;
+    boost::optional<bg::date> last_flush_timestamp;
+};
+
+struct mvcc_mmap_resource_pool
+{
+    mvcc_mmap_reader_token reader_token_pool[MVCC_READER_LIMIT];
+    mvcc_mmap_writer_token writer_token_pool[MVCC_WRITER_LIMIT];
+};
+
+template <class element_t>
+bool mvcc_mmap_reader::exists(const char* id) const
+{
+    typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type value_t;
+    const value_t* ringbuf = mvcc_mmap_utility::find<const value_t>(container_, id);
+    return ringbuf && !ringbuf->empty();
+}
+
+template <class element_t>
+const element_t& mvcc_mmap_reader::read(const char* id) const
+{
+    typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type value_t;
+    const value_t* ringbuf = mvcc_mmap_utility::find<const value_t>(container_, id);
+    if (UNLIKELY_EXT(!ringbuf || ringbuf->empty()))
     {
 	throw malformed_db_error("Could not find data")
 		<< info_db_identity(container_.path.string())
 		<< info_component_identity("mvcc_mmap_reader")
 		<< info_data_identity(id);
     }
-    // the reader_token will ensure the returned reference remains valid
-    return *ptr;
+    const mvcc_record<element_t>& record = ringbuf->front();
+    // the mvcc_mmap_reader_token will ensure the returned reference remains valid
+    mvcc_mmap_utility::get_mutable_resource_pool(container_).reader_token_pool[token_id_].last_read_timestamp = record.timestamp;
+    mvcc_mmap_utility::get_mutable_resource_pool(container_).reader_token_pool[token_id_].last_read_revision = record.revision;
+    return record.value;
 }
 
 } // namespace grid_db

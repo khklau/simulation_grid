@@ -62,6 +62,9 @@ struct mmap_queue
     typedef boost::lockfree::queue<content_t, capacity, fixed, allocator_t> type;
 };
 
+struct mvcc_mmap_header;
+struct mvcc_mmap_resource_pool;
+
 struct mvcc_mmap_container
 {
     static const version MIN_SUPPORTED_VERSION;
@@ -69,8 +72,10 @@ struct mvcc_mmap_container
     mvcc_mmap_container(const owner_t, const boost::filesystem::path& path, size_t size);
     mvcc_mmap_container(const reader_t, const boost::filesystem::path& path);
     bool exists;
-    boost::interprocess::managed_mapped_file file;
     const boost::filesystem::path path;
+    boost::interprocess::managed_mapped_file file;
+    boost::interprocess::offset_ptr<mvcc_mmap_header> header;
+    boost::interprocess::offset_ptr<mvcc_mmap_resource_pool> pool;
 };
 
 class mvcc_mmap_reader : private boost::noncopyable
@@ -78,8 +83,8 @@ class mvcc_mmap_reader : private boost::noncopyable
 public:
     mvcc_mmap_reader(const boost::filesystem::path& path);
     ~mvcc_mmap_reader();
-    template <class content_t> bool exists(const char* id) const;
-    template <class content_t> const content_t& read(const char* id) const;
+    template <class element_t> bool exists(const char* id) const;
+    template <class element_t> const element_t& read(const char* id) const;
 private:
     mvcc_mmap_container container_;
     const reader_token_id token_id_;
