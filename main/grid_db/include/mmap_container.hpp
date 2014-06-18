@@ -62,9 +62,6 @@ struct mmap_queue
     typedef boost::lockfree::queue<content_t, capacity, fixed, allocator_t> type;
 };
 
-struct mvcc_mmap_header;
-struct mvcc_mmap_resource_pool;
-
 struct mvcc_mmap_container
 {
     static const version MIN_SUPPORTED_VERSION;
@@ -74,8 +71,6 @@ struct mvcc_mmap_container
     bool exists;
     const boost::filesystem::path path;
     boost::interprocess::managed_mapped_file file;
-    boost::interprocess::offset_ptr<mvcc_mmap_header> header;
-    mutable boost::interprocess::offset_ptr<mvcc_mmap_resource_pool> pool;
 };
 
 class mvcc_mmap_reader : private boost::noncopyable
