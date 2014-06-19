@@ -15,11 +15,9 @@
 #include "mmap_container.hpp"
 #include "mmap_container.hxx"
 
-namespace bf = boost::filesystem;
-namespace bi = boost::interprocess;
-namespace bl = boost::lockfree;
-namespace br = boost::random;
-namespace sg = simulation_grid::grid_db;
+namespace bfs = boost::filesystem;
+namespace bip = boost::interprocess;
+namespace bra = boost::random;
 
 namespace {
 
@@ -29,8 +27,6 @@ typedef boost::uint8_t history_depth;
 
 static const char* HEADER_KEY = "@@HEADER@@";
 static const char* RESOURCE_POOL_KEY = "@@RESOURCE_POOL@@";
-static const char* READER_FREE_LIST_KEY = "@@READER_FREE_LIST@@";
-static const char* WRITER_FREE_LIST_KEY = "@@WRITER_FREE_LIST@@";
 static const char* MVCC_MMAP_FILE_TYPE_TAG = "simulation_grid::grid_db::mvcc_mmap_container";
 static const size_t HISTORY_DEPTH_SIZE = 1 <<  std::numeric_limits<history_depth>::digits;
 
@@ -40,6 +36,22 @@ mvcc_mmap_header::mvcc_mmap_header() :
     header_size(sizeof(mvcc_mmap_header))
 {
     strncpy(file_type_tag, MVCC_MMAP_FILE_TYPE_TAG, sizeof(file_type_tag));
+}
+
+mvcc_mmap_resource_pool::mvcc_mmap_resource_pool(bip::managed_mapped_file* file) :
+    reader_allocator(file->get_segment_manager()),
+    writer_allocator(file->get_segment_manager()),
+    reader_free_list(file->construct<reader_token_list>(bi::anonymous_instance)(reader_allocator)),
+    writer_free_list(file->construct<writer_token_list>(bi::anonymous_instance)(writer_allocator))
+{
+    for (reader_token_id id = 0; id < MVCC_READER_LIMIT; ++id)
+    {
+	reader_free_list->push(id);
+    }
+    for (writer_token_id id = 0; id < MVCC_WRITER_LIMIT; ++id)
+    {
+	writer_free_list->push(id);
+    }
 }
 
 const mvcc_mmap_header& const_header(const mvcc_mmap_container& container)
@@ -57,30 +69,11 @@ const mvcc_mmap_resource_pool& const_resource_pool(const mvcc_mmap_container& co
     return *find_const<const mvcc_mmap_resource_pool>(container, RESOURCE_POOL_KEY);
 }
 
-// Note the parameter is const since the resource pool is logically const
+// Note: the parameter is const since const operations on the container still
+// need to modify the mutexes inside the resource pool
 mvcc_mmap_resource_pool& mut_resource_pool(const mvcc_mmap_container& container)
 {
     return *find_mut<mvcc_mmap_resource_pool>(const_cast<mvcc_mmap_container&>(container), RESOURCE_POOL_KEY);
-}
-
-const reader_token_list& const_reader_free_list(const mvcc_mmap_container& container)
-{
-    return *find_const<const reader_token_list>(container, READER_FREE_LIST_KEY);
-}
-
-reader_token_list& mut_reader_free_list(mvcc_mmap_container& container)
-{
-    return *find_mut<reader_token_list>(container, READER_FREE_LIST_KEY);
-}
-
-const writer_token_list& const_writer_free_list(const mvcc_mmap_container& container)
-{
-    return *find_const<const writer_token_list>(container, WRITER_FREE_LIST_KEY);
-}
-
-writer_token_list& mut_writer_free_list(mvcc_mmap_container& container)
-{
-    return *find_mut<writer_token_list>(container, WRITER_FREE_LIST_KEY);
 }
 
 size_t get_size(const mvcc_mmap_container& container)
@@ -96,17 +89,7 @@ void flush(mvcc_mmap_container& container)
 void init(mvcc_mmap_container& container)
 {
     container.file.construct<mvcc_mmap_header>(HEADER_KEY)();
-    container.file.construct<mvcc_mmap_resource_pool>(RESOURCE_POOL_KEY)();
-    reader_token_list* reader_list = container.file.construct<reader_token_list>(READER_FREE_LIST_KEY)(container.file.get_segment_manager());
-    for (reader_token_id id = 0; id < MVCC_READER_LIMIT; ++id)
-    {
-	reader_list->push(id);
-    }
-    writer_token_list* writer_list = container.file.construct<writer_token_list>(WRITER_FREE_LIST_KEY)(container.file.get_segment_manager());
-    for (writer_token_id id = 0; id < MVCC_WRITER_LIMIT; ++id)
-    {
-	writer_list->push(id);
-    }
+    container.file.construct<mvcc_mmap_resource_pool>(RESOURCE_POOL_KEY)(&container.file);
 }
 
 void check(const mvcc_mmap_container& container)
@@ -156,7 +139,7 @@ void check(const mvcc_mmap_container& container)
 reader_token_id acquire_reader_token(mvcc_mmap_container& container)
 {
     reader_token_id reservation;
-    if (!mut_reader_free_list(container).pop(reservation))
+    if (!mut_resource_pool(container).reader_free_list->pop(reservation))
     {
 	throw busy_condition("No reader token available")
 		<< info_db_identity(container.path.string())
@@ -167,9 +150,9 @@ reader_token_id acquire_reader_token(mvcc_mmap_container& container)
 
 void release_reader_token(mvcc_mmap_container& container, const reader_token_id& id)
 {
-    br::mt19937 seed;
-    br::uniform_int_distribution<> generator(100, 200);
-    while (!mut_reader_free_list(container).push(id))
+    bra::mt19937 seed;
+    bra::uniform_int_distribution<> generator(100, 200);
+    while (!mut_resource_pool(container).reader_free_list->push(id))
     {
 	boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
     }
@@ -178,7 +161,7 @@ void release_reader_token(mvcc_mmap_container& container, const reader_token_id&
 writer_token_id acquire_writer_token(mvcc_mmap_container& container)
 {
     writer_token_id reservation;
-    if (!mut_writer_free_list(container).pop(reservation))
+    if (!mut_resource_pool(container).writer_free_list->pop(reservation))
     {
 	throw busy_condition("No writer token available")
 		<< info_db_identity(container.path.string())
@@ -189,9 +172,9 @@ writer_token_id acquire_writer_token(mvcc_mmap_container& container)
 
 void release_writer_token(mvcc_mmap_container& container, const writer_token_id& id)
 {
-    br::mt19937 seed;
-    br::uniform_int_distribution<> generator(100, 200);
-    while (!mut_writer_free_list(container).push(id))
+    bra::mt19937 seed;
+    bra::uniform_int_distribution<> generator(100, 200);
+    while (!mut_resource_pool(container).writer_free_list->push(id))
     {
 	boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
     }
@@ -205,8 +188,8 @@ namespace grid_db {
 const version mvcc_mmap_container::MIN_SUPPORTED_VERSION(1, 1, 1, 1);
 const version mvcc_mmap_container::MAX_SUPPORTED_VERSION(1, 1, 1, 1);
 
-mvcc_mmap_container::mvcc_mmap_container(const owner_t, const bf::path& path, size_t size) :
-    exists(bf::exists(path)), path(path), file(bi::open_or_create, path.string().c_str(), size)
+mvcc_mmap_container::mvcc_mmap_container(const owner_t, const bfs::path& path, size_t size) :
+    exists(bfs::exists(path)), path(path), file(bip::open_or_create, path.string().c_str(), size)
 {
     if (exists)
     {
@@ -219,8 +202,8 @@ mvcc_mmap_container::mvcc_mmap_container(const owner_t, const bf::path& path, si
     }
 }
 
-mvcc_mmap_container::mvcc_mmap_container(const reader_t, const bf::path& path) :
-    exists(bf::exists(path)), path(path), file(bi::open_only, path.string().c_str())
+mvcc_mmap_container::mvcc_mmap_container(const reader_t, const bfs::path& path) :
+    exists(bfs::exists(path)), path(path), file(bip::open_only, path.string().c_str())
 {
     if (exists)
     {
@@ -228,7 +211,7 @@ mvcc_mmap_container::mvcc_mmap_container(const reader_t, const bf::path& path) :
     }
 }
 
-mvcc_mmap_reader::mvcc_mmap_reader(const bf::path& path) :
+mvcc_mmap_reader::mvcc_mmap_reader(const bfs::path& path) :
     container_(reader, path), token_id_(acquire_reader_token(container_))
 { }
 

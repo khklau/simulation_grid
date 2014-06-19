@@ -11,8 +11,8 @@
 #include "multi_reader_ring_buffer.hxx"
 #include "mmap_container.hpp"
 
-namespace bi = boost::interprocess;
-namespace bg = boost::gregorian;
+namespace bip = boost::interprocess;
+namespace bgr = boost::gregorian;
 
 namespace {
 
@@ -34,21 +34,26 @@ struct mvcc_mmap_header
 struct mvcc_mmap_reader_token
 {
     boost::optional<mvcc_revision> last_read_revision;
-    boost::optional<bg::date> last_read_timestamp;
+    boost::optional<bgr::date> last_read_timestamp;
 };
 
 struct mvcc_mmap_writer_token
 {
     boost::optional<mvcc_revision> last_write_revision;
-    boost::optional<bg::date> last_write_timestamp;
+    boost::optional<bgr::date> last_write_timestamp;
     boost::optional<mvcc_revision> last_flushed_revision;
-    boost::optional<bg::date> last_flush_timestamp;
+    boost::optional<bgr::date> last_flush_timestamp;
 };
 
 struct mvcc_mmap_resource_pool
 {
     mvcc_mmap_reader_token reader_token_pool[MVCC_READER_LIMIT];
     mvcc_mmap_writer_token writer_token_pool[MVCC_WRITER_LIMIT];
+    bip::allocator<reader_token_id, bip::managed_mapped_file::segment_manager> reader_allocator;
+    bip::allocator<writer_token_id, bip::managed_mapped_file::segment_manager> writer_allocator;
+    bip::offset_ptr<reader_token_list> reader_free_list;
+    bip::offset_ptr<writer_token_list> writer_free_list;
+    mvcc_mmap_resource_pool(bip::managed_mapped_file* file);
 };
 
 template <class value_t>
@@ -56,7 +61,7 @@ struct mvcc_record
 {
     value_t value;
     mvcc_revision revision;
-    bg::date timestamp;
+    bgr::date timestamp;
 };
 
 template <class content_t>
@@ -67,7 +72,7 @@ struct mmap_ring_buffer
 };
 
 template <class value_t>
-const value_t* find_const(const mvcc_mmap_container& container, const bi::managed_mapped_file::char_type* key)
+const value_t* find_const(const mvcc_mmap_container& container, const bip::managed_mapped_file::char_type* key)
 {
     // Unfortunately boost::interprocess::managed_mapped_file::find is not a const function
     // due to use of internal locks which were not declared as mutable, so this function
@@ -76,11 +81,13 @@ const value_t* find_const(const mvcc_mmap_container& container, const bi::manage
 }
 
 template <class value_t>
-value_t* find_mut(mvcc_mmap_container& container, const bi::managed_mapped_file::char_type* key)
+value_t* find_mut(mvcc_mmap_container& container, const bip::managed_mapped_file::char_type* key)
 {
     return container.file.find<value_t>(key).first;
 }
 
+const mvcc_mmap_header& const_header(const mvcc_mmap_container& container);
+mvcc_mmap_header& mut_header(mvcc_mmap_container& container);
 const mvcc_mmap_resource_pool& const_resource_pool(const mvcc_mmap_container& container);
 mvcc_mmap_resource_pool& mut_resource_pool(const mvcc_mmap_container& container);
 
