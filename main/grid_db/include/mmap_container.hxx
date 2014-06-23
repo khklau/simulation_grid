@@ -97,7 +97,7 @@ namespace simulation_grid {
 namespace grid_db {
 
 template <class element_t>
-bool mvcc_mmap_reader::exists(const char* id) const
+bool mvcc_mmap_reader_token::exists(const char* id) const
 {
     typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type value_t;
     const value_t* ringbuf = find_const<value_t>(container_, id);
@@ -105,7 +105,7 @@ bool mvcc_mmap_reader::exists(const char* id) const
 }
 
 template <class element_t>
-const element_t& mvcc_mmap_reader::read(const char* id) const
+const element_t& mvcc_mmap_reader_token::read(const char* id) const
 {
     typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type value_t;
     const value_t* ringbuf = find_const<value_t>(container_, id);
@@ -118,9 +118,33 @@ const element_t& mvcc_mmap_reader::read(const char* id) const
     }
     const mvcc_record<element_t>& record = ringbuf->front();
     // the mvcc_mmap_reader_token will ensure the returned reference remains valid
-    mut_resource_pool(container_).reader_token_pool[token_id_].last_read_timestamp = record.timestamp;
-    mut_resource_pool(container_).reader_token_pool[token_id_].last_read_revision = record.revision;
+    mut_resource_pool(container_).reader_token_pool[id_].last_read_timestamp = record.timestamp;
+    mut_resource_pool(container_).reader_token_pool[id_].last_read_revision = record.revision;
     return record.value;
+}
+
+template <class element_t>
+bool mvcc_mmap_reader::exists(const char* id) const
+{
+    return reader_token_.template exists<element_t>(id);
+}
+
+template <class element_t>
+const element_t& mvcc_mmap_reader::read(const char* id) const
+{
+    return reader_token_.template read<element_t>(id);
+}
+
+template <class element_t>
+bool mvcc_mmap_owner::exists(const char* id) const
+{
+    return reader_token_.template exists<element_t>(id);
+}
+
+template <class element_t>
+const element_t& mvcc_mmap_owner::read(const char* id) const
+{
+    return reader_token_.template read<element_t>(id);
 }
 
 } // namespace grid_db

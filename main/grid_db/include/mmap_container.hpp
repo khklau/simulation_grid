@@ -73,6 +73,28 @@ struct mvcc_mmap_container
     boost::interprocess::managed_mapped_file file;
 };
 
+class mvcc_mmap_reader_token : private boost::noncopyable
+{
+public:
+    mvcc_mmap_reader_token(mvcc_mmap_container& container);
+    ~mvcc_mmap_reader_token();
+    template <class element_t> bool exists(const char* id) const;
+    template <class element_t> const element_t& read(const char* id) const;
+private:
+    mvcc_mmap_container& container_;
+    const reader_token_id id_;
+};
+
+class mvcc_mmap_writer_token : private boost::noncopyable
+{
+public:
+    mvcc_mmap_writer_token(mvcc_mmap_container& container);
+    ~mvcc_mmap_writer_token();
+private:
+    mvcc_mmap_container& container_;
+    const writer_token_id id_;
+};
+
 class mvcc_mmap_reader : private boost::noncopyable
 {
 public:
@@ -82,7 +104,20 @@ public:
     template <class element_t> const element_t& read(const char* id) const;
 private:
     mvcc_mmap_container container_;
-    const reader_token_id token_id_;
+    mvcc_mmap_reader_token reader_token_;
+};
+
+class mvcc_mmap_owner : private boost::noncopyable
+{
+public:
+    mvcc_mmap_owner(const boost::filesystem::path& path, std::size_t size);
+    ~mvcc_mmap_owner();
+    template <class element_t> bool exists(const char* id) const;
+    template <class element_t> const element_t& read(const char* id) const;
+private:
+    mvcc_mmap_container container_;
+    mvcc_mmap_writer_token writer_token_;
+    mvcc_mmap_reader_token reader_token_;
 };
 
 } // namespace grid_db
