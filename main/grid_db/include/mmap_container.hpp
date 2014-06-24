@@ -73,23 +73,25 @@ struct mvcc_mmap_container
     boost::interprocess::managed_mapped_file file;
 };
 
-class mvcc_mmap_reader_token : private boost::noncopyable
+class mvcc_mmap_reader_handle : private boost::noncopyable
 {
 public:
-    mvcc_mmap_reader_token(mvcc_mmap_container& container);
-    ~mvcc_mmap_reader_token();
-    template <class element_t> bool exists(const char* id) const;
-    template <class element_t> const element_t& read(const char* id) const;
+    mvcc_mmap_reader_handle(mvcc_mmap_container& container);
+    ~mvcc_mmap_reader_handle();
+    mvcc_mmap_container& get_container() { return container_; }
+    reader_token_id get_token_id() { return id_; }
 private:
     mvcc_mmap_container& container_;
     const reader_token_id id_;
 };
 
-class mvcc_mmap_writer_token : private boost::noncopyable
+class mvcc_mmap_writer_handle : private boost::noncopyable
 {
 public:
-    mvcc_mmap_writer_token(mvcc_mmap_container& container);
-    ~mvcc_mmap_writer_token();
+    mvcc_mmap_writer_handle(mvcc_mmap_container& container);
+    ~mvcc_mmap_writer_handle();
+    mvcc_mmap_container& get_container() { return container_; }
+    writer_token_id get_token_id() { return id_; }
 private:
     mvcc_mmap_container& container_;
     const writer_token_id id_;
@@ -104,7 +106,7 @@ public:
     template <class element_t> const element_t& read(const char* id) const;
 private:
     mvcc_mmap_container container_;
-    mvcc_mmap_reader_token reader_token_;
+    mvcc_mmap_reader_handle reader_handle_;
 };
 
 class mvcc_mmap_owner : private boost::noncopyable
@@ -116,8 +118,8 @@ public:
     template <class element_t> const element_t& read(const char* id) const;
 private:
     mvcc_mmap_container container_;
-    mvcc_mmap_writer_token writer_token_;
-    mvcc_mmap_reader_token reader_token_;
+    mvcc_mmap_writer_handle writer_handle_;
+    mvcc_mmap_reader_handle reader_handle_;
 };
 
 } // namespace grid_db

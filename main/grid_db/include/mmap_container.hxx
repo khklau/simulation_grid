@@ -97,54 +97,56 @@ namespace simulation_grid {
 namespace grid_db {
 
 template <class element_t>
-bool mvcc_mmap_reader_token::exists(const char* id) const
+bool exists(const mvcc_mmap_reader_handle& token, const char* id)
 {
     typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type value_t;
-    const value_t* ringbuf = find_const<value_t>(container_, id);
+    const value_t* ringbuf = find_const<value_t>(token.get_container(), id);
     return ringbuf && !ringbuf->empty();
 }
 
 template <class element_t>
-const element_t& mvcc_mmap_reader_token::read(const char* id) const
+const mvcc_record<element_t>& read_newest(const mvcc_mmap_reader_handle& token, const char* id)
 {
     typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type value_t;
-    const value_t* ringbuf = find_const<value_t>(container_, id);
+    const value_t* ringbuf = find_const<value_t>(token.get_container(), id);
     if (UNLIKELY_EXT(!ringbuf || ringbuf->empty()))
     {
 	throw malformed_db_error("Could not find data")
-		<< info_db_identity(container_.path.string())
+		<< info_db_identity(token.get_container().path.string())
 		<< info_component_identity("mvcc_mmap_reader")
 		<< info_data_identity(id);
     }
     const mvcc_record<element_t>& record = ringbuf->front();
     // the mvcc_mmap_reader_token will ensure the returned reference remains valid
-    mut_resource_pool(container_).reader_token_pool[id_].last_read_timestamp = record.timestamp;
-    mut_resource_pool(container_).reader_token_pool[id_].last_read_revision = record.revision;
-    return record.value;
+    mut_resource_pool(token.get_container()).reader_token_pool[token.get_token_id()].
+	    last_read_timestamp = record.timestamp;
+    mut_resource_pool(token.get_container()).reader_token_pool[token.get_token_id()].
+	    last_read_revision = record.revision;
+    return record;
 }
 
 template <class element_t>
 bool mvcc_mmap_reader::exists(const char* id) const
 {
-    return reader_token_.template exists<element_t>(id);
+    return exists<element_t>(reader_handle_, id);
 }
 
 template <class element_t>
 const element_t& mvcc_mmap_reader::read(const char* id) const
 {
-    return reader_token_.template read<element_t>(id);
+    return read_newest<element_t>(reader_handle_, id).value;
 }
 
 template <class element_t>
 bool mvcc_mmap_owner::exists(const char* id) const
 {
-    return reader_token_.template exists<element_t>(id);
+    return exists<element_t>(reader_handle_, id);
 }
 
 template <class element_t>
 const element_t& mvcc_mmap_owner::read(const char* id) const
 {
-    return reader_token_.template read<element_t>(id);
+    return read_newest<element_t>(reader_handle_, id).value;
 }
 
 } // namespace grid_db

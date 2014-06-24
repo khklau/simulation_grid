@@ -211,11 +211,11 @@ mvcc_mmap_container::mvcc_mmap_container(const reader_t, const bfs::path& path) 
     }
 }
 
-mvcc_mmap_reader_token::mvcc_mmap_reader_token(mvcc_mmap_container& container) :
+mvcc_mmap_reader_handle::mvcc_mmap_reader_handle(mvcc_mmap_container& container) :
     container_(container), id_(acquire_reader_token(container_))
 { }
 
-mvcc_mmap_reader_token::~mvcc_mmap_reader_token()
+mvcc_mmap_reader_handle::~mvcc_mmap_reader_handle()
 {
     try
     {
@@ -227,11 +227,11 @@ mvcc_mmap_reader_token::~mvcc_mmap_reader_token()
     }
 }
 
-mvcc_mmap_writer_token::mvcc_mmap_writer_token(mvcc_mmap_container& container) :
+mvcc_mmap_writer_handle::mvcc_mmap_writer_handle(mvcc_mmap_container& container) :
     container_(container), id_(acquire_writer_token(container_))
 { }
 
-mvcc_mmap_writer_token::~mvcc_mmap_writer_token()
+mvcc_mmap_writer_handle::~mvcc_mmap_writer_handle()
 {
     try
     {
@@ -244,7 +244,7 @@ mvcc_mmap_writer_token::~mvcc_mmap_writer_token()
 }
 
 mvcc_mmap_reader::mvcc_mmap_reader(const bfs::path& path) :
-    container_(reader, path), reader_token_(container_)
+    container_(reader, path), reader_handle_(container_)
 { }
 
 mvcc_mmap_reader::~mvcc_mmap_reader()
@@ -252,8 +252,8 @@ mvcc_mmap_reader::~mvcc_mmap_reader()
 
 mvcc_mmap_owner::mvcc_mmap_owner(const bfs::path& path, std::size_t size) :
     container_(owner, path, size),
-    writer_token_(container_),
-    reader_token_(container_)
+    writer_handle_(container_),
+    reader_handle_(container_)
 { }
 
 mvcc_mmap_owner::~mvcc_mmap_owner()
