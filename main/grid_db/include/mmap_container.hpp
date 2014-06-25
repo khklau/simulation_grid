@@ -68,6 +68,7 @@ struct mvcc_mmap_container
     static const version MAX_SUPPORTED_VERSION;
     mvcc_mmap_container(const owner_t, const boost::filesystem::path& path, size_t size);
     mvcc_mmap_container(const reader_t, const boost::filesystem::path& path);
+    std::size_t available_space() const;
     bool exists;
     const boost::filesystem::path path;
     boost::interprocess::managed_mapped_file file;
@@ -102,8 +103,8 @@ class mvcc_mmap_reader : private boost::noncopyable
 public:
     mvcc_mmap_reader(const boost::filesystem::path& path);
     ~mvcc_mmap_reader();
-    template <class element_t> bool exists(const char* id) const;
-    template <class element_t> const element_t& read(const char* id) const;
+    template <class element_t> bool exists(const char* key) const;
+    template <class element_t> const element_t& read(const char* key) const;
 private:
     mvcc_mmap_container container_;
     mvcc_mmap_reader_handle reader_handle_;
@@ -114,8 +115,8 @@ class mvcc_mmap_owner : private boost::noncopyable
 public:
     mvcc_mmap_owner(const boost::filesystem::path& path, std::size_t size);
     ~mvcc_mmap_owner();
-    template <class element_t> bool exists(const char* id) const;
-    template <class element_t> const element_t& read(const char* id) const;
+    template <class element_t> bool exists(const char* key) const;
+    template <class element_t> const element_t& read(const char* key) const;
 private:
     mvcc_mmap_container container_;
     mvcc_mmap_writer_handle writer_handle_;

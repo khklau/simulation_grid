@@ -23,12 +23,9 @@ namespace {
 
 using namespace simulation_grid::grid_db;
 
-typedef boost::uint8_t history_depth;
-
 static const char* HEADER_KEY = "@@HEADER@@";
 static const char* RESOURCE_POOL_KEY = "@@RESOURCE_POOL@@";
 static const char* MVCC_MMAP_FILE_TYPE_TAG = "simulation_grid::grid_db::mvcc_mmap_container";
-static const size_t HISTORY_DEPTH_SIZE = 1 <<  std::numeric_limits<history_depth>::digits;
 
 mvcc_mmap_header::mvcc_mmap_header() :
     endianess_indicator(std::numeric_limits<boost::uint8_t>::max()),
@@ -209,6 +206,11 @@ mvcc_mmap_container::mvcc_mmap_container(const reader_t, const bfs::path& path) 
     {
 	check(*this);
     }
+}
+
+std::size_t mvcc_mmap_container::available_space() const
+{
+    return file.get_free_memory();
 }
 
 mvcc_mmap_reader_handle::mvcc_mmap_reader_handle(mvcc_mmap_container& container) :
