@@ -26,6 +26,7 @@ public:
     void push_front(const_element_ref_t element);
     const_element_ref_t back() const;
     void pop_back(const_element_ref_t back_element);
+    void grow(size_type new_capacity);
     size_type capacity() const;
     size_type element_count() const;
     bool empty() const;

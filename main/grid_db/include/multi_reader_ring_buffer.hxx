@@ -54,6 +54,13 @@ void multi_reader_ring_buffer<element_t, memory_t>::pop_back(const_element_ref_t
 }
 
 template <class element_t, class memory_t>
+void multi_reader_ring_buffer<element_t, memory_t>::grow(size_type new_capacity)
+{
+    write_lock(mutex_);
+    ringbuf_->set_capacity(new_capacity);
+}
+
+template <class element_t, class memory_t>
 typename multi_reader_ring_buffer<element_t, memory_t>::size_type multi_reader_ring_buffer<element_t, memory_t>::capacity() const
 {
     read_lock(mutex_);
