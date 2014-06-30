@@ -74,28 +74,20 @@ struct mvcc_mmap_container
     boost::interprocess::managed_mapped_file file;
 };
 
-class mvcc_mmap_reader_handle : private boost::noncopyable
+struct mvcc_mmap_reader_handle : private boost::noncopyable
 {
-public:
     mvcc_mmap_reader_handle(mvcc_mmap_container& container);
     ~mvcc_mmap_reader_handle();
-    mvcc_mmap_container& get_container() { return container_; }
-    reader_token_id get_token_id() { return id_; }
-private:
-    mvcc_mmap_container& container_;
-    const reader_token_id id_;
+    mvcc_mmap_container& container;
+    const reader_token_id token_id;
 };
 
-class mvcc_mmap_writer_handle : private boost::noncopyable
+struct mvcc_mmap_writer_handle : private boost::noncopyable
 {
-public:
     mvcc_mmap_writer_handle(mvcc_mmap_container& container);
     ~mvcc_mmap_writer_handle();
-    mvcc_mmap_container& get_container() { return container_; }
-    writer_token_id get_token_id() { return id_; }
-private:
-    mvcc_mmap_container& container_;
-    const writer_token_id id_;
+    mvcc_mmap_container& container;
+    const writer_token_id token_id;
 };
 
 class mvcc_mmap_reader : private boost::noncopyable
@@ -117,6 +109,7 @@ public:
     ~mvcc_mmap_owner();
     template <class element_t> bool exists(const char* key) const;
     template <class element_t> const element_t& read(const char* key) const;
+    template <class element_t> void write(const char* key, const element_t& value);
 private:
     mvcc_mmap_container container_;
     mvcc_mmap_writer_handle writer_handle_;

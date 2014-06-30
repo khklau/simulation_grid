@@ -214,14 +214,14 @@ std::size_t mvcc_mmap_container::available_space() const
 }
 
 mvcc_mmap_reader_handle::mvcc_mmap_reader_handle(mvcc_mmap_container& container) :
-    container_(container), id_(acquire_reader_token(container_))
+    container(container), token_id(acquire_reader_token(container))
 { }
 
 mvcc_mmap_reader_handle::~mvcc_mmap_reader_handle()
 {
     try
     {
-	release_reader_token(container_, id_);
+	release_reader_token(container, token_id);
     }
     catch(...)
     {
@@ -230,14 +230,14 @@ mvcc_mmap_reader_handle::~mvcc_mmap_reader_handle()
 }
 
 mvcc_mmap_writer_handle::mvcc_mmap_writer_handle(mvcc_mmap_container& container) :
-    container_(container), id_(acquire_writer_token(container_))
+    container(container), token_id(acquire_writer_token(container))
 { }
 
 mvcc_mmap_writer_handle::~mvcc_mmap_writer_handle()
 {
     try
     {
-	release_writer_token(container_, id_);
+	release_writer_token(container, token_id);
     }
     catch(...)
     {

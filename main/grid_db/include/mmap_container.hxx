@@ -3,7 +3,7 @@
 
 #include <cstring>
 #include <boost/bind.hpp>
-#include <boost/date_time/gregorian/gregorian.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/function.hpp>
 #include <boost/interprocess/creation_tags.hpp>
 #include <boost/optional.hpp>
@@ -15,7 +15,7 @@
 #include "mmap_container.hpp"
 
 namespace bip = boost::interprocess;
-namespace bgr = boost::gregorian;
+namespace bpt = boost::posix_time;
 
 namespace {
 
@@ -40,34 +40,38 @@ struct mvcc_mmap_header
 struct mvcc_mmap_reader_token
 {
     boost::optional<mvcc_revision> last_read_revision;
-    boost::optional<bgr::date> last_read_timestamp;
+    boost::optional<bpt::ptime> last_read_timestamp;
 };
 
 struct mvcc_mmap_writer_token
 {
     boost::optional<mvcc_revision> last_write_revision;
-    boost::optional<bgr::date> last_write_timestamp;
+    boost::optional<bpt::ptime> last_write_timestamp;
     boost::optional<mvcc_revision> last_flushed_revision;
-    boost::optional<bgr::date> last_flush_timestamp;
+    boost::optional<bpt::ptime> last_flush_timestamp;
 };
 
 struct mvcc_mmap_resource_pool
 {
+    mvcc_mmap_resource_pool(bip::managed_mapped_file* file);
     mvcc_mmap_reader_token reader_token_pool[MVCC_READER_LIMIT];
     mvcc_mmap_writer_token writer_token_pool[MVCC_WRITER_LIMIT];
     bip::allocator<reader_token_id, bip::managed_mapped_file::segment_manager> reader_allocator;
     bip::allocator<writer_token_id, bip::managed_mapped_file::segment_manager> writer_allocator;
     bip::offset_ptr<reader_token_list> reader_free_list;
     bip::offset_ptr<writer_token_list> writer_free_list;
-    mvcc_mmap_resource_pool(bip::managed_mapped_file* file);
+    mvcc_revision global_revision;
 };
 
 template <class value_t>
 struct mvcc_record
 {
+    mvcc_record(const value_t& v, const mvcc_revision& r, const bpt::ptime& t) :
+	    value(v), revision(r), timestamp(t)
+    { }
     value_t value;
     mvcc_revision revision;
-    bgr::date timestamp;
+    bpt::ptime timestamp;
 };
 
 template <class content_t>
@@ -100,28 +104,28 @@ mvcc_mmap_resource_pool& mut_resource_pool(const mvcc_mmap_container& container)
 template <class element_t>
 bool exists(const mvcc_mmap_reader_handle& handle, const char* key)
 {
-    typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type value_t;
-    const value_t* ringbuf = find_const<value_t>(handle.get_container(), key);
+    typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type recringbuf_t;
+    const recringbuf_t* ringbuf = find_const<recringbuf_t>(handle.container, key);
     return ringbuf && !ringbuf->empty();
 }
 
 template <class element_t>
 const mvcc_record<element_t>& read_newest(const mvcc_mmap_reader_handle& handle, const char* key)
 {
-    typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type value_t;
-    const value_t* ringbuf = find_const<value_t>(handle.get_container(), key);
+    typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type recringbuf_t;
+    const recringbuf_t* ringbuf = find_const<recringbuf_t>(handle.container, key);
     if (UNLIKELY_EXT(!ringbuf || ringbuf->empty()))
     {
 	throw malformed_db_error("Could not find data")
-		<< info_db_identity(handle.get_container().path.string())
+		<< info_db_identity(handle.container.path.string())
 		<< info_component_identity("mvcc_mmap_reader")
 		<< info_data_identity(key);
     }
     const mvcc_record<element_t>& record = ringbuf->front();
     // the mvcc_mmap_reader_token will ensure the returned reference remains valid
-    mut_resource_pool(handle.get_container()).reader_token_pool[handle.get_token_id()].
+    mut_resource_pool(handle.container).reader_token_pool[handle.token_id].
 	    last_read_timestamp = record.timestamp;
-    mut_resource_pool(handle.get_container()).reader_token_pool[handle.get_token_id()].
+    mut_resource_pool(handle.container).reader_token_pool[handle.token_id].
 	    last_read_revision = record.revision;
     return record;
 }
@@ -129,16 +133,39 @@ const mvcc_record<element_t>& read_newest(const mvcc_mmap_reader_handle& handle,
 template <class element_t>
 const mvcc_record<element_t>& read_oldest(const mvcc_mmap_reader_handle& handle, const char* key)
 {
-    typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type value_t;
-    const value_t* ringbuf = find_const<value_t>(handle.get_container(), key);
+    typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type recringbuf_t;
+    const recringbuf_t* ringbuf = find_const<recringbuf_t>(handle.container, key);
     if (UNLIKELY_EXT(!ringbuf || ringbuf->empty()))
     {
 	throw malformed_db_error("Could not find data")
-		<< info_db_identity(handle.get_container().path.string())
+		<< info_db_identity(handle.container.path.string())
 		<< info_component_identity("mvcc_mmap_reader")
 		<< info_data_identity(key);
     }
     return ringbuf->front();
+}
+
+template <class element_t>
+void create_and_insert(const mvcc_mmap_writer_handle& handle, const char* key, const element_t& value)
+{
+    typedef mvcc_record<element_t> record_t;
+    typedef typename mmap_ring_buffer<record_t>::type recringbuf_t;
+    recringbuf_t* ringbuf = find_mut<recringbuf_t>(handle.container, key);
+    if (!ringbuf)
+    {
+	ringbuf = handle.container.file.construct<recringbuf_t>(key)(DEFAULT_HISTORY_DEPTH, handle.container.file);
+    }
+    if (ringbuf->full())
+    {
+	// TODO: need a smarter growth algorithm
+	ringbuf->grow(ringbuf->capacity() * 1.5);
+    }
+    record_t tmp(value, ++mut_resource_pool(handle.container).global_revision, bpt::microsec_clock::local_time());
+    ringbuf->push_front(tmp);
+    mut_resource_pool(handle.container).writer_token_pool[handle.token_id].
+	    last_write_timestamp = tmp.timestamp;
+    mut_resource_pool(handle.container).writer_token_pool[handle.token_id].
+	    last_write_revision = tmp.revision;
 }
 
 } // anonymous namespace
@@ -168,6 +195,14 @@ template <class element_t>
 const element_t& mvcc_mmap_owner::read(const char* key) const
 {
     return read_newest<element_t>(reader_handle_, key).value;
+}
+
+template <class element_t>
+void mvcc_mmap_owner::write(const char* key, const element_t& value)
+{
+    boost::function<void ()> write_func(boost::bind(&create_and_insert<element_t>, 
+	    boost::ref(writer_handle_), key, boost::ref(value)));
+    writer_handle_.container.file.get_segment_manager()->atomic_func(write_func);
 }
 
 } // namespace grid_db
