@@ -37,18 +37,28 @@ struct mvcc_mmap_header
     mvcc_mmap_header();
 };
 
+// TODO: detect the cache line size and calculate the required padding
+
 struct mvcc_mmap_reader_token
 {
     boost::optional<mvcc_revision> last_read_revision;
     boost::optional<bpt::ptime> last_read_timestamp;
+    char padding[32];
 };
 
 struct mvcc_mmap_writer_token
 {
     boost::optional<mvcc_revision> last_write_revision;
     boost::optional<bpt::ptime> last_write_timestamp;
-    boost::optional<mvcc_revision> last_flushed_revision;
+    char padding[32];
+};
+
+struct mvcc_mmap_owner_token
+{
+    boost::optional<mvcc_revision> last_flush_revision;
     boost::optional<bpt::ptime> last_flush_timestamp;
+    boost::optional<mvcc_revision> oldest_revision_found;
+    boost::optional<bpt::ptime> oldest_timestamp_found;
 };
 
 struct mvcc_mmap_resource_pool
@@ -56,11 +66,12 @@ struct mvcc_mmap_resource_pool
     mvcc_mmap_resource_pool(bip::managed_mapped_file* file);
     mvcc_mmap_reader_token reader_token_pool[MVCC_READER_LIMIT];
     mvcc_mmap_writer_token writer_token_pool[MVCC_WRITER_LIMIT];
-    bip::allocator<reader_token_id, bip::managed_mapped_file::segment_manager> reader_allocator;
-    bip::allocator<writer_token_id, bip::managed_mapped_file::segment_manager> writer_allocator;
-    bip::offset_ptr<reader_token_list> reader_free_list;
-    bip::offset_ptr<writer_token_list> writer_free_list;
     mvcc_revision global_revision;
+    mvcc_mmap_owner_token owner_token;
+    bip::allocator<reader_token_id, bip::managed_mapped_file::segment_manager> reader_allocator;
+    bip::offset_ptr<reader_token_list> reader_free_list;
+    bip::allocator<writer_token_id, bip::managed_mapped_file::segment_manager> writer_allocator;
+    bip::offset_ptr<writer_token_list> writer_free_list;
 };
 
 template <class value_t>

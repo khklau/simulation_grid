@@ -18,6 +18,7 @@
 namespace bfs = boost::filesystem;
 namespace bip = boost::interprocess;
 namespace bra = boost::random;
+namespace bpt = boost::posix_time;
 
 namespace {
 
@@ -37,8 +38,8 @@ mvcc_mmap_header::mvcc_mmap_header() :
 
 mvcc_mmap_resource_pool::mvcc_mmap_resource_pool(bip::managed_mapped_file* file) :
     reader_allocator(file->get_segment_manager()),
-    writer_allocator(file->get_segment_manager()),
     reader_free_list(file->construct<reader_token_list>(bi::anonymous_instance)(reader_allocator)),
+    writer_allocator(file->get_segment_manager()),
     writer_free_list(file->construct<writer_token_list>(bi::anonymous_instance)(writer_allocator))
 {
     for (reader_token_id id = 0; id < MVCC_READER_LIMIT; ++id)
@@ -76,11 +77,6 @@ mvcc_mmap_resource_pool& mut_resource_pool(const mvcc_mmap_container& container)
 size_t get_size(const mvcc_mmap_container& container)
 {
     return container.file.get_size();
-}
-
-void flush(mvcc_mmap_container& container)
-{
-    container.file.flush();
 }
 
 void init(mvcc_mmap_container& container)
@@ -260,6 +256,19 @@ mvcc_mmap_owner::mvcc_mmap_owner(const bfs::path& path, std::size_t size) :
 
 mvcc_mmap_owner::~mvcc_mmap_owner()
 { }
+
+void mvcc_mmap_owner::flush()
+{
+    boost::function<void ()> flush_func(boost::bind(&mvcc_mmap_owner::flush_impl, boost::ref(*this)));
+    container_.file.get_segment_manager()->atomic_func(flush_func);
+}
+
+void mvcc_mmap_owner::flush_impl()
+{
+    mut_resource_pool(container_).owner_token.last_flush_timestamp = bpt::microsec_clock::local_time();
+    mut_resource_pool(container_).owner_token.last_flush_revision = const_resource_pool(container_).global_revision;
+    container_.file.flush();
+}
 
 } // namespace grid_db
 } // namespace simulation_grid

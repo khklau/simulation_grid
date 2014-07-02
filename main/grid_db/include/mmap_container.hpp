@@ -110,7 +110,9 @@ public:
     template <class element_t> bool exists(const char* key) const;
     template <class element_t> const element_t& read(const char* key) const;
     template <class element_t> void write(const char* key, const element_t& value);
+    void flush();
 private:
+    void flush_impl();
     mvcc_mmap_container container_;
     mvcc_mmap_writer_handle writer_handle_;
     mvcc_mmap_reader_handle reader_handle_;
