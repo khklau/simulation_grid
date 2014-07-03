@@ -1,0 +1,53 @@
+package simulation_grid.grid_db;
+
+message terminate_instr
+{
+    required fixed32 sequence = 1;
+}
+
+message write_instr
+{
+    required fixed32 sequence = 1;
+    required sfixed32 element = 2;
+}
+
+message instruction
+{
+    enum opcode_t
+    {
+	TERMINATE = 0;
+	PUSH_FRONT = 1;
+    }
+    required opcode_t opcode = 1;
+    optional terminate_instr terminate = 2;
+    optional write_instr write = 3;
+}
+
+message malformed_message_result
+{
+    optional fixed32 sequence = 1;
+}
+
+message invalid_argument_result
+{
+    optional fixed32 sequence = 1;
+}
+
+message confirmation_result
+{
+    required fixed32 sequence = 1;
+}
+
+message result
+{
+    enum opcode_t
+    {
+	MALFORMED_MESSAGE = 0;
+	INVALID_ARGUMENT = 1;
+	CONFIRMATION = 2;
+    }
+    required opcode_t opcode = 1;
+    optional malformed_message_result malformed_message = 2;
+    optional invalid_argument_result invalid_argument = 3;
+    optional confirmation_result confirmation = 4;
+}
