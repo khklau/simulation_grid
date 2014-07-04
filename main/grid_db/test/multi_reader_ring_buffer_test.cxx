@@ -96,6 +96,7 @@ inline std::istream& operator>>(std::istream& in, ipc::type& target)
     }
     return in;
 }
+
 } // namespace ipc
 
 struct config
