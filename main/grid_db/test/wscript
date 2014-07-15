@@ -32,6 +32,19 @@ def build(buildCtx):
 	    install_path=buildCtx.env.component.install_tree.test,
 	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'] + containerProtoTaskList)
     buildCtx.program(
+	    name='program_mmap_container_service',
+	    source=containerCcNodeList + [buildCtx.path.find_node('mmap_container_service.cxx')],
+	    target=join(buildCtx.env.component.build_tree.testPathFromBuild(buildCtx), 'mmap_container_service'),
+	    defines=['GTEST_HAS_PTHREAD=1', 'BOOST_CB_DISABLE_DEBUG=1'],
+	    includes=['.'] + buildCtx.env.component.include_path_list,
+	    cxxflags=buildCtx.env.CXXFLAGS,
+	    linkflags=buildCtx.env.LDFLAGS,
+	    use=['BOOST', 'PROTOBUF', 'ZEROMQ', 'shlib_simgrid_core', 'shlib_simgrid_grid_db', 'stlib_container_msg'],
+	    libpath=['.'] + buildCtx.env.component.lib_path_list,
+	    rpath=buildCtx.env.component.rpath_list,
+	    install_path=buildCtx.env.component.install_tree.test,
+	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'])
+    buildCtx.program(
 	    name='program_mmap_container_test',
 	    source='mmap_container_test.cxx',
 	    target=join(buildCtx.env.component.build_tree.testPathFromBuild(buildCtx), 'mmap_container_test'),
@@ -39,7 +52,7 @@ def build(buildCtx):
 	    includes=['.'] + buildCtx.env.component.include_path_list,
 	    cxxflags=buildCtx.env.CXXFLAGS,
 	    linkflags=buildCtx.env.LDFLAGS,
-	    use=['BOOST', 'PROTOBUF', 'GTEST', 'shlib_simgrid_core', 'shlib_simgrid_grid_db', 'stlib_container_msg'],
+	    use=['BOOST', 'PROTOBUF', 'GTEST', 'ZEROMQ', 'shlib_simgrid_core', 'shlib_simgrid_grid_db', 'stlib_container_msg'],
 	    libpath=buildCtx.env.component.lib_path_list,
 	    rpath=buildCtx.env.component.rpath_list,
 	    install_path=buildCtx.env.component.install_tree.test,
