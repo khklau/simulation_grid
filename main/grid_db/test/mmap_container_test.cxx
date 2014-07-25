@@ -273,11 +273,27 @@ int service_launcher::wait()
 
 } // anonymous namespace
 
-TEST(mmap_container_test, exists_scalar)
+TEST(mmap_container_test, access_historical)
 {
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
     service_client client(conf);
+    const char* key = "access_historical";
+
+    const boost::int32_t expected1 = 1;
+    sgd::instruction_msg inmsg1;
+    sgd::write_instr instr1;
+    instr1.set_sequence(1U);
+    instr1.set_key(key);
+    instr1.set_value(expected1);
+    inmsg1.set_write(instr1);
+    sgd::result_msg outmsg1(client.send(inmsg1));
+    ASSERT_TRUE(outmsg1.is_confirmation()) << "unexpected write result";
+    ASSERT_EQ(inmsg1.get_write().sequence(), outmsg1.get_confirmation().sequence()) << "sequence number mismatch";
+    ASSERT_TRUE(client.get_reader().exists<boost::int32_t>(key)) << "write failed";
+    EXPECT_EQ(1U, client.get_reader().archive_depth<boost::int32_t>(key)) << "write failed";
+    const boost::int32_t& actual1 = client.get_reader().read<boost::int32_t>(key);
+    EXPECT_EQ(expected1, actual1) << "read value is not the value just written";
 
     sgd::instruction_msg inmsg3;
     sgd::terminate_instr instr3;

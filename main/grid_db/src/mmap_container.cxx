@@ -1,4 +1,6 @@
 #include <cstring>
+#include <exception>
+#include <iostream>
 #include <boost/bind.hpp>
 #include <boost/chrono/chrono.hpp>
 #include <boost/filesystem/operations.hpp>
@@ -27,52 +29,6 @@ using namespace simulation_grid::grid_db;
 static const char* HEADER_KEY = "@@HEADER@@";
 static const char* RESOURCE_POOL_KEY = "@@RESOURCE_POOL@@";
 static const char* MVCC_MMAP_FILE_TYPE_TAG = "simulation_grid::grid_db::mvcc_mmap_container";
-
-mvcc_mmap_header::mvcc_mmap_header() :
-    endianess_indicator(std::numeric_limits<boost::uint8_t>::max()),
-    container_version(mvcc_mmap_container::MAX_SUPPORTED_VERSION), 
-    header_size(sizeof(mvcc_mmap_header))
-{
-    strncpy(file_type_tag, MVCC_MMAP_FILE_TYPE_TAG, sizeof(file_type_tag));
-}
-
-mvcc_mmap_resource_pool::mvcc_mmap_resource_pool(bip::managed_mapped_file* file) :
-    reader_allocator(file->get_segment_manager()),
-    reader_free_list(file->construct<reader_token_list>(bi::anonymous_instance)(reader_allocator)),
-    writer_allocator(file->get_segment_manager()),
-    writer_free_list(file->construct<writer_token_list>(bi::anonymous_instance)(writer_allocator))
-{
-    for (reader_token_id id = 0; id < MVCC_READER_LIMIT; ++id)
-    {
-	reader_free_list->push(id);
-    }
-    for (writer_token_id id = 0; id < MVCC_WRITER_LIMIT; ++id)
-    {
-	writer_free_list->push(id);
-    }
-}
-
-const mvcc_mmap_header& const_header(const mvcc_mmap_container& container)
-{
-    return *find_const<const mvcc_mmap_header>(container, HEADER_KEY);
-}
-
-mvcc_mmap_header& mut_header(mvcc_mmap_container& container)
-{
-    return *find_mut<mvcc_mmap_header>(container, HEADER_KEY);
-}
-
-const mvcc_mmap_resource_pool& const_resource_pool(const mvcc_mmap_container& container)
-{
-    return *find_const<const mvcc_mmap_resource_pool>(container, RESOURCE_POOL_KEY);
-}
-
-// Note: the parameter is const since const operations on the container still
-// need to modify the mutexes inside the resource pool
-mvcc_mmap_resource_pool& mut_resource_pool(const mvcc_mmap_container& container)
-{
-    return *find_mut<mvcc_mmap_resource_pool>(const_cast<mvcc_mmap_container&>(container), RESOURCE_POOL_KEY);
-}
 
 size_t get_size(const mvcc_mmap_container& container)
 {
@@ -120,7 +76,7 @@ void check(const mvcc_mmap_container& container)
 		<< info_min_supported_version(mvcc_mmap_container::MIN_SUPPORTED_VERSION)
 		<< info_max_supported_version(mvcc_mmap_container::MAX_SUPPORTED_VERSION);
     }
-    if (UNLIKELY_EXT(sizeof(mvcc_mmap_header) == header->header_size))
+    if (UNLIKELY_EXT(sizeof(mvcc_mmap_header) != header->header_size))
     {
 	throw malformed_db_error("Wrong header size")
 		<< info_db_identity(container.path.string())
@@ -181,6 +137,52 @@ namespace grid_db {
 const version mvcc_mmap_container::MIN_SUPPORTED_VERSION(1, 1, 1, 1);
 const version mvcc_mmap_container::MAX_SUPPORTED_VERSION(1, 1, 1, 1);
 
+const mvcc_mmap_header& const_header(const mvcc_mmap_container& container)
+{
+    return *find_const<const mvcc_mmap_header>(container, HEADER_KEY);
+}
+
+mvcc_mmap_header& mut_header(mvcc_mmap_container& container)
+{
+    return *find_mut<mvcc_mmap_header>(container, HEADER_KEY);
+}
+
+const mvcc_mmap_resource_pool& const_resource_pool(const mvcc_mmap_container& container)
+{
+    return *find_const<const mvcc_mmap_resource_pool>(container, RESOURCE_POOL_KEY);
+}
+
+// Note: the parameter is const since const operations on the container still
+// need to modify the mutexes inside the resource pool
+mvcc_mmap_resource_pool& mut_resource_pool(const mvcc_mmap_container& container)
+{
+    return *find_mut<mvcc_mmap_resource_pool>(const_cast<mvcc_mmap_container&>(container), RESOURCE_POOL_KEY);
+}
+
+mvcc_mmap_header::mvcc_mmap_header() :
+    endianess_indicator(std::numeric_limits<boost::uint8_t>::max()),
+    container_version(mvcc_mmap_container::MAX_SUPPORTED_VERSION), 
+    header_size(sizeof(mvcc_mmap_header))
+{
+    strncpy(file_type_tag, MVCC_MMAP_FILE_TYPE_TAG, sizeof(file_type_tag));
+}
+
+mvcc_mmap_resource_pool::mvcc_mmap_resource_pool(bip::managed_mapped_file* file) :
+    reader_allocator(file->get_segment_manager()),
+    reader_free_list(file->construct<reader_token_list>(bi::anonymous_instance)(reader_allocator)),
+    writer_allocator(file->get_segment_manager()),
+    writer_free_list(file->construct<writer_token_list>(bi::anonymous_instance)(writer_allocator))
+{
+    for (reader_token_id id = 0; id < MVCC_READER_LIMIT; ++id)
+    {
+	reader_free_list->push(id);
+    }
+    for (writer_token_id id = 0; id < MVCC_WRITER_LIMIT; ++id)
+    {
+	writer_free_list->push(id);
+    }
+}
+
 mvcc_mmap_container::mvcc_mmap_container(const owner_t, const bfs::path& path, size_t size) :
     exists(bfs::exists(path)), path(path), file(bip::open_or_create, path.string().c_str(), size)
 {
@@ -201,6 +203,11 @@ mvcc_mmap_container::mvcc_mmap_container(const reader_t, const bfs::path& path) 
     if (exists)
     {
 	check(*this);
+    }
+    else
+    {
+	throw grid_db_error("Given container does not exist")
+		<< info_db_identity(path.string());
     }
 }
 
@@ -252,7 +259,9 @@ mvcc_mmap_owner::mvcc_mmap_owner(const bfs::path& path, std::size_t size) :
     container_(owner, path, size),
     writer_handle_(container_),
     reader_handle_(container_)
-{ }
+{
+    flush();
+}
 
 mvcc_mmap_owner::~mvcc_mmap_owner()
 { }

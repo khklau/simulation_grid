@@ -8,7 +8,8 @@ message terminate_instr
 message write_instr
 {
     required fixed32 sequence = 1;
-    required sfixed32 element = 2;
+    required string key = 2;
+    required sfixed32 value = 3;
 }
 
 message instruction

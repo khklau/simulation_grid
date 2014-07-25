@@ -6,6 +6,7 @@
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/function.hpp>
 #include <boost/interprocess/creation_tags.hpp>
+#include <boost/interprocess/managed_mapped_file.hpp>
 #include <boost/optional.hpp>
 #include <boost/ref.hpp>
 #include <simulation_grid/core/compiler_extensions.hpp>
@@ -17,16 +18,12 @@
 namespace bip = boost::interprocess;
 namespace bpt = boost::posix_time;
 
-namespace {
+namespace simulation_grid {
+namespace grid_db {
 
-using namespace simulation_grid::grid_db;
-
-typedef boost::uint8_t history_depth;
 typedef boost::uint64_t mvcc_revision;
 typedef mmap_queue<reader_token_id, MVCC_READER_LIMIT>::type reader_token_list;
 typedef mmap_queue<writer_token_id, MVCC_WRITER_LIMIT>::type writer_token_list;
-
-static const size_t DEFAULT_HISTORY_DEPTH = 1 <<  std::numeric_limits<history_depth>::digits;
 
 struct mvcc_mmap_header
 {
@@ -74,6 +71,22 @@ struct mvcc_mmap_resource_pool
     bip::offset_ptr<writer_token_list> writer_free_list;
 };
 
+const mvcc_mmap_header& const_header(const mvcc_mmap_container& container);
+mvcc_mmap_header& mut_header(mvcc_mmap_container& container);
+const mvcc_mmap_resource_pool& const_resource_pool(const mvcc_mmap_container& container);
+mvcc_mmap_resource_pool& mut_resource_pool(const mvcc_mmap_container& container);
+
+} // namespace grid_db
+} // namespace simulation_grid
+
+namespace {
+
+using namespace simulation_grid::grid_db;
+
+typedef boost::uint8_t history_depth;
+
+static const size_t DEFAULT_HISTORY_DEPTH = 1 <<  std::numeric_limits<history_depth>::digits;
+
 template <class value_t>
 struct mvcc_record
 {
@@ -88,8 +101,7 @@ struct mvcc_record
 template <class content_t>
 struct mmap_ring_buffer
 {
-    typedef typename mmap_allocator<content_t>::type allocator_t;
-    typedef multi_reader_ring_buffer<content_t, allocator_t> type;
+    typedef multi_reader_ring_buffer<content_t, bip::allocator<content_t, bip::managed_mapped_file::segment_manager> > type;
 };
 
 template <class value_t>
@@ -107,17 +119,25 @@ value_t* find_mut(mvcc_mmap_container& container, const bip::managed_mapped_file
     return container.file.find<value_t>(key).first;
 }
 
-const mvcc_mmap_header& const_header(const mvcc_mmap_container& container);
-mvcc_mmap_header& mut_header(mvcc_mmap_container& container);
-const mvcc_mmap_resource_pool& const_resource_pool(const mvcc_mmap_container& container);
-mvcc_mmap_resource_pool& mut_resource_pool(const mvcc_mmap_container& container);
-
 template <class element_t>
 bool exists(const mvcc_mmap_reader_handle& handle, const char* key)
 {
     typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type recringbuf_t;
     const recringbuf_t* ringbuf = find_const<recringbuf_t>(handle.container, key);
     return ringbuf && !ringbuf->empty();
+}
+
+template <class element_t>
+std::size_t archive_depth(const mvcc_mmap_reader_handle& handle, const char* key)
+{
+    typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type recringbuf_t;
+    const recringbuf_t* ringbuf = find_const<recringbuf_t>(handle.container, key);
+    std::size_t result = 0;
+    if (LIKELY_EXT(ringbuf))
+    {
+	result = ringbuf->element_count();
+    }
+    return result;
 }
 
 template <class element_t>
@@ -153,20 +173,21 @@ const mvcc_record<element_t>& read_oldest(const mvcc_mmap_reader_handle& handle,
 		<< info_component_identity("mvcc_mmap_reader")
 		<< info_data_identity(key);
     }
-    return ringbuf->front();
+    return ringbuf->back();
 }
 
 template <class element_t>
-void create_and_insert(const mvcc_mmap_writer_handle& handle, const char* key, const element_t& value)
+void create_and_insert(mvcc_mmap_writer_handle& handle, const char* key, const element_t& value)
 {
     typedef mvcc_record<element_t> record_t;
     typedef typename mmap_ring_buffer<record_t>::type recringbuf_t;
     recringbuf_t* ringbuf = find_mut<recringbuf_t>(handle.container, key);
-    if (!ringbuf)
+    if (UNLIKELY_EXT(!ringbuf))
     {
-	ringbuf = handle.container.file.construct<recringbuf_t>(key)(DEFAULT_HISTORY_DEPTH, handle.container.file);
+	ringbuf = handle.container.file.construct<recringbuf_t>(key)(DEFAULT_HISTORY_DEPTH, 
+		handle.container.file.get_segment_manager());
     }
-    if (ringbuf->full())
+    if (UNLIKELY_EXT(ringbuf->full()))
     {
 	// TODO: need a smarter growth algorithm
 	ringbuf->grow(ringbuf->capacity() * 1.5);
@@ -184,16 +205,27 @@ void create_and_insert(const mvcc_mmap_writer_handle& handle, const char* key, c
 namespace simulation_grid {
 namespace grid_db {
 
+const mvcc_mmap_header& const_header(const mvcc_mmap_container& container);
+mvcc_mmap_header& mut_header(mvcc_mmap_container& container);
+const mvcc_mmap_resource_pool& const_resource_pool(const mvcc_mmap_container& container);
+mvcc_mmap_resource_pool& mut_resource_pool(const mvcc_mmap_container& container);
+
 template <class element_t>
 bool mvcc_mmap_reader::exists(const char* key) const
 {
-    return exists<element_t>(reader_handle_, key);
+    return ::exists<element_t>(reader_handle_, key);
+}
+
+template <class element_t>
+std::size_t mvcc_mmap_reader::archive_depth(const char* key) const
+{
+    return ::archive_depth<element_t>(reader_handle_, key);
 }
 
 template <class element_t>
 const element_t& mvcc_mmap_reader::read(const char* key) const
 {
-    return read_newest<element_t>(reader_handle_, key).value;
+    return ::read_newest<element_t>(reader_handle_, key).value;
 }
 
 template <class element_t>
@@ -203,9 +235,15 @@ bool mvcc_mmap_owner::exists(const char* key) const
 }
 
 template <class element_t>
+std::size_t mvcc_mmap_owner::archive_depth(const char* key) const
+{
+    return ::archive_depth<element_t>(reader_handle_, key);
+}
+
+template <class element_t>
 const element_t& mvcc_mmap_owner::read(const char* key) const
 {
-    return read_newest<element_t>(reader_handle_, key).value;
+    return ::read_newest<element_t>(reader_handle_, key).value;
 }
 
 template <class element_t>

@@ -42,7 +42,7 @@ def build(buildCtx):
 	    target=join(buildCtx.env.component.build_tree.libPathFromBuild(buildCtx), 'simgrid_grid_db'),
 	    includes=buildCtx.env.component.include_path_list,
 	    libpath=buildCtx.env.component.lib_path_list,
-	    cxxflags=buildCtx.env.CXXFLAGS,
+	    cxxflags=buildCtx.env.CXXFLAGS + ['-DBOOST_CB_DISABLE_DEBUG'],
 	    rpath=buildCtx.env.component.rpath_list,
 	    install_path=buildCtx.env.component.install_tree.lib,
 	    after=protoTaskList)

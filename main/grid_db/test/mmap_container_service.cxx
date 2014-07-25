@@ -408,7 +408,7 @@ void container_service<element_t>::exec_write(const sgd::write_instr& input, sgd
 {
     sgd::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
-    owner_.write(input.key().c_str(), input.value());
+    owner_.write<element_t>(input.key().c_str(), input.value());
     output.set_confirmation(tmp);
 }
 
