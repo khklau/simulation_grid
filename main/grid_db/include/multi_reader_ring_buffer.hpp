@@ -11,17 +11,16 @@
 namespace simulation_grid {
 namespace grid_db {
 
-template <class element_t, class memory_t>
+template <class element_t, class allocator_t>
 class multi_reader_ring_buffer : private boost::noncopyable
 {
 public:
-    typedef boost::interprocess::allocator<element_t, typename memory_t::segment_manager> allocator_t;
     typedef typename allocator_t::reference element_ref_t;
     typedef typename allocator_t::const_reference const_element_ref_t;
     typedef typename allocator_t::size_type size_type;
     typedef boost::interprocess::sharable_lock<boost::interprocess::interprocess_sharable_mutex> read_lock;
     typedef boost::interprocess::scoped_lock<boost::interprocess::interprocess_sharable_mutex> write_lock;
-    multi_reader_ring_buffer(size_type capacity, memory_t* file);
+    multi_reader_ring_buffer(size_type capacity, const allocator_t& allocator);
     const_element_ref_t front() const;
     void push_front(const_element_ref_t element);
     const_element_ref_t back() const;
@@ -32,9 +31,8 @@ public:
     bool empty() const;
     bool full() const;
 private:
-    allocator_t allocator_;
     boost::interprocess::interprocess_sharable_mutex mutex_;
-    boost::interprocess::offset_ptr< boost::circular_buffer<element_t, allocator_t> > ringbuf_;
+    boost::circular_buffer<element_t, allocator_t> ringbuf_;
 };
 
 // TODO : replace the following with type aliases after moving to a C++11 compiler

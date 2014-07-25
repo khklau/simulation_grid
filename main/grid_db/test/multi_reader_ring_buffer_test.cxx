@@ -117,7 +117,8 @@ template <class element_t, class memory_t>
 class service_client
 {
 public:
-    typedef sgd::multi_reader_ring_buffer<element_t, memory_t> ringbuf;
+    typedef bip::allocator<element_t, typename memory_t::segment_manager> allocator_t;
+    typedef sgd::multi_reader_ring_buffer<element_t, allocator_t> ringbuf;
     service_client(const config& config);
     ~service_client();
     const ringbuf& get_ringbuf() const { return *ringbuf_; }
@@ -139,7 +140,7 @@ service_client<element_t, memory_t>::service_client(const config& config) :
     service_(),
     stream_(service_, init_zmq_socket(socket_, config)),
     memory_(bip::open_only, config.name.c_str()),
-    ringbuf_(memory_.template find< sgd::multi_reader_ring_buffer<element_t, memory_t> >(config.name.c_str()).first)
+    ringbuf_(memory_.template find< sgd::multi_reader_ring_buffer<element_t, allocator_t> >(config.name.c_str()).first)
 {
     if (UNLIKELY_EXT(!ringbuf_))
     {

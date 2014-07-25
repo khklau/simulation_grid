@@ -266,6 +266,7 @@ template <class element_t, class memory_t>
 class ringbuf_service
 {
 public:
+    typedef boost::interprocess::allocator<element_t, typename memory_t::segment_manager> allocator_t;
     ringbuf_service(const config& config);
     ~ringbuf_service();
     void start();
@@ -291,7 +292,7 @@ private:
     zmq::socket_t socket_;
     bas::posix::stream_descriptor stream_;
     memory_t memory_;
-    sgd::multi_reader_ring_buffer<element_t, memory_t>* ringbuf_;
+    sgd::multi_reader_ring_buffer<element_t, allocator_t>* ringbuf_;
     std::vector<const element_t*> register_set_;
     sgd::instruction_msg instr_;
     sgd::result_msg result_;
@@ -305,7 +306,8 @@ ringbuf_service<element_t, memory_t>::ringbuf_service(const config& config) :
     socket_(context_, ZMQ_REP),
     stream_(service_, init_zmq_socket(socket_, config)),
     memory_(bip::create_only, config.name.c_str(), config.size),
-    ringbuf_(memory_.template construct< sgd::multi_reader_ring_buffer<element_t, memory_t> >(config.name.c_str())(config.capacity, &memory_)),
+    ringbuf_(memory_.template construct< sgd::multi_reader_ring_buffer<element_t, allocator_t> >(config.name.c_str())(
+	    config.capacity, memory_.get_segment_manager())),
     register_set_(config.capacity, 0),
     instr_(),
     result_()
