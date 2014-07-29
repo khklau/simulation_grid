@@ -88,7 +88,7 @@ void check(const mvcc_mmap_container& container)
 reader_token_id acquire_reader_token(mvcc_mmap_container& container)
 {
     reader_token_id reservation;
-    if (!mut_resource_pool(container).reader_free_list->pop(reservation))
+    if (!mut_resource_pool(container).reader_free_list.pop(reservation))
     {
 	throw busy_condition("No reader token available")
 		<< info_db_identity(container.path.string())
@@ -101,7 +101,7 @@ void release_reader_token(mvcc_mmap_container& container, const reader_token_id&
 {
     bra::mt19937 seed;
     bra::uniform_int_distribution<> generator(100, 200);
-    while (!mut_resource_pool(container).reader_free_list->push(id))
+    while (!mut_resource_pool(container).reader_free_list.push(id))
     {
 	boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
     }
@@ -110,7 +110,7 @@ void release_reader_token(mvcc_mmap_container& container, const reader_token_id&
 writer_token_id acquire_writer_token(mvcc_mmap_container& container)
 {
     writer_token_id reservation;
-    if (!mut_resource_pool(container).writer_free_list->pop(reservation))
+    if (!mut_resource_pool(container).writer_free_list.pop(reservation))
     {
 	throw busy_condition("No writer token available")
 		<< info_db_identity(container.path.string())
@@ -123,7 +123,7 @@ void release_writer_token(mvcc_mmap_container& container, const writer_token_id&
 {
     bra::mt19937 seed;
     bra::uniform_int_distribution<> generator(100, 200);
-    while (!mut_resource_pool(container).writer_free_list->push(id))
+    while (!mut_resource_pool(container).writer_free_list.push(id))
     {
 	boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
     }
@@ -168,18 +168,16 @@ mvcc_mmap_header::mvcc_mmap_header() :
 }
 
 mvcc_mmap_resource_pool::mvcc_mmap_resource_pool(bip::managed_mapped_file* file) :
-    reader_allocator(file->get_segment_manager()),
-    reader_free_list(file->construct<reader_token_list>(bi::anonymous_instance)(reader_allocator)),
-    writer_allocator(file->get_segment_manager()),
-    writer_free_list(file->construct<writer_token_list>(bi::anonymous_instance)(writer_allocator))
+    reader_free_list(file->get_segment_manager()),
+    writer_free_list(file->get_segment_manager())
 {
     for (reader_token_id id = 0; id < MVCC_READER_LIMIT; ++id)
     {
-	reader_free_list->push(id);
+	reader_free_list.push(id);
     }
     for (writer_token_id id = 0; id < MVCC_WRITER_LIMIT; ++id)
     {
-	writer_free_list->push(id);
+	writer_free_list.push(id);
     }
 }
 

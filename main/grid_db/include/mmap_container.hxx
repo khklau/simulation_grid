@@ -65,10 +65,8 @@ struct mvcc_mmap_resource_pool
     mvcc_mmap_writer_token writer_token_pool[MVCC_WRITER_LIMIT];
     mvcc_revision global_revision;
     mvcc_mmap_owner_token owner_token;
-    bip::allocator<reader_token_id, bip::managed_mapped_file::segment_manager> reader_allocator;
-    bip::offset_ptr<reader_token_list> reader_free_list;
-    bip::allocator<writer_token_id, bip::managed_mapped_file::segment_manager> writer_allocator;
-    bip::offset_ptr<writer_token_list> writer_free_list;
+    reader_token_list reader_free_list;
+    writer_token_list writer_free_list;
 };
 
 const mvcc_mmap_header& const_header(const mvcc_mmap_container& container);
