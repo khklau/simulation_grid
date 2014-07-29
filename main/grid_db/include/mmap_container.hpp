@@ -96,7 +96,6 @@ public:
     mvcc_mmap_reader(const boost::filesystem::path& path);
     ~mvcc_mmap_reader();
     template <class element_t> bool exists(const char* key) const;
-    template <class element_t> std::size_t archive_depth(const char* key) const;
     template <class element_t> const element_t& read(const char* key) const;
 private:
     mvcc_mmap_container container_;
@@ -109,7 +108,6 @@ public:
     mvcc_mmap_owner(const boost::filesystem::path& path, std::size_t size);
     ~mvcc_mmap_owner();
     template <class element_t> bool exists(const char* key) const;
-    template <class element_t> std::size_t archive_depth(const char* key) const;
     template <class element_t> const element_t& read(const char* key) const;
     template <class element_t> void write(const char* key, const element_t& value);
     void flush();

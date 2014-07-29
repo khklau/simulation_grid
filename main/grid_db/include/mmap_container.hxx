@@ -128,19 +128,6 @@ bool exists(const mvcc_mmap_reader_handle& handle, const char* key)
 }
 
 template <class element_t>
-std::size_t archive_depth(const mvcc_mmap_reader_handle& handle, const char* key)
-{
-    typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type recringbuf_t;
-    const recringbuf_t* ringbuf = find_const<recringbuf_t>(handle.container, key);
-    std::size_t result = 0;
-    if (LIKELY_EXT(ringbuf))
-    {
-	result = ringbuf->element_count();
-    }
-    return result;
-}
-
-template <class element_t>
 const mvcc_record<element_t>& read_newest(const mvcc_mmap_reader_handle& handle, const char* key)
 {
     typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type recringbuf_t;
@@ -217,12 +204,6 @@ bool mvcc_mmap_reader::exists(const char* key) const
 }
 
 template <class element_t>
-std::size_t mvcc_mmap_reader::archive_depth(const char* key) const
-{
-    return ::archive_depth<element_t>(reader_handle_, key);
-}
-
-template <class element_t>
 const element_t& mvcc_mmap_reader::read(const char* key) const
 {
     return ::read_newest<element_t>(reader_handle_, key).value;
@@ -232,12 +213,6 @@ template <class element_t>
 bool mvcc_mmap_owner::exists(const char* key) const
 {
     return exists<element_t>(reader_handle_, key);
-}
-
-template <class element_t>
-std::size_t mvcc_mmap_owner::archive_depth(const char* key) const
-{
-    return ::archive_depth<element_t>(reader_handle_, key);
 }
 
 template <class element_t>

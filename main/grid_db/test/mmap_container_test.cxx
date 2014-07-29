@@ -291,7 +291,6 @@ TEST(mmap_container_test, access_historical)
     ASSERT_TRUE(outmsg1.is_confirmation()) << "unexpected write result";
     ASSERT_EQ(inmsg1.get_write().sequence(), outmsg1.get_confirmation().sequence()) << "sequence number mismatch";
     ASSERT_TRUE(client.get_reader().exists<boost::int32_t>(key)) << "write failed";
-    EXPECT_EQ(1U, client.get_reader().archive_depth<boost::int32_t>(key)) << "write failed";
     const boost::int32_t& actual1 = client.get_reader().read<boost::int32_t>(key);
     EXPECT_EQ(expected1, actual1) << "read value is not the value just written";
 
@@ -306,7 +305,6 @@ TEST(mmap_container_test, access_historical)
     ASSERT_TRUE(outmsg2.is_confirmation()) << "unexpected write result";
     ASSERT_EQ(inmsg2.get_write().sequence(), outmsg2.get_confirmation().sequence()) << "sequence number mismatch";
     ASSERT_TRUE(client.get_reader().exists<boost::int32_t>(key)) << "write failed";
-    EXPECT_EQ(2U, client.get_reader().archive_depth<boost::int32_t>(key)) << "write failed";
     const boost::int32_t& actual2 = client.get_reader().read<boost::int32_t>(key);
     EXPECT_EQ(expected2, actual2) << "read value is not the value just written";
     EXPECT_EQ(expected1, actual1) << "incorrect historical value";
