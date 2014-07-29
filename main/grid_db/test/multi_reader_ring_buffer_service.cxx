@@ -286,31 +286,31 @@ private:
     void exec_push_front(const sgd::push_front_instr& input, sgd::result_msg& output);
     void exec_pop_back(const sgd::pop_back_instr& input, sgd::result_msg& output);
     void exec_export_element(const sgd::export_element_instr& input, sgd::result_msg& output);
-    bas::io_service service_;
     signal_notifier notifier_;
-    zmq::context_t context_;
-    zmq::socket_t socket_;
-    bas::posix::stream_descriptor stream_;
     memory_t memory_;
     sgd::multi_reader_ring_buffer<element_t, allocator_t>* ringbuf_;
     std::vector<const element_t*> register_set_;
     sgd::instruction_msg instr_;
     sgd::result_msg result_;
+    zmq::context_t context_;
+    zmq::socket_t socket_;
+    bas::io_service service_;
+    bas::posix::stream_descriptor stream_;
 };
 
 template <class element_t, class memory_t>
 ringbuf_service<element_t, memory_t>::ringbuf_service(const config& config) :
-    service_(),
     notifier_(),
-    context_(1),
-    socket_(context_, ZMQ_REP),
-    stream_(service_, init_zmq_socket(socket_, config)),
     memory_(bip::create_only, config.name.c_str(), config.size),
     ringbuf_(memory_.template construct< sgd::multi_reader_ring_buffer<element_t, allocator_t> >(config.name.c_str())(
 	    config.capacity, memory_.get_segment_manager())),
     register_set_(config.capacity, 0),
     instr_(),
-    result_()
+    result_(),
+    context_(1),
+    socket_(context_, ZMQ_REP),
+    service_(),
+    stream_(service_, init_zmq_socket(socket_, config))
 {
     notifier_.add(SIGTERM, boost::bind(&ringbuf_service::stop, this));
     notifier_.add(SIGINT, boost::bind(&ringbuf_service::stop, this));
@@ -321,10 +321,10 @@ template <class element_t, class memory_t>
 ringbuf_service<element_t, memory_t>::~ringbuf_service()
 {
     stream_.release();
+    stop();
     socket_.close();
     context_.close();
     notifier_.stop();
-    stop();
 }
 
 template <class element_t, class memory_t>

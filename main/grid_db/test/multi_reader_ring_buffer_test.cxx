@@ -125,22 +125,22 @@ public:
     sgd::result_msg send(sgd::instruction_msg& msg);
 private:
     static int init_zmq_socket(zmq::socket_t& socket, const config& config);
+    memory_t memory_;
+    ringbuf* ringbuf_;
     zmq::context_t context_;
     zmq::socket_t socket_;
     bas::io_service service_;
     bas::posix::stream_descriptor stream_;
-    memory_t memory_;
-    ringbuf* ringbuf_;
 };
 
 template <class element_t, class memory_t>
 service_client<element_t, memory_t>::service_client(const config& config) :
+    memory_(bip::open_only, config.name.c_str()),
+    ringbuf_(memory_.template find< sgd::multi_reader_ring_buffer<element_t, allocator_t> >(config.name.c_str()).first),
     context_(1),
     socket_(context_, ZMQ_REQ),
     service_(),
-    stream_(service_, init_zmq_socket(socket_, config)),
-    memory_(bip::open_only, config.name.c_str()),
-    ringbuf_(memory_.template find< sgd::multi_reader_ring_buffer<element_t, allocator_t> >(config.name.c_str()).first)
+    stream_(service_, init_zmq_socket(socket_, config))
 {
     if (UNLIKELY_EXT(!ringbuf_))
     {
