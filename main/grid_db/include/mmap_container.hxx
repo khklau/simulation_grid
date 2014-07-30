@@ -34,21 +34,19 @@ struct mvcc_mmap_header
     mvcc_mmap_header();
 };
 
-// TODO: detect the cache line size and calculate the required padding
+#ifdef LEVEL1_DCACHE_LINESIZE
 
 struct mvcc_mmap_reader_token
 {
     boost::optional<mvcc_revision> last_read_revision;
     boost::optional<bpt::ptime> last_read_timestamp;
-    char padding[32];
-};
+} __attribute__((aligned(LEVEL1_DCACHE_LINESIZE)));
 
 struct mvcc_mmap_writer_token
 {
     boost::optional<mvcc_revision> last_write_revision;
     boost::optional<bpt::ptime> last_write_timestamp;
-    char padding[32];
-};
+} __attribute__((aligned(LEVEL1_DCACHE_LINESIZE)));
 
 struct mvcc_mmap_owner_token
 {
@@ -56,7 +54,9 @@ struct mvcc_mmap_owner_token
     boost::optional<bpt::ptime> last_flush_timestamp;
     boost::optional<mvcc_revision> oldest_revision_found;
     boost::optional<bpt::ptime> oldest_timestamp_found;
-};
+} __attribute__((aligned(LEVEL1_DCACHE_LINESIZE)));
+
+#endif
 
 struct mvcc_mmap_resource_pool
 {
