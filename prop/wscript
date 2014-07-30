@@ -1,11 +1,21 @@
+from subprocess import Popen, PIPE
+from waflib.Configure import conf
 from waflib.extras.layout import Solution
 
 def options(optCtx):
     return
 
+@conf
+def scan(self):
+    self.start_msg('Detecting cache line size')
+    cacheline = Popen('getconf LEVEL1_DCACHE_LINESIZE', shell=True, stdout=PIPE).stdout.readline().strip()
+    self.env.append_value('CXXFLAGS', ['-DLEVEL1_DCACHE_LINESIZE=%s' % cacheline])
+    self.end_msg(cacheline)
+
 def configure(confCtx):
     solution = Solution.fromContext(confCtx)
     confCtx.env.solution = solution
+    confCtx.scan()
     confCtx.env.append_value('CXXFLAGS', ['-Wall', '-Wextra', '-O2', '-g',
 	    '-fno-builtin-malloc', '-fno-builtin-calloc', '-fno-builtin-realloc', 
 	    '-fno-builtin-free', '-pthread', '-Wl,-z,origin'])
