@@ -161,17 +161,15 @@ const mvcc_record<element_t>& read_oldest(const mvcc_mmap_reader_handle& handle,
     return ringbuf->back();
 }
 
+// TODO: provide strong exception guarantee
 template <class element_t>
-void create_and_insert(mvcc_mmap_writer_handle& handle, const char* key, const element_t& value)
+void insert(mvcc_mmap_writer_handle& handle, const char* key, const element_t& value)
 {
     typedef mvcc_record<element_t> record_t;
     typedef typename mmap_ring_buffer<record_t>::type recringbuf_t;
-    recringbuf_t* ringbuf = find_mut<recringbuf_t>(handle.container, key);
-    if (UNLIKELY_EXT(!ringbuf))
-    {
-	ringbuf = handle.container.file.construct<recringbuf_t>(key)(DEFAULT_HISTORY_DEPTH, 
-		handle.container.file.get_segment_manager());
-    }
+    recringbuf_t* ringbuf = handle.container.file.find_or_construct<recringbuf_t>(key)(
+	    DEFAULT_HISTORY_DEPTH, 
+	    handle.container.file.get_segment_manager());
     if (UNLIKELY_EXT(ringbuf->full()))
     {
 	// TODO: need a smarter growth algorithm
@@ -210,7 +208,7 @@ const element_t& mvcc_mmap_reader::read(const char* key) const
 template <class element_t>
 bool mvcc_mmap_owner::exists(const char* key) const
 {
-    return exists<element_t>(reader_handle_, key);
+    return ::exists<element_t>(reader_handle_, key);
 }
 
 template <class element_t>
@@ -222,9 +220,7 @@ const element_t& mvcc_mmap_owner::read(const char* key) const
 template <class element_t>
 void mvcc_mmap_owner::write(const char* key, const element_t& value)
 {
-    boost::function<void ()> write_func(boost::bind(&create_and_insert<element_t>, 
-	    boost::ref(writer_handle_), key, boost::ref(value)));
-    writer_handle_.container.file.get_segment_manager()->atomic_func(write_func);
+    ::insert(writer_handle_, key, value);
 }
 
 } // namespace grid_db
