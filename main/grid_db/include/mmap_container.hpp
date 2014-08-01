@@ -110,6 +110,7 @@ public:
     template <class element_t> bool exists(const char* key) const;
     template <class element_t> const element_t& read(const char* key) const;
     template <class element_t> void write(const char* key, const element_t& value);
+    void scan_usage(reader_token_id from = 0, reader_token_id to = MVCC_READER_LIMIT);
     void flush();
 private:
     void flush_impl();

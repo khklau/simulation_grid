@@ -264,6 +264,26 @@ mvcc_mmap_owner::mvcc_mmap_owner(const bfs::path& path, std::size_t size) :
 mvcc_mmap_owner::~mvcc_mmap_owner()
 { }
 
+void mvcc_mmap_owner::scan_usage(reader_token_id from, reader_token_id to)
+{
+    if (from >= MVCC_READER_LIMIT)
+    {
+	return;
+    }
+    mvcc_mmap_resource_pool& pool = mut_resource_pool(container_);
+    for (reader_token_id iter = from; iter < MVCC_READER_LIMIT && iter < to; ++iter)
+    {
+	if (!pool.owner_token.oldest_revision_found || (
+		pool.reader_token_pool[iter].last_read_revision &&
+		pool.reader_token_pool[iter].last_read_revision <
+		pool.owner_token.oldest_revision_found))
+	{
+	    pool.owner_token.oldest_revision_found = pool.reader_token_pool[iter].last_read_revision;
+	    pool.owner_token.oldest_timestamp_found = pool.reader_token_pool[iter].last_read_timestamp;
+	}
+    }
+}
+
 void mvcc_mmap_owner::flush()
 {
     boost::function<void ()> flush_func(boost::bind(&mvcc_mmap_owner::flush_impl, boost::ref(*this)));
