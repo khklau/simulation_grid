@@ -5,11 +5,76 @@ message terminate_instr
     required fixed32 sequence = 1;
 }
 
+message exists_instr
+{
+    required fixed32 sequence = 1;
+    required string key = 2;
+}
+
+message read_instr
+{
+    required fixed32 sequence = 1;
+    required string key = 2;
+}
+
 message write_instr
 {
     required fixed32 sequence = 1;
     required string key = 2;
-    required sfixed32 value = 3;
+    required string value = 3;
+}
+
+message process_read_metadata_instr
+{
+    required fixed32 sequence = 1;
+    required fixed32 from = 2;
+    required fixed32 to = 3;
+}
+
+message process_write_metadata_instr
+{
+    required fixed32 sequence = 1;
+    required fixed64 max_attempts = 2;
+}
+
+message collect_garbage_1_instr
+{
+    required fixed32 sequence = 1;
+    required fixed64 max_attempts = 2;
+}
+
+message collect_garbage_2_instr
+{
+    required fixed32 sequence = 1;
+    required string from = 2;
+    required fixed64 max_attempts = 3;
+}
+
+message get_reader_token_id_instr
+{
+    required fixed32 sequence = 1;
+}
+
+message get_oldest_revision_instr
+{
+    required fixed32 sequence = 1;
+    required string key = 2;
+}
+
+message get_global_oldest_revision_read_instr
+{
+    required fixed32 sequence = 1;
+}
+
+message get_registered_keys_instr
+{
+    required fixed32 sequence = 1;
+}
+
+message get_history_depth_instr
+{
+    required fixed32 sequence = 1;
+    required string key = 2;
 }
 
 message instruction
@@ -17,11 +82,33 @@ message instruction
     enum opcode_t
     {
 	TERMINATE = 0;
-	PUSH_FRONT = 1;
+	EXISTS = 1;
+	READ = 2;
+	WRITE = 3;
+	PROCESS_READ_METADATA = 4;
+	PROCESS_WRITE_METADATA = 5;
+	COLLECT_GARBAGE_1 = 6;
+	COLLECT_GARBAGE_2 = 7;
+	GET_READER_TOKEN_ID = 8;
+	GET_OLDEST_REVISION = 9;
+	GET_GLOBAL_OLDEST_REVISION_READ = 10;
+	GET_REGISTERED_KEYS = 11;
+	GET_HISTORY_DEPTH = 12;
     }
     required opcode_t opcode = 1;
     optional terminate_instr terminate = 2;
-    optional write_instr write = 3;
+    optional exists_instr exists = 3;
+    optional read_instr read = 4;
+    optional write_instr write = 5;
+    optional process_read_metadata_instr process_read_metadata = 6;
+    optional process_write_metadata_instr process_write_metadata = 7;
+    optional collect_garbage_1_instr collect_garbage_1 = 8;
+    optional collect_garbage_2_instr collect_garbage_2 = 9;
+    optional get_reader_token_id_instr get_reader_token_id = 10;
+    optional get_oldest_revision_instr get_oldest_revision = 11;
+    optional get_global_oldest_revision_read_instr get_global_oldest_revision_read = 12;
+    optional get_registered_keys_instr get_registered_keys = 13;
+    optional get_history_depth_instr get_history_depth = 14;
 }
 
 message malformed_message_result
@@ -39,6 +126,48 @@ message confirmation_result
     required fixed32 sequence = 1;
 }
 
+message predicate_result
+{
+    required fixed32 sequence = 1;
+    required bool predicate = 2;
+}
+
+message value_result
+{
+    required fixed32 sequence = 1;
+    required string value = 2;
+}
+
+message key_result
+{
+    required fixed32 sequence = 1;
+    required string key = 2;
+}
+
+message token_id_result
+{
+    required fixed32 sequence = 1;
+    required fixed32 token_id = 2;
+}
+
+message revision_result
+{
+    required fixed32 sequence = 1;
+    required fixed64 revision = 2;
+}
+
+message key_list_result
+{
+    required fixed32 sequence = 1;
+    repeated string key_list = 2;
+}
+
+message size_result
+{
+    required fixed32 sequence = 1;
+    required fixed64 size = 2;
+}
+
 message result
 {
     enum opcode_t
@@ -46,9 +175,23 @@ message result
 	MALFORMED_MESSAGE = 0;
 	INVALID_ARGUMENT = 1;
 	CONFIRMATION = 2;
+	PREDICATE = 3;
+	VALUE = 4;
+	KEY = 5;
+	TOKEN_ID = 6;
+	REVISION = 7;
+	KEY_LIST = 8;
+	SIZE = 9;
     }
     required opcode_t opcode = 1;
     optional malformed_message_result malformed_message = 2;
     optional invalid_argument_result invalid_argument = 3;
     optional confirmation_result confirmation = 4;
+    optional predicate_result predicate = 5;
+    optional value_result value = 6;
+    optional key_result key = 7;
+    optional token_id_result token_id = 8;
+    optional revision_result revision = 9;
+    optional key_list_result key_list = 10;
+    optional size_result size = 11;
 }

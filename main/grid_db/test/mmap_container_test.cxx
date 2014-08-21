@@ -9,8 +9,11 @@
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/posix/stream_descriptor.hpp>
 #include <boost/assign/list_of.hpp>
+#include <boost/atomic.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/format.hpp>
+#include <boost/lockfree/spsc_queue.hpp>
+#include <boost/lockfree/queue.hpp>
 #include <boost/thread/thread.hpp>
 #include <boost/thread/thread_time.hpp>
 #include <gtest/gtest.h>
@@ -24,6 +27,7 @@
 
 namespace bas = boost::asio;
 namespace bfs = boost::filesystem;
+namespace bpt = boost::posix_time;
 namespace scp = simulation_grid::core::process_utility;
 namespace sgd = simulation_grid::grid_db;
 
@@ -280,32 +284,32 @@ TEST(mmap_container_test, access_historical)
     service_client client(conf);
     const char* key = "access_historical";
 
-    const boost::int32_t expected1 = 11;
+    const container_value expected1("11");
     sgd::instruction_msg inmsg1;
     sgd::write_instr instr1;
     instr1.set_sequence(1U);
     instr1.set_key(key);
-    instr1.set_value(expected1);
+    instr1.set_value(expected1.c_str);
     inmsg1.set_write(instr1);
     sgd::result_msg outmsg1(client.send(inmsg1));
     ASSERT_TRUE(outmsg1.is_confirmation()) << "unexpected write result";
     ASSERT_EQ(inmsg1.get_write().sequence(), outmsg1.get_confirmation().sequence()) << "sequence number mismatch";
-    ASSERT_TRUE(client.get_reader().exists<boost::int32_t>(key)) << "write failed";
-    const boost::int32_t& actual1 = client.get_reader().read<boost::int32_t>(key);
+    ASSERT_TRUE(client.get_reader().exists<container_value>(key)) << "write failed";
+    const container_value& actual1 = client.get_reader().read<container_value>(key);
     EXPECT_EQ(expected1, actual1) << "read value is not the value just written";
 
-    const boost::int32_t expected2 = 22;
+    const container_value expected2("22");
     sgd::instruction_msg inmsg2;
     sgd::write_instr instr2;
     instr2.set_sequence(2U);
     instr2.set_key(key);
-    instr2.set_value(expected2);
+    instr2.set_value(expected2.c_str);
     inmsg2.set_write(instr2);
     sgd::result_msg outmsg2(client.send(inmsg2));
     ASSERT_TRUE(outmsg2.is_confirmation()) << "unexpected write result";
     ASSERT_EQ(inmsg2.get_write().sequence(), outmsg2.get_confirmation().sequence()) << "sequence number mismatch";
-    ASSERT_TRUE(client.get_reader().exists<boost::int32_t>(key)) << "write failed";
-    const boost::int32_t& actual2 = client.get_reader().read<boost::int32_t>(key);
+    ASSERT_TRUE(client.get_reader().exists<container_value>(key)) << "write failed";
+    const container_value& actual2 = client.get_reader().read<container_value>(key);
     EXPECT_EQ(expected2, actual2) << "read value is not the value just written";
     EXPECT_EQ(expected1, actual1) << "incorrect historical value";
 
@@ -316,4 +320,10 @@ TEST(mmap_container_test, access_historical)
     sgd::result_msg outmsg3(client.send(inmsg3));
     ASSERT_TRUE(outmsg3.is_confirmation()) << "Unexpected terminate result";
     ASSERT_EQ(inmsg3.get_terminate().sequence(), outmsg3.get_confirmation().sequence()) << "Sequence number mismatch";
+}
+
+TEST(mmap_container_test, atomic_global_revision)
+{
+    boost::atomic<mvcc_revision> tmp;
+    ASSERT_TRUE(tmp.is_lock_free()) << "mvcc_revision is not atomic";
 }

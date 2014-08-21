@@ -272,7 +272,18 @@ private:
     void run();
     void receive_instruction(const bsy::error_code& error, size_t);
     void exec_terminate(const sgd::terminate_instr& input, sgd::result_msg& output);
+    void exec_exists(const sgd::exists_instr& input, sgd::result_msg& output);
+    void exec_read(const sgd::read_instr& input, sgd::result_msg& output);
     void exec_write(const sgd::write_instr& input, sgd::result_msg& output);
+    void exec_process_read_metadata(const sgd::process_read_metadata_instr& input, sgd::result_msg& output);
+    void exec_process_write_metadata(const sgd::process_write_metadata_instr& input, sgd::result_msg& output);
+    void exec_collect_garbage_1(const sgd::collect_garbage_1_instr& input, sgd::result_msg& output);
+    void exec_collect_garbage_2(const sgd::collect_garbage_2_instr& input, sgd::result_msg& output);
+    void exec_get_reader_token_id(const sgd::get_reader_token_id_instr& input, sgd::result_msg& output);
+    void exec_get_oldest_revision(const sgd::get_oldest_revision_instr& input, sgd::result_msg& output);
+    void exec_get_global_oldest_revision_read(const sgd::get_global_oldest_revision_read_instr& input, sgd::result_msg& output);
+    void exec_get_registered_keys(const sgd::get_registered_keys_instr& input, sgd::result_msg& output);
+    void exec_get_history_depth(const sgd::get_history_depth_instr& input, sgd::result_msg& output);
     sgd::mvcc_mmap_owner owner_;
     bas::io_service service_;
     signal_notifier notifier_;
@@ -373,9 +384,53 @@ void container_service<element_t>::receive_instruction(const bsy::error_code& er
 	{
 	    exec_terminate(instr_.get_terminate(), result_);
 	}
+	else if (instr_.is_exists())
+	{
+	    exec_exists(instr_.get_exists(), result_);
+	}
+	else if (instr_.is_read())
+	{
+	    exec_read(instr_.get_read(), result_);
+	}
 	else if (instr_.is_write())
 	{
 	    exec_write(instr_.get_write(), result_);
+	}
+	else if (instr_.is_process_read_metadata())
+	{
+	    exec_process_read_metadata(instr_.get_process_read_metadata(), result_);
+	}
+	else if (instr_.is_process_write_metadata())
+	{
+	    exec_process_write_metadata(instr_.get_process_write_metadata(), result_);
+	}
+	else if (instr_.is_collect_garbage_1())
+	{
+	    exec_collect_garbage_1(instr_.get_collect_garbage_1(), result_);
+	}
+	else if (instr_.is_collect_garbage_2())
+	{
+	    exec_collect_garbage_2(instr_.get_collect_garbage_2(), result_);
+	}
+	else if (instr_.is_get_reader_token_id())
+	{
+	    exec_get_reader_token_id(instr_.get_get_reader_token_id(), result_);
+	}
+	else if (instr_.is_get_oldest_revision())
+	{
+	    exec_get_oldest_revision(instr_.get_get_oldest_revision(), result_);
+	}
+	else if (instr_.is_get_global_oldest_revision_read())
+	{
+	    exec_get_global_oldest_revision_read(instr_.get_get_global_oldest_revision_read(), result_);
+	}
+	else if (instr_.is_get_registered_keys())
+	{
+	    exec_get_registered_keys(instr_.get_get_registered_keys(), result_);
+	}
+	else if (instr_.is_get_history_depth())
+	{
+	    exec_get_history_depth(instr_.get_get_history_depth(), result_);
 	}
 	else
 	{
@@ -404,16 +459,128 @@ void container_service<element_t>::exec_terminate(const sgd::terminate_instr& in
 }
 
 template <class element_t>
+void container_service<element_t>::exec_exists(const sgd::exists_instr& input, sgd::result_msg& output)
+{
+    sgd::predicate_result tmp;
+    tmp.set_sequence(input.sequence());
+    bool result(owner_.exists<element_t>(input.key().c_str()));
+    tmp.set_predicate(result);
+    output.set_predicate(tmp);
+}
+
+template <class element_t>
+void container_service<element_t>::exec_read(const sgd::read_instr& input, sgd::result_msg& output)
+{
+    sgd::value_result tmp;
+    tmp.set_sequence(input.sequence());
+    std::string result(owner_.read<element_t>(input.key().c_str()).c_str);
+    tmp.set_value(result);
+    output.set_value(tmp);
+}
+
+template <class element_t>
 void container_service<element_t>::exec_write(const sgd::write_instr& input, sgd::result_msg& output)
 {
     sgd::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
-    owner_.write<element_t>(input.key().c_str(), input.value());
+    container_value value(input.value().c_str());
+    owner_.write<element_t>(input.key().c_str(), value);
     output.set_confirmation(tmp);
 }
 
-typedef container_service<boost::int32_t> shm_container_service;
-typedef container_service<boost::int32_t> mmap_container_service;
+template <class element_t>
+void container_service<element_t>::exec_process_read_metadata(const sgd::process_read_metadata_instr& input, sgd::result_msg& output)
+{
+    sgd::confirmation_result tmp;
+    tmp.set_sequence(input.sequence());
+    owner_.process_read_metadata(input.from(), input.to());
+    output.set_confirmation(tmp);
+}
+
+template <class element_t>
+void container_service<element_t>::exec_process_write_metadata(const sgd::process_write_metadata_instr& input, sgd::result_msg& output)
+{
+    sgd::confirmation_result tmp;
+    tmp.set_sequence(input.sequence());
+    owner_.process_write_metadata(input.max_attempts());
+    output.set_confirmation(tmp);
+}
+
+template <class element_t>
+void container_service<element_t>::exec_collect_garbage_1(const sgd::collect_garbage_1_instr& input, sgd::result_msg& output)
+{
+    sgd::key_result tmp;
+    tmp.set_sequence(input.sequence());
+    std::string result(owner_.collect_garbage(input.max_attempts()));
+    tmp.set_key(result);
+    output.set_key(tmp);
+}
+
+template <class element_t>
+void container_service<element_t>::exec_collect_garbage_2(const sgd::collect_garbage_2_instr& input, sgd::result_msg& output)
+{
+    sgd::key_result tmp;
+    tmp.set_sequence(input.sequence());
+    std::string result(owner_.collect_garbage(input.from(), input.max_attempts()));
+    tmp.set_key(result);
+    output.set_key(tmp);
+}
+
+template <class element_t>
+void container_service<element_t>::exec_get_reader_token_id(const sgd::get_reader_token_id_instr& input, sgd::result_msg& output)
+{
+    sgd::token_id_result tmp;
+    tmp.set_sequence(input.sequence());
+    reader_token_id result(owner_.get_reader_token_id());
+    tmp.set_token_id(result);
+    output.set_token_id(tmp);
+}
+
+template <class element_t>
+void container_service<element_t>::exec_get_oldest_revision(const sgd::get_oldest_revision_instr& input, sgd::result_msg& output)
+{
+    sgd::revision_result tmp;
+    tmp.set_sequence(input.sequence());
+    boost::uint64_t result = owner_.get_oldest_revision<element_t>(input.key().c_str());
+    tmp.set_revision(result);
+    output.set_revision(tmp);
+}
+
+template <class element_t>
+void container_service<element_t>::exec_get_global_oldest_revision_read(const sgd::get_global_oldest_revision_read_instr& input, sgd::result_msg& output)
+{
+    sgd::revision_result tmp;
+    tmp.set_sequence(input.sequence());
+    boost::uint64_t result = owner_.get_global_oldest_revision_read();
+    tmp.set_revision(result);
+    output.set_revision(tmp);
+}
+
+template <class element_t>
+void container_service<element_t>::exec_get_registered_keys(const sgd::get_registered_keys_instr& input, sgd::result_msg& output)
+{
+    sgd::key_list_result tmp;
+    tmp.set_sequence(input.sequence());
+    std::vector<std::string> result(owner_.get_registered_keys());
+    for (std::vector<std::string>::const_iterator iter = result.begin(); iter != result.end(); ++iter)
+    {
+	tmp.add_key_list(*iter);
+    }
+    output.set_key_list(tmp);
+}
+
+template <class element_t>
+void container_service<element_t>::exec_get_history_depth(const sgd::get_history_depth_instr& input, sgd::result_msg& output)
+{
+    sgd::size_result tmp;
+    tmp.set_sequence(input.sequence());
+    boost::uint64_t result = owner_.get_history_depth<element_t>(input.key().c_str());
+    tmp.set_size(result);
+    output.set_size(tmp);
+}
+
+typedef container_service<container_value> shm_container_service;
+typedef container_service<container_value> mmap_container_service;
 
 } // anonymous namespace
 

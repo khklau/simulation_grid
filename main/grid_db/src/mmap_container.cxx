@@ -2,16 +2,12 @@
 #include <exception>
 #include <iostream>
 #include <boost/bind.hpp>
-#include <boost/chrono/chrono.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <boost/function.hpp>
 #include <boost/interprocess/creation_tags.hpp>
 #include <boost/optional.hpp>
 #include <boost/ref.hpp>
-#include <boost/random/mersenne_twister.hpp>
-#include <boost/random/uniform_int_distribution.hpp>
 #include <boost/thread/thread.hpp>
-#include <boost/thread/thread_time.hpp>
 #include <simulation_grid/core/compiler_extensions.hpp>
 #include <simulation_grid/grid_db/exception.hpp>
 #include "mmap_container.hpp"
@@ -19,7 +15,6 @@
 
 namespace bfs = boost::filesystem;
 namespace bip = boost::interprocess;
-namespace bra = boost::random;
 namespace bpt = boost::posix_time;
 
 namespace {
@@ -88,7 +83,7 @@ void check(const mvcc_mmap_container& container)
 reader_token_id acquire_reader_token(mvcc_mmap_container& container)
 {
     reader_token_id reservation;
-    if (!mut_resource_pool(container).reader_free_list.pop(reservation))
+    if (UNLIKELY_EXT(!mut_resource_pool(container).reader_free_list.pop(reservation)))
     {
 	throw busy_condition("No reader token available")
 		<< info_db_identity(container.path.string())
@@ -101,7 +96,7 @@ void release_reader_token(mvcc_mmap_container& container, const reader_token_id&
 {
     bra::mt19937 seed;
     bra::uniform_int_distribution<> generator(100, 200);
-    while (!mut_resource_pool(container).reader_free_list.push(id))
+    while (UNLIKELY_EXT(!mut_resource_pool(container).reader_free_list.push(id)))
     {
 	boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
     }
@@ -110,7 +105,7 @@ void release_reader_token(mvcc_mmap_container& container, const reader_token_id&
 writer_token_id acquire_writer_token(mvcc_mmap_container& container)
 {
     writer_token_id reservation;
-    if (!mut_resource_pool(container).writer_free_list.pop(reservation))
+    if (UNLIKELY_EXT(!mut_resource_pool(container).writer_free_list.pop(reservation)))
     {
 	throw busy_condition("No writer token available")
 		<< info_db_identity(container.path.string())
@@ -123,7 +118,7 @@ void release_writer_token(mvcc_mmap_container& container, const writer_token_id&
 {
     bra::mt19937 seed;
     bra::uniform_int_distribution<> generator(100, 200);
-    while (!mut_resource_pool(container).writer_free_list.push(id))
+    while (!UNLIKELY_EXT(mut_resource_pool(container).writer_free_list.push(id)))
     {
 	boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
     }
@@ -133,6 +128,69 @@ void release_writer_token(mvcc_mmap_container& container, const writer_token_id&
 
 namespace simulation_grid {
 namespace grid_db {
+
+mvcc_key::mvcc_key()
+{
+    c_str[0] = '\0';
+}
+
+mvcc_key::mvcc_key(const char* key)
+{
+    if (UNLIKELY_EXT(strlen(key) > MVCC_MAX_KEY_LENGTH))
+    {
+	throw grid_db_error("Maximum key length exceeded")
+		<< info_component_identity("mvcc_key")
+		<< info_data_identity(key);
+    }
+    strncpy(c_str, key, sizeof(c_str));
+}
+
+mvcc_key::mvcc_key(const mvcc_key& other)
+{
+    strncpy(c_str, other.c_str, sizeof(c_str));
+}
+
+mvcc_key::~mvcc_key()
+{ }
+
+mvcc_key& mvcc_key::operator=(const mvcc_key& other)
+{
+    if (this != &other)
+    {
+	strncpy(c_str, other.c_str, sizeof(c_str));
+    }
+    return *this;
+}
+
+bool mvcc_key::operator<(const mvcc_key& other) const
+{
+    return strncmp(c_str, other.c_str, sizeof(c_str)) < 0;
+}
+
+mvcc_deleter::mvcc_deleter() :
+    key(), function()
+{ }
+
+mvcc_deleter::mvcc_deleter(const mvcc_key& k, const delete_function& fn) :
+    key(k), function(fn)
+{ }
+
+mvcc_deleter::mvcc_deleter(const mvcc_deleter& other) :
+    key(other.key), function(other.function)
+{ }
+
+mvcc_deleter::~mvcc_deleter()
+{ }
+
+mvcc_deleter& mvcc_deleter::operator=(const mvcc_deleter& other)
+{
+    if (this != &other)
+    {
+	key = other.key;
+	function = other.function;
+    }
+    return *this;
+}
 
 const version mvcc_mmap_container::MIN_SUPPORTED_VERSION(1, 1, 1, 1);
 const version mvcc_mmap_container::MAX_SUPPORTED_VERSION(1, 1, 1, 1);
@@ -167,9 +225,16 @@ mvcc_mmap_header::mvcc_mmap_header() :
     strncpy(file_type_tag, MVCC_MMAP_FILE_TYPE_TAG, sizeof(file_type_tag));
 }
 
+mvcc_mmap_owner_token::mvcc_mmap_owner_token(bip::managed_mapped_file* file) :
+    registry(std::less<registry_map::key_type>(), file->get_segment_manager())
+{ }
+
 mvcc_mmap_resource_pool::mvcc_mmap_resource_pool(bip::managed_mapped_file* file) :
+    global_revision(1),
+    owner_token(file),
     reader_free_list(file->get_segment_manager()),
-    writer_free_list(file->get_segment_manager())
+    writer_free_list(file->get_segment_manager()),
+    deleter_list(file->get_segment_manager())
 {
     for (reader_token_id id = 0; id < MVCC_READER_LIMIT; ++id)
     {
@@ -264,7 +329,7 @@ mvcc_mmap_owner::mvcc_mmap_owner(const bfs::path& path, std::size_t size) :
 mvcc_mmap_owner::~mvcc_mmap_owner()
 { }
 
-void mvcc_mmap_owner::scan_usage(reader_token_id from, reader_token_id to)
+void mvcc_mmap_owner::process_read_metadata(reader_token_id from, reader_token_id to)
 {
     if (from >= MVCC_READER_LIMIT)
     {
@@ -282,6 +347,44 @@ void mvcc_mmap_owner::scan_usage(reader_token_id from, reader_token_id to)
 	    pool.owner_token.oldest_timestamp_found = pool.reader_token_pool[iter].last_read_timestamp;
 	}
     }
+}
+
+void mvcc_mmap_owner::process_write_metadata(std::size_t max_attempts)
+{
+    mvcc_deleter deleter;
+    mvcc_mmap_resource_pool& pool = mut_resource_pool(container_);
+    for (std::size_t attempts = 0; !pool.deleter_list.empty() && (max_attempts == 0 || attempts < max_attempts); ++attempts)
+    {
+	if (pool.deleter_list.pop(deleter))
+	{
+	    pool.owner_token.registry.insert(std::make_pair(deleter.key, deleter));
+	}
+    }
+}
+
+std::string mvcc_mmap_owner::collect_garbage(std::size_t max_attempts)
+{
+    std::string from(mut_resource_pool(container_).owner_token.registry.begin()->first.c_str);
+    return collect_garbage(from, max_attempts);
+}
+
+std::string mvcc_mmap_owner::collect_garbage(const std::string& from, std::size_t max_attempts)
+{
+    mvcc_mmap_resource_pool& pool = mut_resource_pool(container_);
+    if (!pool.owner_token.oldest_revision_found)
+    {
+	return pool.owner_token.registry.begin()->first.c_str;
+    }
+    mvcc_revision oldest = pool.owner_token.oldest_revision_found.get();
+    mvcc_key key(from.c_str());
+    registry_map::const_iterator iter = pool.owner_token.registry.find(key);
+    std::string result(iter->first.c_str);
+    for (std::size_t attempts = 0; iter != pool.owner_token.registry.end() && (max_attempts == 0 || attempts < max_attempts); ++attempts, ++iter)
+    {
+	iter->second.function(container_, iter->first.c_str, oldest);
+	result.assign(iter->first.c_str);
+    }
+    return result;
 }
 
 void mvcc_mmap_owner::flush()
