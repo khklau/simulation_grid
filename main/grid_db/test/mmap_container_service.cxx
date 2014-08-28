@@ -280,7 +280,7 @@ private:
     void exec_collect_garbage_1(const sgd::collect_garbage_1_instr& input, sgd::result_msg& output);
     void exec_collect_garbage_2(const sgd::collect_garbage_2_instr& input, sgd::result_msg& output);
     void exec_get_reader_token_id(const sgd::get_reader_token_id_instr& input, sgd::result_msg& output);
-    void exec_get_oldest_revision(const sgd::get_oldest_revision_instr& input, sgd::result_msg& output);
+    void exec_get_last_read_revision(const sgd::get_last_read_revision_instr& input, sgd::result_msg& output);
     void exec_get_global_oldest_revision_read(const sgd::get_global_oldest_revision_read_instr& input, sgd::result_msg& output);
     void exec_get_registered_keys(const sgd::get_registered_keys_instr& input, sgd::result_msg& output);
     void exec_get_history_depth(const sgd::get_history_depth_instr& input, sgd::result_msg& output);
@@ -416,9 +416,9 @@ void container_service<element_t>::receive_instruction(const bsy::error_code& er
 	{
 	    exec_get_reader_token_id(instr_.get_get_reader_token_id(), result_);
 	}
-	else if (instr_.is_get_oldest_revision())
+	else if (instr_.is_get_last_read_revision())
 	{
-	    exec_get_oldest_revision(instr_.get_get_oldest_revision(), result_);
+	    exec_get_last_read_revision(instr_.get_get_last_read_revision(), result_);
 	}
 	else if (instr_.is_get_global_oldest_revision_read())
 	{
@@ -537,11 +537,11 @@ void container_service<element_t>::exec_get_reader_token_id(const sgd::get_reade
 }
 
 template <class element_t>
-void container_service<element_t>::exec_get_oldest_revision(const sgd::get_oldest_revision_instr& input, sgd::result_msg& output)
+void container_service<element_t>::exec_get_last_read_revision(const sgd::get_last_read_revision_instr& input, sgd::result_msg& output)
 {
     sgd::revision_result tmp;
     tmp.set_sequence(input.sequence());
-    boost::uint64_t result = owner_.get_oldest_revision<element_t>(input.key().c_str());
+    boost::uint64_t result = owner_.get_last_read_revision();
     tmp.set_revision(result);
     output.set_revision(tmp);
 }

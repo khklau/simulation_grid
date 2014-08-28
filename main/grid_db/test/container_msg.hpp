@@ -43,7 +43,7 @@ public:
     inline bool is_collect_garbage_1() { return msg_.opcode() == simulation_grid::grid_db::instruction::COLLECT_GARBAGE_1; }
     inline bool is_collect_garbage_2() { return msg_.opcode() == simulation_grid::grid_db::instruction::COLLECT_GARBAGE_2; }
     inline bool is_get_reader_token_id() { return msg_.opcode() == simulation_grid::grid_db::instruction::GET_READER_TOKEN_ID; }
-    inline bool is_get_oldest_revision() { return msg_.opcode() == simulation_grid::grid_db::instruction::GET_OLDEST_REVISION; }
+    inline bool is_get_last_read_revision() { return msg_.opcode() == simulation_grid::grid_db::instruction::GET_LAST_READ_REVISION; }
     inline bool is_get_global_oldest_revision_read() { return msg_.opcode() == simulation_grid::grid_db::instruction::GET_GLOBAL_OLDEST_REVISION_READ; }
     inline bool is_get_registered_keys() { return msg_.opcode() == simulation_grid::grid_db::instruction::GET_REGISTERED_KEYS; }
     inline bool is_get_history_depth() { return msg_.opcode() == simulation_grid::grid_db::instruction::GET_HISTORY_DEPTH; }
@@ -56,7 +56,7 @@ public:
     inline const simulation_grid::grid_db::collect_garbage_1_instr& get_collect_garbage_1() { return msg_.collect_garbage_1(); }
     inline const simulation_grid::grid_db::collect_garbage_2_instr& get_collect_garbage_2() { return msg_.collect_garbage_2(); }
     inline const simulation_grid::grid_db::get_reader_token_id_instr& get_get_reader_token_id() { return msg_.get_reader_token_id(); }
-    inline const simulation_grid::grid_db::get_oldest_revision_instr& get_get_oldest_revision() { return msg_.get_oldest_revision(); }
+    inline const simulation_grid::grid_db::get_last_read_revision_instr& get_get_last_read_revision() { return msg_.get_last_read_revision(); }
     inline const simulation_grid::grid_db::get_global_oldest_revision_read_instr& get_get_global_oldest_revision_read() { return msg_.get_global_oldest_revision_read(); }
     inline const simulation_grid::grid_db::get_registered_keys_instr& get_get_registered_keys() { return msg_.get_registered_keys(); }
     inline const simulation_grid::grid_db::get_history_depth_instr& get_get_history_depth() { return msg_.get_history_depth(); }
@@ -69,7 +69,7 @@ public:
     void set_collect_garbage_1(const simulation_grid::grid_db::collect_garbage_1_instr& instr);
     void set_collect_garbage_2(const simulation_grid::grid_db::collect_garbage_2_instr& instr);
     void set_get_reader_token_id(const simulation_grid::grid_db::get_reader_token_id_instr& instr);
-    void set_get_oldest_revision(const simulation_grid::grid_db::get_oldest_revision_instr& instr);
+    void set_get_last_read_revision(const simulation_grid::grid_db::get_last_read_revision_instr& instr);
     void set_get_global_oldest_revision_read(const simulation_grid::grid_db::get_global_oldest_revision_read_instr& instr);
     void set_get_registered_keys(const simulation_grid::grid_db::get_registered_keys_instr& instr);
     void set_get_history_depth(const simulation_grid::grid_db::get_history_depth_instr& instr);

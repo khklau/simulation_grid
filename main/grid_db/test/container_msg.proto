@@ -55,10 +55,9 @@ message get_reader_token_id_instr
     required fixed32 sequence = 1;
 }
 
-message get_oldest_revision_instr
+message get_last_read_revision_instr
 {
     required fixed32 sequence = 1;
-    required string key = 2;
 }
 
 message get_global_oldest_revision_read_instr
@@ -90,7 +89,7 @@ message instruction
 	COLLECT_GARBAGE_1 = 6;
 	COLLECT_GARBAGE_2 = 7;
 	GET_READER_TOKEN_ID = 8;
-	GET_OLDEST_REVISION = 9;
+	GET_LAST_READ_REVISION = 9;
 	GET_GLOBAL_OLDEST_REVISION_READ = 10;
 	GET_REGISTERED_KEYS = 11;
 	GET_HISTORY_DEPTH = 12;
@@ -105,7 +104,7 @@ message instruction
     optional collect_garbage_1_instr collect_garbage_1 = 8;
     optional collect_garbage_2_instr collect_garbage_2 = 9;
     optional get_reader_token_id_instr get_reader_token_id = 10;
-    optional get_oldest_revision_instr get_oldest_revision = 11;
+    optional get_last_read_revision_instr get_last_read_revision = 11;
     optional get_global_oldest_revision_read_instr get_global_oldest_revision_read = 12;
     optional get_registered_keys_instr get_registered_keys = 13;
     optional get_history_depth_instr get_history_depth = 14;

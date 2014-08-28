@@ -336,15 +336,26 @@ void mvcc_mmap_owner::process_read_metadata(reader_token_id from, reader_token_i
 	return;
     }
     mvcc_mmap_resource_pool& pool = mut_resource_pool(container_);
+    if (pool.owner_token.oldest_reader_id_found && pool.owner_token.oldest_revision_found)
+    {
+	reader_token_id token_id = pool.owner_token.oldest_reader_id_found.get();
+	if (pool.reader_token_pool[token_id].last_read_revision &&
+	    pool.owner_token.oldest_revision_found.get() != pool.reader_token_pool[token_id].last_read_revision.get())
+	{
+	    pool.owner_token.oldest_reader_id_found.reset();
+	    pool.owner_token.oldest_revision_found.reset();
+	    pool.owner_token.oldest_timestamp_found.reset();
+	}
+    }
     for (reader_token_id iter = from; iter < MVCC_READER_LIMIT && iter < to; ++iter)
     {
-	if (!pool.owner_token.oldest_revision_found || (
-		pool.reader_token_pool[iter].last_read_revision &&
-		pool.reader_token_pool[iter].last_read_revision <
-		pool.owner_token.oldest_revision_found))
+	if ((!pool.owner_token.oldest_revision_found && pool.reader_token_pool[iter].last_read_revision) || 
+	    (pool.owner_token.oldest_revision_found && pool.reader_token_pool[iter].last_read_revision &&
+	    pool.reader_token_pool[iter].last_read_revision.get() < pool.owner_token.oldest_revision_found.get()))
 	{
-	    pool.owner_token.oldest_revision_found = pool.reader_token_pool[iter].last_read_revision;
-	    pool.owner_token.oldest_timestamp_found = pool.reader_token_pool[iter].last_read_timestamp;
+	    pool.owner_token.oldest_reader_id_found.reset(iter);
+	    pool.owner_token.oldest_revision_found.reset(pool.reader_token_pool[iter].last_read_revision.get());
+	    pool.owner_token.oldest_timestamp_found.reset(pool.reader_token_pool[iter].last_read_timestamp.get());
 	}
     }
 }

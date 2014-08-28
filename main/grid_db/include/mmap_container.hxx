@@ -138,6 +138,7 @@ struct mvcc_mmap_owner_token
     mvcc_mmap_owner_token(bip::managed_mapped_file* file);
     boost::optional<mvcc_revision> last_flush_revision;
     boost::optional<bpt::ptime> last_flush_timestamp;
+    boost::optional<reader_token_id> oldest_reader_id_found;
     boost::optional<mvcc_revision> oldest_revision_found;
     boost::optional<bpt::ptime> oldest_timestamp_found;
     registry_map registry;
@@ -222,9 +223,9 @@ const mvcc_record<element_t>& read_(const mvcc_mmap_reader_handle& handle, const
     const mvcc_record<element_t>& record = ringbuf->front();
     // the mvcc_mmap_reader_token will ensure the returned reference remains valid
     mut_resource_pool(handle.container).reader_token_pool[handle.token_id].
-	    last_read_timestamp = record.timestamp;
+	    last_read_timestamp.reset(record.timestamp);
     mut_resource_pool(handle.container).reader_token_pool[handle.token_id].
-	    last_read_revision = record.revision;
+	    last_read_revision.reset(record.revision);
     return record;
 }
 
@@ -274,10 +275,27 @@ void write_(mvcc_mmap_writer_handle& handle, const char* key, const element_t& v
 	    bpt::microsec_clock::local_time());
     ringbuf->push_front(tmp);
     mut_resource_pool(handle.container).writer_token_pool[handle.token_id].
-	    last_write_timestamp = tmp.timestamp;
+	    last_write_timestamp.reset(tmp.timestamp);
     mut_resource_pool(handle.container).writer_token_pool[handle.token_id].
-	    last_write_revision = tmp.revision;
+	    last_write_revision.reset(tmp.revision);
 }
+
+#ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
+
+boost::uint64_t get_last_read_revision_(const mvcc_mmap_container& container, const mvcc_mmap_reader_handle& handle)
+{
+    const mvcc_mmap_resource_pool& pool = const_resource_pool(container);
+    if (pool.reader_token_pool[handle.token_id].last_read_revision)
+    {
+	return pool.reader_token_pool[handle.token_id].last_read_revision.get();
+    }
+    else
+    {
+	return 0U;
+    }
+}
+
+#endif
 
 } // anonymous namespace
 
@@ -308,6 +326,11 @@ reader_token_id mvcc_mmap_reader::get_reader_token_id() const
     return reader_handle_.token_id;
 }
 
+boost::uint64_t mvcc_mmap_reader::get_last_read_revision() const
+{
+    return get_last_read_revision_(container_, reader_handle_);
+}
+
 #endif
 
 template <class element_t>
@@ -335,24 +358,21 @@ reader_token_id mvcc_mmap_owner::get_reader_token_id() const
     return reader_handle_.token_id;
 }
 
-template <class element_t> 
-boost::uint64_t mvcc_mmap_owner::get_oldest_revision(const char* key) const
+boost::uint64_t mvcc_mmap_owner::get_last_read_revision() const
 {
-    typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type recringbuf_t;
-    const recringbuf_t* ringbuf = find_const<recringbuf_t>(container_, key);
-    if (!ringbuf || ringbuf->empty())
-    {
-	return 0;
-    }
-    else
-    {
-	return ringbuf->back().revision;
-    }
+    return get_last_read_revision_(container_, reader_handle_);
 }
 
 boost::uint64_t mvcc_mmap_owner::get_global_oldest_revision_read() const
 {
-    return const_resource_pool(container_).owner_token.oldest_revision_found.get();
+    if (const_resource_pool(container_).owner_token.oldest_revision_found)
+    {
+	return const_resource_pool(container_).owner_token.oldest_revision_found.get();
+    }
+    else
+    {
+	return 0U;
+    }
 }
 
 std::vector<std::string> mvcc_mmap_owner::get_registered_keys() const
@@ -373,7 +393,7 @@ std::size_t mvcc_mmap_owner::get_history_depth(const char* key) const
     const recringbuf_t* ringbuf = find_const<recringbuf_t>(container_, key);
     if (!ringbuf || ringbuf->empty())
     {
-	return 0;
+	return 0U;
     }
     else
     {

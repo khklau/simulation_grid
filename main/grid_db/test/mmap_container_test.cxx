@@ -111,23 +111,24 @@ class service_client
 public:
     service_client(const config& config);
     ~service_client();
-    const mvcc_mmap_reader& get_reader() const { return reader_; }
     sgd::result_msg send(sgd::instruction_msg& msg);
+    void send_terminate(boost::uint32_t sequence);
+    void send_write(boost::uint32_t sequence, const char* key, const container_value& value);
+    void send_process_read_metadata(boost::uint32_t sequence, sgd::reader_token_id from = 0, sgd::reader_token_id to = sgd::MVCC_READER_LIMIT);
+    boost::uint64_t send_get_global_oldest_revision_read(boost::uint32_t sequence);
 private:
     static int init_zmq_socket(zmq::socket_t& socket, const config& config);
     zmq::context_t context_;
     zmq::socket_t socket_;
     bas::io_service service_;
     bas::posix::stream_descriptor stream_;
-    mvcc_mmap_reader reader_;
 };
 
 service_client::service_client(const config& config) :
     context_(1),
     socket_(context_, ZMQ_REQ),
     service_(),
-    stream_(service_, init_zmq_socket(socket_, config)),
-    reader_(bfs::path(config.name.c_str()))
+    stream_(service_, init_zmq_socket(socket_, config))
 { }
 
 service_client::~service_client()
@@ -181,6 +182,53 @@ sgd::result_msg service_client::send(sgd::instruction_msg& msg)
 	throw std::runtime_error("Received malformed message");
     }
     return result;
+}
+
+void service_client::send_terminate(boost::uint32_t sequence)
+{
+    sgd::instruction_msg inmsg;
+    sgd::terminate_instr instr;
+    instr.set_sequence(sequence);
+    inmsg.set_terminate(instr);
+    sgd::result_msg outmsg(send(inmsg));
+    ASSERT_TRUE(outmsg.is_confirmation()) << "Unexpected terminate result";
+    ASSERT_EQ(inmsg.get_terminate().sequence(), outmsg.get_confirmation().sequence()) << "Sequence number mismatch";
+}
+
+void service_client::send_write(boost::uint32_t sequence, const char* key, const container_value& value)
+{
+    sgd::instruction_msg inmsg;
+    sgd::write_instr instr;
+    instr.set_sequence(sequence);
+    instr.set_key(key);
+    instr.set_value(value.c_str);
+    inmsg.set_write(instr);
+    sgd::result_msg outmsg(send(inmsg));
+    ASSERT_TRUE(outmsg.is_confirmation()) << "unexpected write result";
+    ASSERT_EQ(inmsg.get_write().sequence(), outmsg.get_confirmation().sequence()) << "sequence number mismatch";
+}
+
+void service_client::send_process_read_metadata(boost::uint32_t sequence, sgd::reader_token_id from, sgd::reader_token_id to)
+{
+    sgd::instruction_msg inmsg;
+    sgd::process_read_metadata_instr instr;
+    instr.set_sequence(sequence);
+    instr.set_from(from);
+    instr.set_to(to);
+    inmsg.set_process_read_metadata(instr);
+    sgd::result_msg outmsg(send(inmsg));
+    ASSERT_TRUE(outmsg.is_confirmation()) << "unexpected process_read_metadata result";
+    ASSERT_EQ(inmsg.get_process_read_metadata().sequence(), outmsg.get_confirmation().sequence()) << "sequence number mismatch";
+}
+
+boost::uint64_t service_client::send_get_global_oldest_revision_read(boost::uint32_t sequence)
+{
+    sgd::instruction_msg inmsg;
+    sgd::get_global_oldest_revision_read_instr instr;
+    instr.set_sequence(sequence);
+    inmsg.set_get_global_oldest_revision_read(instr);
+    sgd::result_msg outmsg(send(inmsg));
+    return outmsg.get_revision().revision();
 }
 
 class service_launcher
@@ -282,48 +330,135 @@ TEST(mmap_container_test, access_historical)
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
     service_client client(conf);
+    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
     const char* key = "access_historical";
 
-    const container_value expected1("11");
-    sgd::instruction_msg inmsg1;
-    sgd::write_instr instr1;
-    instr1.set_sequence(1U);
-    instr1.set_key(key);
-    instr1.set_value(expected1.c_str);
-    inmsg1.set_write(instr1);
-    sgd::result_msg outmsg1(client.send(inmsg1));
-    ASSERT_TRUE(outmsg1.is_confirmation()) << "unexpected write result";
-    ASSERT_EQ(inmsg1.get_write().sequence(), outmsg1.get_confirmation().sequence()) << "sequence number mismatch";
-    ASSERT_TRUE(client.get_reader().exists<container_value>(key)) << "write failed";
-    const container_value& actual1 = client.get_reader().read<container_value>(key);
+    container_value expected1("11");
+    client.send_write(1U, key, expected1);
+    ASSERT_TRUE(readerA.exists<container_value>(key)) << "write failed";
+    const container_value& actual1 = readerA.read<container_value>(key);
     EXPECT_EQ(expected1, actual1) << "read value is not the value just written";
 
-    const container_value expected2("22");
-    sgd::instruction_msg inmsg2;
-    sgd::write_instr instr2;
-    instr2.set_sequence(2U);
-    instr2.set_key(key);
-    instr2.set_value(expected2.c_str);
-    inmsg2.set_write(instr2);
-    sgd::result_msg outmsg2(client.send(inmsg2));
-    ASSERT_TRUE(outmsg2.is_confirmation()) << "unexpected write result";
-    ASSERT_EQ(inmsg2.get_write().sequence(), outmsg2.get_confirmation().sequence()) << "sequence number mismatch";
-    ASSERT_TRUE(client.get_reader().exists<container_value>(key)) << "write failed";
-    const container_value& actual2 = client.get_reader().read<container_value>(key);
+    container_value expected2("22");
+    client.send_write(2U, key, expected2);
+    ASSERT_TRUE(readerA.exists<container_value>(key)) << "write failed";
+    const container_value& actual2 = readerA.read<container_value>(key);
     EXPECT_EQ(expected2, actual2) << "read value is not the value just written";
     EXPECT_EQ(expected1, actual1) << "incorrect historical value";
 
-    sgd::instruction_msg inmsg3;
-    sgd::terminate_instr instr3;
-    instr3.set_sequence(3U);
-    inmsg3.set_terminate(instr3);
-    sgd::result_msg outmsg3(client.send(inmsg3));
-    ASSERT_TRUE(outmsg3.is_confirmation()) << "Unexpected terminate result";
-    ASSERT_EQ(inmsg3.get_terminate().sequence(), outmsg3.get_confirmation().sequence()) << "Sequence number mismatch";
+    client.send_terminate(3U);
 }
 
 TEST(mmap_container_test, atomic_global_revision)
 {
     boost::atomic<mvcc_revision> tmp;
     ASSERT_TRUE(tmp.is_lock_free()) << "mvcc_revision is not atomic";
+}
+
+TEST(mmap_container_test, oldest_revision_single_key)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
+    service_launcher launcher(conf);
+    service_client client(conf);
+    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
+    mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
+    const char* key = "oldest_revision_single_key";
+
+    container_value expected1("abc1");
+    client.send_write(10U, key, expected1);
+    const container_value& readerA_actual1 = readerA.read<container_value>(key);
+    const container_value& readerB_actual1 = readerB.read<container_value>(key);
+    EXPECT_EQ(readerA_actual1, expected1) << "value read is not the value just written";
+    EXPECT_EQ(readerB_actual1, expected1) << "value read is not the value just written";
+    client.send_process_read_metadata(11U);
+    boost::uint64_t readerA_rev1 = readerA.get_last_read_revision();
+    boost::uint64_t readerB_rev1 = readerB.get_last_read_revision();
+    boost::uint64_t oldest_rev1 = client.send_get_global_oldest_revision_read(12U);
+    EXPECT_NE(oldest_rev1, 0U) << "process_read_metadata failed";
+    EXPECT_EQ(readerA_rev1, oldest_rev1) << "oldest global read revision is not correct";
+    EXPECT_EQ(readerB_rev1, oldest_rev1) << "oldest global read revision is not correct";
+
+    container_value expected2("abc2");
+    client.send_write(20U, key, expected2);
+    const container_value& readerA_actual2 = readerA.read<container_value>(key);
+    const container_value& readerB_actual2 = readerB.read<container_value>(key);
+    EXPECT_EQ(readerA_actual2, expected2) << "value read is not the value just written";
+    EXPECT_EQ(readerB_actual2, expected2) << "value read is not the value just written";
+    client.send_process_read_metadata(21U);
+    boost::uint64_t readerA_rev2 = readerA.get_last_read_revision();
+    boost::uint64_t readerB_rev2 = readerB.get_last_read_revision();
+    boost::uint64_t oldest_rev2 = client.send_get_global_oldest_revision_read(22U);
+    EXPECT_NE(oldest_rev2, 0U) << "process_read_metadata failed";
+    EXPECT_EQ(readerA_rev2, oldest_rev2) << "oldest global read revision is not correct";
+    EXPECT_EQ(readerB_rev2, oldest_rev2) << "oldest global read revision is not correct";
+
+    container_value expected3("abc3");
+    client.send_write(30U, key, expected3);
+    const container_value& readerA_actual3 = readerA.read<container_value>(key);
+    EXPECT_EQ(readerA_actual3, expected3) << "value read is not the value just written";
+    client.send_process_read_metadata(31U);
+    boost::uint64_t readerA_rev3 = readerA.get_last_read_revision();
+    boost::uint64_t readerB_rev3 = readerB.get_last_read_revision();
+    boost::uint64_t oldest_rev3 = client.send_get_global_oldest_revision_read(32U);
+    EXPECT_NE(readerA_rev3, oldest_rev3) << "oldest global read revision is not correct";
+    EXPECT_EQ(readerB_rev3, oldest_rev3) << "oldest global read revision is not correct";
+    EXPECT_EQ(readerB_rev2, readerB_rev3) << "last read revision is not correct";
+
+    client.send_terminate(40U);
+}
+
+TEST(mmap_container_test, oldest_revision_multi_key)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
+    service_launcher launcher(conf);
+    service_client client(conf);
+    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
+    mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
+    const char* keyA = "oldest_revision_multi_keyA";
+    const char* keyB = "oldest_revision_multi_keyB";
+    const char* keyC = "oldest_revision_multi_keyC";
+
+    container_value expectedA1("abc1");
+    client.send_write(10U, keyA, expectedA1);
+    const container_value& readerA_actual1 = readerA.read<container_value>(keyA);
+    const container_value& readerB_actual1 = readerB.read<container_value>(keyA);
+    EXPECT_EQ(readerA_actual1, expectedA1) << "value read is not the value just written";
+    EXPECT_EQ(readerB_actual1, expectedA1) << "value read is not the value just written";
+    client.send_process_read_metadata(11U);
+    boost::uint64_t readerA_rev1 = readerA.get_last_read_revision();
+    boost::uint64_t readerB_rev1 = readerB.get_last_read_revision();
+    boost::uint64_t oldest_rev1 = client.send_get_global_oldest_revision_read(12U);
+    EXPECT_NE(oldest_rev1, 0U) << "process_read_metadata failed";
+    EXPECT_EQ(readerA_rev1, oldest_rev1) << "oldest global read revision is not correct";
+    EXPECT_EQ(readerB_rev1, oldest_rev1) << "oldest global read revision is not correct";
+
+    container_value expectedB1("xyz1");
+    client.send_write(20U, keyB, expectedB1);
+    const container_value& readerA_actual2 = readerA.read<container_value>(keyB);
+    const container_value& readerB_actual2 = readerB.read<container_value>(keyB);
+    EXPECT_EQ(readerA_actual2, expectedB1) << "value read is not the value just written";
+    EXPECT_EQ(readerB_actual2, expectedB1) << "value read is not the value just written";
+    client.send_process_read_metadata(21U);
+    boost::uint64_t readerA_rev2 = readerA.get_last_read_revision();
+    boost::uint64_t readerB_rev2 = readerB.get_last_read_revision();
+    boost::uint64_t oldest_rev2 = client.send_get_global_oldest_revision_read(22U);
+    EXPECT_NE(oldest_rev2, 0U) << "process_read_metadata failed";
+    EXPECT_TRUE(oldest_rev1 < oldest_rev2) << "process_read_metadata did not detect read change";
+    EXPECT_EQ(readerA_rev2, oldest_rev2) << "oldest global read revision is not correct";
+    EXPECT_EQ(readerB_rev2, oldest_rev2) << "oldest global read revision is not correct";
+
+    container_value expectedC1("!@#1");
+    client.send_write(30U, keyC, expectedC1);
+    const container_value& readerB_actual3 = readerB.read<container_value>(keyC);
+    EXPECT_EQ(readerB_actual3, expectedC1) << "value read is not the value just written";
+    client.send_process_read_metadata(31U);
+    boost::uint64_t readerA_rev3 = readerA.get_last_read_revision();
+    boost::uint64_t readerB_rev3 = readerB.get_last_read_revision();
+    boost::uint64_t oldest_rev3 = client.send_get_global_oldest_revision_read(32U);
+    EXPECT_NE(oldest_rev3, 0U) << "process_read_metadata failed";
+    EXPECT_EQ(oldest_rev2, oldest_rev3) << "process_read_metadata incorrectly changed the oldest found";
+    EXPECT_TRUE(oldest_rev3 < readerB_rev3) << "oldest global read revision is not correct";
+    EXPECT_EQ(readerA_rev3,  oldest_rev3) << "oldest global read revision is not correct";
+
+    client.send_terminate(40U);
 }

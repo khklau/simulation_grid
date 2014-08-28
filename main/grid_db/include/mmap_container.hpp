@@ -60,6 +60,7 @@ public:
     template <class element_t> const element_t& read(const char* key) const;
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
     reader_token_id get_reader_token_id() const;
+    boost::uint64_t get_last_read_revision() const;
 #endif
 private:
     mvcc_mmap_container container_;
@@ -85,7 +86,7 @@ public:
     void flush();
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
     reader_token_id get_reader_token_id() const;
-    template <class element_t> boost::uint64_t get_oldest_revision(const char* key) const;
+    boost::uint64_t get_last_read_revision() const;
     boost::uint64_t get_global_oldest_revision_read() const;
     std::vector<std::string> get_registered_keys() const;
     template <class element_t> std::size_t get_history_depth(const char* key) const;

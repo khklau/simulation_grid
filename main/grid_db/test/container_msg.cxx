@@ -95,7 +95,7 @@ instruction_msg::msg_status instruction_msg::deserialize(zmq::socket_t& socket)
 	    (is_collect_garbage_1() && msg_.has_collect_garbage_1()) ||
 	    (is_collect_garbage_2() && msg_.has_collect_garbage_2()) ||
 	    (is_get_reader_token_id() && msg_.has_get_reader_token_id()) ||
-	    (is_get_oldest_revision() && msg_.has_get_oldest_revision()) ||
+	    (is_get_last_read_revision() && msg_.has_get_last_read_revision()) ||
 	    (is_get_global_oldest_revision_read() && msg_.has_get_global_oldest_revision_read()) ||
 	    (is_get_registered_keys() && msg_.has_get_registered_keys()) ||
 	    (is_get_history_depth() && msg_.has_get_history_depth()))
@@ -160,10 +160,10 @@ void instruction_msg::set_get_reader_token_id(const get_reader_token_id_instr& i
     *msg_.mutable_get_reader_token_id() = instr;
 }
 
-void instruction_msg::set_get_oldest_revision(const get_oldest_revision_instr& instr)
+void instruction_msg::set_get_last_read_revision(const get_last_read_revision_instr& instr)
 {
-    msg_.set_opcode(instruction::GET_OLDEST_REVISION);
-    *msg_.mutable_get_oldest_revision() = instr;
+    msg_.set_opcode(instruction::GET_LAST_READ_REVISION);
+    *msg_.mutable_get_last_read_revision() = instr;
 }
 
 void instruction_msg::set_get_global_oldest_revision_read(const get_global_oldest_revision_read_instr& instr)
