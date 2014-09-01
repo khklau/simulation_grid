@@ -115,7 +115,9 @@ public:
     void send_terminate(boost::uint32_t sequence);
     void send_write(boost::uint32_t sequence, const char* key, const container_value& value);
     void send_process_read_metadata(boost::uint32_t sequence, sgd::reader_token_id from = 0, sgd::reader_token_id to = sgd::MVCC_READER_LIMIT);
+    void send_process_write_metadata(boost::uint32_t sequence, std::size_t max_attempts = 0);
     boost::uint64_t send_get_global_oldest_revision_read(boost::uint32_t sequence);
+    std::vector<std::string> send_get_registered_keys(boost::uint32_t sequence);
 private:
     static int init_zmq_socket(zmq::socket_t& socket, const config& config);
     zmq::context_t context_;
@@ -191,8 +193,8 @@ void service_client::send_terminate(boost::uint32_t sequence)
     instr.set_sequence(sequence);
     inmsg.set_terminate(instr);
     sgd::result_msg outmsg(send(inmsg));
-    ASSERT_TRUE(outmsg.is_confirmation()) << "Unexpected terminate result";
-    ASSERT_EQ(inmsg.get_terminate().sequence(), outmsg.get_confirmation().sequence()) << "Sequence number mismatch";
+    EXPECT_TRUE(outmsg.is_confirmation()) << "Unexpected terminate result";
+    EXPECT_EQ(inmsg.get_terminate().sequence(), outmsg.get_confirmation().sequence()) << "Sequence number mismatch";
 }
 
 void service_client::send_write(boost::uint32_t sequence, const char* key, const container_value& value)
@@ -204,8 +206,8 @@ void service_client::send_write(boost::uint32_t sequence, const char* key, const
     instr.set_value(value.c_str);
     inmsg.set_write(instr);
     sgd::result_msg outmsg(send(inmsg));
-    ASSERT_TRUE(outmsg.is_confirmation()) << "unexpected write result";
-    ASSERT_EQ(inmsg.get_write().sequence(), outmsg.get_confirmation().sequence()) << "sequence number mismatch";
+    EXPECT_TRUE(outmsg.is_confirmation()) << "unexpected write result";
+    EXPECT_EQ(inmsg.get_write().sequence(), outmsg.get_confirmation().sequence()) << "sequence number mismatch";
 }
 
 void service_client::send_process_read_metadata(boost::uint32_t sequence, sgd::reader_token_id from, sgd::reader_token_id to)
@@ -217,8 +219,20 @@ void service_client::send_process_read_metadata(boost::uint32_t sequence, sgd::r
     instr.set_to(to);
     inmsg.set_process_read_metadata(instr);
     sgd::result_msg outmsg(send(inmsg));
-    ASSERT_TRUE(outmsg.is_confirmation()) << "unexpected process_read_metadata result";
-    ASSERT_EQ(inmsg.get_process_read_metadata().sequence(), outmsg.get_confirmation().sequence()) << "sequence number mismatch";
+    EXPECT_TRUE(outmsg.is_confirmation()) << "unexpected process_read_metadata result";
+    EXPECT_EQ(inmsg.get_process_read_metadata().sequence(), outmsg.get_confirmation().sequence()) << "sequence number mismatch";
+}
+
+void service_client::send_process_write_metadata(boost::uint32_t sequence, std::size_t max_attempts)
+{
+    sgd::instruction_msg inmsg;
+    sgd::process_write_metadata_instr instr;
+    instr.set_sequence(sequence);
+    instr.set_max_attempts(max_attempts);
+    inmsg.set_process_write_metadata(instr);
+    sgd::result_msg outmsg(send(inmsg));
+    EXPECT_TRUE(outmsg.is_confirmation()) << "unexpected process_read_metadata result";
+    EXPECT_EQ(inmsg.get_process_write_metadata().sequence(), outmsg.get_confirmation().sequence()) << "sequence number mismatch";
 }
 
 boost::uint64_t service_client::send_get_global_oldest_revision_read(boost::uint32_t sequence)
@@ -228,7 +242,26 @@ boost::uint64_t service_client::send_get_global_oldest_revision_read(boost::uint
     instr.set_sequence(sequence);
     inmsg.set_get_global_oldest_revision_read(instr);
     sgd::result_msg outmsg(send(inmsg));
+    EXPECT_TRUE(outmsg.is_revision()) << "unexpected get_global_oldest_revision_read result";
+    EXPECT_EQ(inmsg.get_get_global_oldest_revision_read().sequence(), outmsg.get_revision().sequence()) << "sequence number mismatch";
     return outmsg.get_revision().revision();
+}
+
+std::vector<std::string> service_client::send_get_registered_keys(boost::uint32_t sequence)
+{
+    sgd::instruction_msg inmsg;
+    sgd::get_registered_keys_instr instr;
+    instr.set_sequence(sequence);
+    inmsg.set_get_registered_keys(instr);
+    sgd::result_msg outmsg(send(inmsg));
+    EXPECT_TRUE(outmsg.is_key_list()) << "unexpected get_registered_keys result";
+    EXPECT_EQ(inmsg.get_get_registered_keys().sequence(), outmsg.get_key_list().sequence()) << "sequence number mismatch";
+    std::vector<std::string> result;
+    for (int iter = 0; iter < outmsg.get_key_list().key_list().size(); ++iter)
+    {
+	result.push_back(outmsg.get_key_list().key_list().Get(iter));
+    }
+    return result;
 }
 
 class service_launcher
@@ -355,14 +388,14 @@ TEST(mmap_container_test, atomic_global_revision)
     ASSERT_TRUE(tmp.is_lock_free()) << "mvcc_revision is not atomic";
 }
 
-TEST(mmap_container_test, oldest_revision_single_key)
+TEST(mmap_container_test, process_read_metadata_single_key)
 {
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
     service_client client(conf);
     mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
     mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
-    const char* key = "oldest_revision_single_key";
+    const char* key = "process_read_metadata_single";
 
     container_value expected1("abc1");
     client.send_write(10U, key, expected1);
@@ -407,16 +440,16 @@ TEST(mmap_container_test, oldest_revision_single_key)
     client.send_terminate(40U);
 }
 
-TEST(mmap_container_test, oldest_revision_multi_key)
+TEST(mmap_container_test, process_read_metadata_multi_key)
 {
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
     service_client client(conf);
     mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
     mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
-    const char* keyA = "oldest_revision_multi_keyA";
-    const char* keyB = "oldest_revision_multi_keyB";
-    const char* keyC = "oldest_revision_multi_keyC";
+    const char* keyA = "process_read_metadata_multi_A";
+    const char* keyB = "process_read_metadata_multi_B";
+    const char* keyC = "process_read_metadata_multi_C";
 
     container_value expectedA1("abc1");
     client.send_write(10U, keyA, expectedA1);
@@ -461,4 +494,99 @@ TEST(mmap_container_test, oldest_revision_multi_key)
     EXPECT_EQ(readerA_rev3,  oldest_rev3) << "oldest global read revision is not correct";
 
     client.send_terminate(40U);
+}
+
+TEST(mmap_container_test, process_read_metadata_subset)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
+    service_launcher launcher(conf);
+    service_client client(conf);
+    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
+    mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
+    mvcc_mmap_reader readerC(bfs::path(conf.name.c_str()));
+    const char* keyA = "process_read_metadata_multi_A";
+    const char* keyB = "process_read_metadata_multi_B";
+
+    container_value expectedA1("abc123");
+    client.send_write(10U, keyA, expectedA1);
+    readerA.read<container_value>(keyA);
+    readerB.read<container_value>(keyA);
+    readerC.read<container_value>(keyA);
+
+    container_value expectedB1("def456");
+    client.send_write(20U, keyB, expectedB1);
+    readerA.read<container_value>(keyB);
+    readerB.read<container_value>(keyB);
+
+    container_value expectedA2("xyz123");
+    client.send_write(30U, keyA, expectedA2);
+    readerA.read<container_value>(keyA);
+
+    client.send_process_read_metadata(40U, readerA.get_reader_token_id(), readerC.get_reader_token_id());
+    boost::uint64_t readerA_rev = readerA.get_last_read_revision();
+    boost::uint64_t readerB_rev = readerB.get_last_read_revision();
+    boost::uint64_t readerC_rev = readerC.get_last_read_revision();
+    boost::uint64_t oldest_rev = client.send_get_global_oldest_revision_read(41U);
+    EXPECT_TRUE(oldest_rev < readerA_rev) << "process_read_metadata did not detected global oldest";
+    EXPECT_EQ(oldest_rev, readerB_rev) << "process_read_metadata did not detected global oldest";
+    EXPECT_TRUE(readerC_rev < oldest_rev) << "process_read_metadata did not detected global oldest";
+
+    client.send_terminate(50U);
+}
+
+TEST(mmap_container_test, process_write_metadata_single_key)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
+    service_launcher launcher(conf);
+    service_client client(conf);
+    std::string key("process_write_metadata_single");
+
+    container_value value1("abc123");
+    client.send_write(10U, key.c_str(), value1);
+    client.send_process_write_metadata(11U);
+    std::vector<std::string> registered1(client.send_get_registered_keys(12U));
+    EXPECT_EQ(registered1.size(), 1U);
+    EXPECT_EQ(registered1.at(0), key);
+
+    container_value value2("abc456");
+    client.send_write(20U, key.c_str(), value2);
+    client.send_process_write_metadata(21U);
+    std::vector<std::string> registered2(client.send_get_registered_keys(22U));
+    EXPECT_EQ(registered1.size(), 1U);
+    EXPECT_EQ(registered1.at(0), key);
+
+    client.send_terminate(30U);
+}
+
+TEST(mmap_container_test, process_write_metadata_multi_key)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
+    service_launcher launcher(conf);
+    service_client client(conf);
+    std::string keyA("process_write_metadata_A");
+    std::string keyB("process_write_metadata_B");
+    std::string keyC("process_write_metadata_C");
+
+    container_value valueC1("abc123");
+    client.send_write(10U, keyC.c_str(), valueC1);
+    container_value valueB1("def123");
+    client.send_write(11U, keyB.c_str(), valueB1);
+    client.send_process_write_metadata(12U);
+    std::vector<std::string> registered1(client.send_get_registered_keys(13U));
+    EXPECT_EQ(registered1.size(), 2U);
+    EXPECT_EQ(registered1.at(0), keyB);
+    EXPECT_EQ(registered1.at(1), keyC);
+
+    container_value valueC2("abc456");
+    client.send_write(20U, keyC.c_str(), valueC2);
+    container_value valueA1("ghi123");
+    client.send_write(21U, keyA.c_str(), valueA1);
+    client.send_process_write_metadata(22U);
+    std::vector<std::string> registered2(client.send_get_registered_keys(23U));
+    EXPECT_EQ(registered2.size(), 3U);
+    EXPECT_EQ(registered2.at(0), keyA);
+    EXPECT_EQ(registered2.at(1), keyB);
+    EXPECT_EQ(registered2.at(2), keyC);
+
+    client.send_terminate(30U);
 }
