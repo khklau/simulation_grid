@@ -7,6 +7,7 @@
 #include <boost/filesystem/path.hpp>
 #include <boost/interprocess/managed_mapped_file.hpp>
 #include <boost/interprocess/segment_manager.hpp>
+#include <boost/interprocess/sync/file_lock.hpp>
 #include <boost/lockfree/policies.hpp>
 #include <boost/lockfree/queue.hpp>
 #include <boost/noncopyable.hpp>
@@ -96,6 +97,7 @@ private:
     mvcc_mmap_container container_;
     mvcc_mmap_writer_handle writer_handle_;
     mvcc_mmap_reader_handle reader_handle_;
+    boost::interprocess::file_lock file_lock_;
 };
 
 } // namespace grid_db

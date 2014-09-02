@@ -321,13 +321,24 @@ mvcc_mmap_reader::~mvcc_mmap_reader()
 mvcc_mmap_owner::mvcc_mmap_owner(const bfs::path& path, std::size_t size) :
     container_(owner, path, size),
     writer_handle_(container_),
-    reader_handle_(container_)
+    reader_handle_(container_),
+    file_lock_(path.string().c_str())
 {
     flush();
+    file_lock_.lock();
 }
 
 mvcc_mmap_owner::~mvcc_mmap_owner()
-{ }
+{
+    try
+    {
+	file_lock_.unlock();
+    }
+    catch(...)
+    {
+	// Do nothing
+    }
+}
 
 void mvcc_mmap_owner::process_read_metadata(reader_token_id from, reader_token_id to)
 {
