@@ -287,11 +287,11 @@ private:
     sgd::mvcc_mmap_owner owner_;
     bas::io_service service_;
     signal_notifier notifier_;
+    sgd::instruction_msg instr_;
+    sgd::result_msg result_;
     zmq::context_t context_;
     zmq::socket_t socket_;
     bas::posix::stream_descriptor stream_;
-    sgd::instruction_msg instr_;
-    sgd::result_msg result_;
 };
 
 template <class element_t>
@@ -299,11 +299,11 @@ container_service<element_t>::container_service(const config& config) :
     owner_(bfs::path(config.name.c_str()), config.size),
     service_(),
     notifier_(),
+    instr_(),
+    result_(),
     context_(1),
     socket_(context_, ZMQ_REP),
-    stream_(service_, init_zmq_socket(socket_, config)),
-    instr_(),
-    result_()
+    stream_(service_, init_zmq_socket(socket_, config))
 {
     notifier_.add(SIGTERM, boost::bind(&container_service::stop, this));
     notifier_.add(SIGINT, boost::bind(&container_service::stop, this));
