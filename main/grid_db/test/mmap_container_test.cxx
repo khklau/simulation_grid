@@ -590,3 +590,41 @@ TEST(mmap_container_test, process_write_metadata_multi_key)
 
     client.send_terminate(30U);
 }
+
+TEST(mmap_container_test, process_write_metadata_subset)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
+    service_launcher launcher(conf);
+    service_client client(conf);
+    std::string keyA("process_write_metadata_A");
+    std::string keyB("process_write_metadata_B");
+    std::string keyC("process_write_metadata_C");
+
+    container_value valueC1("abc123");
+    client.send_write(10U, keyC.c_str(), valueC1);
+    container_value valueB1("def123");
+    client.send_write(11U, keyB.c_str(), valueB1);
+    client.send_process_write_metadata(12U, 1U);
+    std::vector<std::string> registered1(client.send_get_registered_keys(13U));
+    EXPECT_EQ(registered1.size(), 1U);
+    EXPECT_EQ(registered1.at(0), keyC);
+
+    container_value valueC2("abc456");
+    client.send_write(20U, keyC.c_str(), valueC2);
+    container_value valueA1("ghi123");
+    client.send_write(21U, keyA.c_str(), valueA1);
+    client.send_process_write_metadata(22U, 1U);
+    std::vector<std::string> registered2(client.send_get_registered_keys(23U));
+    EXPECT_EQ(registered2.size(), 2U);
+    EXPECT_EQ(registered2.at(0), keyB);
+    EXPECT_EQ(registered2.at(1), keyC);
+
+    client.send_process_write_metadata(40U, 5U);
+    std::vector<std::string> registered3(client.send_get_registered_keys(41U));
+    EXPECT_EQ(registered3.size(), 3U);
+    EXPECT_EQ(registered3.at(0), keyA);
+    EXPECT_EQ(registered3.at(1), keyB);
+    EXPECT_EQ(registered3.at(2), keyC);
+
+    client.send_terminate(50U);
+}
