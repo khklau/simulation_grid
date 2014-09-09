@@ -5,23 +5,44 @@ message terminate_instr
     required fixed32 sequence = 1;
 }
 
-message exists_instr
+message exists_string_instr
 {
     required fixed32 sequence = 1;
     required string key = 2;
 }
 
-message read_instr
+message exists_struct_instr
 {
     required fixed32 sequence = 1;
     required string key = 2;
 }
 
-message write_instr
+message read_string_instr
+{
+    required fixed32 sequence = 1;
+    required string key = 2;
+}
+
+message read_struct_instr
+{
+    required fixed32 sequence = 1;
+    required string key = 2;
+}
+
+message write_string_instr
 {
     required fixed32 sequence = 1;
     required string key = 2;
     required string value = 3;
+}
+
+message write_struct_instr
+{
+    required fixed32 sequence = 1;
+    required string key = 2;
+    required bool value1 = 3;
+    required sfixed32 value2 = 4;
+    required double value3 = 5;
 }
 
 message process_read_metadata_instr
@@ -70,7 +91,13 @@ message get_registered_keys_instr
     required fixed32 sequence = 1;
 }
 
-message get_history_depth_instr
+message get_string_history_depth_instr
+{
+    required fixed32 sequence = 1;
+    required string key = 2;
+}
+
+message get_struct_history_depth_instr
 {
     required fixed32 sequence = 1;
     required string key = 2;
@@ -81,33 +108,41 @@ message instruction
     enum opcode_t
     {
 	TERMINATE = 0;
-	EXISTS = 1;
-	READ = 2;
-	WRITE = 3;
-	PROCESS_READ_METADATA = 4;
-	PROCESS_WRITE_METADATA = 5;
-	COLLECT_GARBAGE_1 = 6;
-	COLLECT_GARBAGE_2 = 7;
-	GET_READER_TOKEN_ID = 8;
-	GET_LAST_READ_REVISION = 9;
-	GET_GLOBAL_OLDEST_REVISION_READ = 10;
-	GET_REGISTERED_KEYS = 11;
-	GET_HISTORY_DEPTH = 12;
+	EXISTS_STRING = 1;
+	EXISTS_STRUCT = 2;
+	READ_STRING = 3;
+	READ_STRUCT = 4;
+	WRITE_STRING = 5;
+	WRITE_STRUCT = 6;
+	PROCESS_READ_METADATA = 7;
+	PROCESS_WRITE_METADATA = 8;
+	COLLECT_GARBAGE_1 = 9;
+	COLLECT_GARBAGE_2 = 10;
+	GET_READER_TOKEN_ID = 11;
+	GET_LAST_READ_REVISION = 12;
+	GET_GLOBAL_OLDEST_REVISION_READ = 13;
+	GET_REGISTERED_KEYS = 14;
+	GET_STRING_HISTORY_DEPTH = 15;
+	GET_STRUCT_HISTORY_DEPTH = 16;
     }
     required opcode_t opcode = 1;
     optional terminate_instr terminate = 2;
-    optional exists_instr exists = 3;
-    optional read_instr read = 4;
-    optional write_instr write = 5;
-    optional process_read_metadata_instr process_read_metadata = 6;
-    optional process_write_metadata_instr process_write_metadata = 7;
-    optional collect_garbage_1_instr collect_garbage_1 = 8;
-    optional collect_garbage_2_instr collect_garbage_2 = 9;
-    optional get_reader_token_id_instr get_reader_token_id = 10;
-    optional get_last_read_revision_instr get_last_read_revision = 11;
-    optional get_global_oldest_revision_read_instr get_global_oldest_revision_read = 12;
-    optional get_registered_keys_instr get_registered_keys = 13;
-    optional get_history_depth_instr get_history_depth = 14;
+    optional exists_string_instr exists_string = 3;
+    optional exists_struct_instr exists_struct = 4;
+    optional read_string_instr read_string = 5;
+    optional read_struct_instr read_struct = 6;
+    optional write_string_instr write_string = 7;
+    optional write_struct_instr write_struct = 8;
+    optional process_read_metadata_instr process_read_metadata = 9;
+    optional process_write_metadata_instr process_write_metadata = 10;
+    optional collect_garbage_1_instr collect_garbage_1 = 11;
+    optional collect_garbage_2_instr collect_garbage_2 = 12;
+    optional get_reader_token_id_instr get_reader_token_id = 13;
+    optional get_last_read_revision_instr get_last_read_revision = 14;
+    optional get_global_oldest_revision_read_instr get_global_oldest_revision_read = 15;
+    optional get_registered_keys_instr get_registered_keys = 16;
+    optional get_string_history_depth_instr get_string_history_depth = 17;
+    optional get_struct_history_depth_instr get_struct_history_depth = 18;
 }
 
 message malformed_message_result
@@ -131,10 +166,18 @@ message predicate_result
     required bool predicate = 2;
 }
 
-message value_result
+message string_value_result
 {
     required fixed32 sequence = 1;
     required string value = 2;
+}
+
+message struct_value_result
+{
+    required fixed32 sequence = 1;
+    required bool value1 = 2;
+    required sfixed32 value2 = 3;
+    required double value3 = 4;
 }
 
 message key_result
@@ -175,22 +218,24 @@ message result
 	INVALID_ARGUMENT = 1;
 	CONFIRMATION = 2;
 	PREDICATE = 3;
-	VALUE = 4;
-	KEY = 5;
-	TOKEN_ID = 6;
-	REVISION = 7;
-	KEY_LIST = 8;
-	SIZE = 9;
+	STRING_VALUE = 4;
+	STRUCT_VALUE = 5;
+	KEY = 6;
+	TOKEN_ID = 7;
+	REVISION = 8;
+	KEY_LIST = 9;
+	SIZE = 10;
     }
     required opcode_t opcode = 1;
     optional malformed_message_result malformed_message = 2;
     optional invalid_argument_result invalid_argument = 3;
     optional confirmation_result confirmation = 4;
     optional predicate_result predicate = 5;
-    optional value_result value = 6;
-    optional key_result key = 7;
-    optional token_id_result token_id = 8;
-    optional revision_result revision = 9;
-    optional key_list_result key_list = 10;
-    optional size_result size = 11;
+    optional string_value_result string_value = 6;
+    optional struct_value_result struct_value = 7;
+    optional key_result key = 8;
+    optional token_id_result token_id = 9;
+    optional revision_result revision = 10;
+    optional key_list_result key_list = 11;
+    optional size_result size = 12;
 }

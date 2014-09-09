@@ -258,7 +258,6 @@ void signal_notifier::handle(const bsy::error_code& error, int signal)
     reset();
 }
 
-template <class element_t>
 class container_service
 {
 public:
@@ -272,9 +271,12 @@ private:
     void run();
     void receive_instruction(const bsy::error_code& error, size_t);
     void exec_terminate(const sgd::terminate_instr& input, sgd::result_msg& output);
-    void exec_exists(const sgd::exists_instr& input, sgd::result_msg& output);
-    void exec_read(const sgd::read_instr& input, sgd::result_msg& output);
-    void exec_write(const sgd::write_instr& input, sgd::result_msg& output);
+    void exec_exists_string(const sgd::exists_string_instr& input, sgd::result_msg& output);
+    void exec_exists_struct(const sgd::exists_struct_instr& input, sgd::result_msg& output);
+    void exec_read_string(const sgd::read_string_instr& input, sgd::result_msg& output);
+    void exec_read_struct(const sgd::read_struct_instr& input, sgd::result_msg& output);
+    void exec_write_string(const sgd::write_string_instr& input, sgd::result_msg& output);
+    void exec_write_struct(const sgd::write_struct_instr& input, sgd::result_msg& output);
     void exec_process_read_metadata(const sgd::process_read_metadata_instr& input, sgd::result_msg& output);
     void exec_process_write_metadata(const sgd::process_write_metadata_instr& input, sgd::result_msg& output);
     void exec_collect_garbage_1(const sgd::collect_garbage_1_instr& input, sgd::result_msg& output);
@@ -283,7 +285,8 @@ private:
     void exec_get_last_read_revision(const sgd::get_last_read_revision_instr& input, sgd::result_msg& output);
     void exec_get_global_oldest_revision_read(const sgd::get_global_oldest_revision_read_instr& input, sgd::result_msg& output);
     void exec_get_registered_keys(const sgd::get_registered_keys_instr& input, sgd::result_msg& output);
-    void exec_get_history_depth(const sgd::get_history_depth_instr& input, sgd::result_msg& output);
+    void exec_get_string_history_depth(const sgd::get_string_history_depth_instr& input, sgd::result_msg& output);
+    void exec_get_struct_history_depth(const sgd::get_struct_history_depth_instr& input, sgd::result_msg& output);
     sgd::mvcc_mmap_owner owner_;
     bas::io_service service_;
     signal_notifier notifier_;
@@ -294,8 +297,7 @@ private:
     bas::posix::stream_descriptor stream_;
 };
 
-template <class element_t>
-container_service<element_t>::container_service(const config& config) :
+container_service::container_service(const config& config) :
     owner_(bfs::path(config.name.c_str()), config.size),
     service_(),
     notifier_(),
@@ -310,8 +312,7 @@ container_service<element_t>::container_service(const config& config) :
     notifier_.start();
 }
 
-template <class element_t>
-container_service<element_t>::~container_service()
+container_service::~container_service()
 {
     stream_.release();
     socket_.close();
@@ -320,8 +321,7 @@ container_service<element_t>::~container_service()
     stop();
 }
 
-template <class element_t>
-void container_service<element_t>::start()
+void container_service::start()
 {
     if (service_.stopped())
     {
@@ -330,14 +330,12 @@ void container_service<element_t>::start()
     run();
 }
 
-template <class element_t>
-void container_service<element_t>::stop()
+void container_service::stop()
 {
     service_.stop();
 }
 
-template <class element_t>
-int container_service<element_t>::init_zmq_socket(zmq::socket_t& socket, const config& config)
+int container_service::init_zmq_socket(zmq::socket_t& socket, const config& config)
 {
     std::string address(str(boost::format("tcp://127.0.0.1:%d") % config.port));
     socket.bind(address.c_str());
@@ -353,8 +351,7 @@ int container_service<element_t>::init_zmq_socket(zmq::socket_t& socket, const c
     return fd;
 }
 
-template <class element_t>
-void container_service<element_t>::run()
+void container_service::run()
 {
     if (!terminated())
     {
@@ -365,8 +362,7 @@ void container_service<element_t>::run()
     }
 }
 
-template <class element_t>
-void container_service<element_t>::receive_instruction(const bsy::error_code& error, size_t)
+void container_service::receive_instruction(const bsy::error_code& error, size_t)
 {
     int event = 0;
     size_t size = sizeof(event);
@@ -384,17 +380,29 @@ void container_service<element_t>::receive_instruction(const bsy::error_code& er
 	{
 	    exec_terminate(instr_.get_terminate(), result_);
 	}
-	else if (instr_.is_exists())
+	else if (instr_.is_exists_string())
 	{
-	    exec_exists(instr_.get_exists(), result_);
+	    exec_exists_string(instr_.get_exists_string(), result_);
 	}
-	else if (instr_.is_read())
+	else if (instr_.is_exists_struct())
 	{
-	    exec_read(instr_.get_read(), result_);
+	    exec_exists_struct(instr_.get_exists_struct(), result_);
 	}
-	else if (instr_.is_write())
+	else if (instr_.is_read_string())
 	{
-	    exec_write(instr_.get_write(), result_);
+	    exec_read_string(instr_.get_read_string(), result_);
+	}
+	else if (instr_.is_read_struct())
+	{
+	    exec_read_struct(instr_.get_read_struct(), result_);
+	}
+	else if (instr_.is_write_string())
+	{
+	    exec_write_string(instr_.get_write_string(), result_);
+	}
+	else if (instr_.is_write_struct())
+	{
+	    exec_write_struct(instr_.get_write_struct(), result_);
 	}
 	else if (instr_.is_process_read_metadata())
 	{
@@ -428,9 +436,13 @@ void container_service<element_t>::receive_instruction(const bsy::error_code& er
 	{
 	    exec_get_registered_keys(instr_.get_get_registered_keys(), result_);
 	}
-	else if (instr_.is_get_history_depth())
+	else if (instr_.is_get_string_history_depth())
 	{
-	    exec_get_history_depth(instr_.get_get_history_depth(), result_);
+	    exec_get_string_history_depth(instr_.get_get_string_history_depth(), result_);
+	}
+	else if (instr_.is_get_struct_history_depth())
+	{
+	    exec_get_struct_history_depth(instr_.get_get_struct_history_depth(), result_);
 	}
 	else
 	{
@@ -449,8 +461,7 @@ void container_service<element_t>::receive_instruction(const bsy::error_code& er
     }
 }
 
-template <class element_t>
-void container_service<element_t>::exec_terminate(const sgd::terminate_instr& input, sgd::result_msg& output)
+void container_service::exec_terminate(const sgd::terminate_instr& input, sgd::result_msg& output)
 {
     stop();
     sgd::confirmation_result tmp;
@@ -458,38 +469,63 @@ void container_service<element_t>::exec_terminate(const sgd::terminate_instr& in
     output.set_confirmation(tmp);
 }
 
-template <class element_t>
-void container_service<element_t>::exec_exists(const sgd::exists_instr& input, sgd::result_msg& output)
+void container_service::exec_exists_string(const sgd::exists_string_instr& input, sgd::result_msg& output)
 {
     sgd::predicate_result tmp;
     tmp.set_sequence(input.sequence());
-    bool result(owner_.exists<element_t>(input.key().c_str()));
+    bool result(owner_.exists<string_value>(input.key().c_str()));
     tmp.set_predicate(result);
     output.set_predicate(tmp);
 }
 
-template <class element_t>
-void container_service<element_t>::exec_read(const sgd::read_instr& input, sgd::result_msg& output)
+void container_service::exec_exists_struct(const sgd::exists_struct_instr& input, sgd::result_msg& output)
 {
-    sgd::value_result tmp;
+    sgd::predicate_result tmp;
     tmp.set_sequence(input.sequence());
-    std::string result(owner_.read<element_t>(input.key().c_str()).c_str);
-    tmp.set_value(result);
-    output.set_value(tmp);
+    bool result(owner_.exists<struct_value>(input.key().c_str()));
+    tmp.set_predicate(result);
+    output.set_predicate(tmp);
 }
 
-template <class element_t>
-void container_service<element_t>::exec_write(const sgd::write_instr& input, sgd::result_msg& output)
+void container_service::exec_read_string(const sgd::read_string_instr& input, sgd::result_msg& output)
+{
+    sgd::string_value_result tmp;
+    tmp.set_sequence(input.sequence());
+    std::string result(owner_.read<string_value>(input.key().c_str()).c_str);
+    tmp.set_value(result);
+    output.set_string_value(tmp);
+}
+
+void container_service::exec_read_struct(const sgd::read_struct_instr& input, sgd::result_msg& output)
+{
+    sgd::struct_value_result tmp;
+    tmp.set_sequence(input.sequence());
+    struct_value result(owner_.read<struct_value>(input.key().c_str()));
+    tmp.set_value1(result.value1);
+    tmp.set_value2(result.value2);
+    tmp.set_value3(result.value3);
+    output.set_struct_value(tmp);
+}
+
+void container_service::exec_write_string(const sgd::write_string_instr& input, sgd::result_msg& output)
 {
     sgd::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
-    container_value value(input.value().c_str());
-    owner_.write<element_t>(input.key().c_str(), value);
+    string_value value(input.value().c_str());
+    owner_.write<string_value>(input.key().c_str(), value);
     output.set_confirmation(tmp);
 }
 
-template <class element_t>
-void container_service<element_t>::exec_process_read_metadata(const sgd::process_read_metadata_instr& input, sgd::result_msg& output)
+void container_service::exec_write_struct(const sgd::write_struct_instr& input, sgd::result_msg& output)
+{
+    sgd::confirmation_result tmp;
+    tmp.set_sequence(input.sequence());
+    struct_value value(input.value1(), input.value2(), input.value3());
+    owner_.write<struct_value>(input.key().c_str(), value);
+    output.set_confirmation(tmp);
+}
+
+void container_service::exec_process_read_metadata(const sgd::process_read_metadata_instr& input, sgd::result_msg& output)
 {
     sgd::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
@@ -497,8 +533,7 @@ void container_service<element_t>::exec_process_read_metadata(const sgd::process
     output.set_confirmation(tmp);
 }
 
-template <class element_t>
-void container_service<element_t>::exec_process_write_metadata(const sgd::process_write_metadata_instr& input, sgd::result_msg& output)
+void container_service::exec_process_write_metadata(const sgd::process_write_metadata_instr& input, sgd::result_msg& output)
 {
     sgd::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
@@ -506,8 +541,7 @@ void container_service<element_t>::exec_process_write_metadata(const sgd::proces
     output.set_confirmation(tmp);
 }
 
-template <class element_t>
-void container_service<element_t>::exec_collect_garbage_1(const sgd::collect_garbage_1_instr& input, sgd::result_msg& output)
+void container_service::exec_collect_garbage_1(const sgd::collect_garbage_1_instr& input, sgd::result_msg& output)
 {
     sgd::key_result tmp;
     tmp.set_sequence(input.sequence());
@@ -516,8 +550,7 @@ void container_service<element_t>::exec_collect_garbage_1(const sgd::collect_gar
     output.set_key(tmp);
 }
 
-template <class element_t>
-void container_service<element_t>::exec_collect_garbage_2(const sgd::collect_garbage_2_instr& input, sgd::result_msg& output)
+void container_service::exec_collect_garbage_2(const sgd::collect_garbage_2_instr& input, sgd::result_msg& output)
 {
     sgd::key_result tmp;
     tmp.set_sequence(input.sequence());
@@ -526,8 +559,7 @@ void container_service<element_t>::exec_collect_garbage_2(const sgd::collect_gar
     output.set_key(tmp);
 }
 
-template <class element_t>
-void container_service<element_t>::exec_get_reader_token_id(const sgd::get_reader_token_id_instr& input, sgd::result_msg& output)
+void container_service::exec_get_reader_token_id(const sgd::get_reader_token_id_instr& input, sgd::result_msg& output)
 {
     sgd::token_id_result tmp;
     tmp.set_sequence(input.sequence());
@@ -536,8 +568,7 @@ void container_service<element_t>::exec_get_reader_token_id(const sgd::get_reade
     output.set_token_id(tmp);
 }
 
-template <class element_t>
-void container_service<element_t>::exec_get_last_read_revision(const sgd::get_last_read_revision_instr& input, sgd::result_msg& output)
+void container_service::exec_get_last_read_revision(const sgd::get_last_read_revision_instr& input, sgd::result_msg& output)
 {
     sgd::revision_result tmp;
     tmp.set_sequence(input.sequence());
@@ -546,8 +577,7 @@ void container_service<element_t>::exec_get_last_read_revision(const sgd::get_la
     output.set_revision(tmp);
 }
 
-template <class element_t>
-void container_service<element_t>::exec_get_global_oldest_revision_read(const sgd::get_global_oldest_revision_read_instr& input, sgd::result_msg& output)
+void container_service::exec_get_global_oldest_revision_read(const sgd::get_global_oldest_revision_read_instr& input, sgd::result_msg& output)
 {
     sgd::revision_result tmp;
     tmp.set_sequence(input.sequence());
@@ -556,8 +586,7 @@ void container_service<element_t>::exec_get_global_oldest_revision_read(const sg
     output.set_revision(tmp);
 }
 
-template <class element_t>
-void container_service<element_t>::exec_get_registered_keys(const sgd::get_registered_keys_instr& input, sgd::result_msg& output)
+void container_service::exec_get_registered_keys(const sgd::get_registered_keys_instr& input, sgd::result_msg& output)
 {
     sgd::key_list_result tmp;
     tmp.set_sequence(input.sequence());
@@ -569,18 +598,23 @@ void container_service<element_t>::exec_get_registered_keys(const sgd::get_regis
     output.set_key_list(tmp);
 }
 
-template <class element_t>
-void container_service<element_t>::exec_get_history_depth(const sgd::get_history_depth_instr& input, sgd::result_msg& output)
+void container_service::exec_get_string_history_depth(const sgd::get_string_history_depth_instr& input, sgd::result_msg& output)
 {
     sgd::size_result tmp;
     tmp.set_sequence(input.sequence());
-    boost::uint64_t result = owner_.get_history_depth<element_t>(input.key().c_str());
+    boost::uint64_t result = owner_.get_history_depth<string_value>(input.key().c_str());
     tmp.set_size(result);
     output.set_size(tmp);
 }
 
-typedef container_service<container_value> shm_container_service;
-typedef container_service<container_value> mmap_container_service;
+void container_service::exec_get_struct_history_depth(const sgd::get_struct_history_depth_instr& input, sgd::result_msg& output)
+{
+    sgd::size_result tmp;
+    tmp.set_sequence(input.sequence());
+    boost::uint64_t result = owner_.get_history_depth<struct_value>(input.key().c_str());
+    tmp.set_size(result);
+    output.set_size(tmp);
+}
 
 } // anonymous namespace
 
@@ -599,7 +633,7 @@ int main(int argc, char* argv[])
 	case ipc::shm:
 	{
 	    {
-		shm_container_service service(config.get());
+		container_service service(config.get());
 		service.start();
 	    }
 	    bip::shared_memory_object::remove(config.get().name.c_str());
@@ -608,7 +642,7 @@ int main(int argc, char* argv[])
 	case ipc::mmap:
 	{
 	    {
-		mmap_container_service service(config.get());
+		container_service service(config.get());
 		service.start();
 	    }
 	    bfs::remove(config.get().name);

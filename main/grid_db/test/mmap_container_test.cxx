@@ -113,12 +113,14 @@ public:
     ~service_client();
     sgd::result_msg send(sgd::instruction_msg& msg);
     void send_terminate(boost::uint32_t sequence);
-    void send_write(boost::uint32_t sequence, const char* key, const container_value& value);
+    void send_write_string(boost::uint32_t sequence, const char* key, const string_value& value);
+    void send_write_struct(boost::uint32_t sequence, const char* key, const struct_value& value);
     void send_process_read_metadata(boost::uint32_t sequence, sgd::reader_token_id from = 0, sgd::reader_token_id to = sgd::MVCC_READER_LIMIT);
     void send_process_write_metadata(boost::uint32_t sequence, std::size_t max_attempts = 0);
     boost::uint64_t send_get_global_oldest_revision_read(boost::uint32_t sequence);
     std::vector<std::string> send_get_registered_keys(boost::uint32_t sequence);
 private:
+    bool terminate_sent_;
     static int init_zmq_socket(zmq::socket_t& socket, const config& config);
     zmq::context_t context_;
     zmq::socket_t socket_;
@@ -127,6 +129,7 @@ private:
 };
 
 service_client::service_client(const config& config) :
+    terminate_sent_(false),
     context_(1),
     socket_(context_, ZMQ_REQ),
     service_(),
@@ -135,6 +138,10 @@ service_client::service_client(const config& config) :
 
 service_client::~service_client()
 {
+    if (!terminate_sent_)
+    {
+	send_terminate(99U);
+    }
     stream_.release();
     service_.stop();
     socket_.close();
@@ -195,19 +202,35 @@ void service_client::send_terminate(boost::uint32_t sequence)
     sgd::result_msg outmsg(send(inmsg));
     EXPECT_TRUE(outmsg.is_confirmation()) << "Unexpected terminate result";
     EXPECT_EQ(inmsg.get_terminate().sequence(), outmsg.get_confirmation().sequence()) << "Sequence number mismatch";
+    terminate_sent_ = true;
 }
 
-void service_client::send_write(boost::uint32_t sequence, const char* key, const container_value& value)
+void service_client::send_write_string(boost::uint32_t sequence, const char* key, const string_value& value)
 {
     sgd::instruction_msg inmsg;
-    sgd::write_instr instr;
+    sgd::write_string_instr instr;
     instr.set_sequence(sequence);
     instr.set_key(key);
     instr.set_value(value.c_str);
-    inmsg.set_write(instr);
+    inmsg.set_write_string(instr);
     sgd::result_msg outmsg(send(inmsg));
     EXPECT_TRUE(outmsg.is_confirmation()) << "unexpected write result";
-    EXPECT_EQ(inmsg.get_write().sequence(), outmsg.get_confirmation().sequence()) << "sequence number mismatch";
+    EXPECT_EQ(inmsg.get_write_string().sequence(), outmsg.get_confirmation().sequence()) << "sequence number mismatch";
+}
+
+void service_client::send_write_struct(boost::uint32_t sequence, const char* key, const struct_value& value)
+{
+    sgd::instruction_msg inmsg;
+    sgd::write_struct_instr instr;
+    instr.set_sequence(sequence);
+    instr.set_key(key);
+    instr.set_value1(value.value1);
+    instr.set_value2(value.value2);
+    instr.set_value3(value.value3);
+    inmsg.set_write_struct(instr);
+    sgd::result_msg outmsg(send(inmsg));
+    EXPECT_TRUE(outmsg.is_confirmation()) << "unexpected write result";
+    EXPECT_EQ(inmsg.get_write_struct().sequence(), outmsg.get_confirmation().sequence()) << "sequence number mismatch";
 }
 
 void service_client::send_process_read_metadata(boost::uint32_t sequence, sgd::reader_token_id from, sgd::reader_token_id to)
@@ -366,16 +389,16 @@ TEST(mmap_container_test, access_historical)
     mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
     const char* key = "access_historical";
 
-    container_value expected1("11");
-    client.send_write(1U, key, expected1);
-    ASSERT_TRUE(readerA.exists<container_value>(key)) << "write failed";
-    const container_value& actual1 = readerA.read<container_value>(key);
+    string_value expected1("11");
+    client.send_write_string(1U, key, expected1);
+    ASSERT_TRUE(readerA.exists<string_value>(key)) << "write failed";
+    const string_value& actual1 = readerA.read<string_value>(key);
     EXPECT_EQ(expected1, actual1) << "read value is not the value just written";
 
-    container_value expected2("22");
-    client.send_write(2U, key, expected2);
-    ASSERT_TRUE(readerA.exists<container_value>(key)) << "write failed";
-    const container_value& actual2 = readerA.read<container_value>(key);
+    string_value expected2("22");
+    client.send_write_string(2U, key, expected2);
+    ASSERT_TRUE(readerA.exists<string_value>(key)) << "write failed";
+    const string_value& actual2 = readerA.read<string_value>(key);
     EXPECT_EQ(expected2, actual2) << "read value is not the value just written";
     EXPECT_EQ(expected1, actual1) << "incorrect historical value";
 
@@ -397,10 +420,10 @@ TEST(mmap_container_test, process_read_metadata_single_key)
     mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
     const char* key = "process_read_metadata_single";
 
-    container_value expected1("abc1");
-    client.send_write(10U, key, expected1);
-    const container_value& readerA_actual1 = readerA.read<container_value>(key);
-    const container_value& readerB_actual1 = readerB.read<container_value>(key);
+    string_value expected1("abc1");
+    client.send_write_string(10U, key, expected1);
+    const string_value& readerA_actual1 = readerA.read<string_value>(key);
+    const string_value& readerB_actual1 = readerB.read<string_value>(key);
     EXPECT_EQ(readerA_actual1, expected1) << "value read is not the value just written";
     EXPECT_EQ(readerB_actual1, expected1) << "value read is not the value just written";
     client.send_process_read_metadata(11U);
@@ -411,10 +434,10 @@ TEST(mmap_container_test, process_read_metadata_single_key)
     EXPECT_EQ(readerA_rev1, oldest_rev1) << "oldest global read revision is not correct";
     EXPECT_EQ(readerB_rev1, oldest_rev1) << "oldest global read revision is not correct";
 
-    container_value expected2("abc2");
-    client.send_write(20U, key, expected2);
-    const container_value& readerA_actual2 = readerA.read<container_value>(key);
-    const container_value& readerB_actual2 = readerB.read<container_value>(key);
+    string_value expected2("abc2");
+    client.send_write_string(20U, key, expected2);
+    const string_value& readerA_actual2 = readerA.read<string_value>(key);
+    const string_value& readerB_actual2 = readerB.read<string_value>(key);
     EXPECT_EQ(readerA_actual2, expected2) << "value read is not the value just written";
     EXPECT_EQ(readerB_actual2, expected2) << "value read is not the value just written";
     client.send_process_read_metadata(21U);
@@ -425,9 +448,9 @@ TEST(mmap_container_test, process_read_metadata_single_key)
     EXPECT_EQ(readerA_rev2, oldest_rev2) << "oldest global read revision is not correct";
     EXPECT_EQ(readerB_rev2, oldest_rev2) << "oldest global read revision is not correct";
 
-    container_value expected3("abc3");
-    client.send_write(30U, key, expected3);
-    const container_value& readerA_actual3 = readerA.read<container_value>(key);
+    string_value expected3("abc3");
+    client.send_write_string(30U, key, expected3);
+    const string_value& readerA_actual3 = readerA.read<string_value>(key);
     EXPECT_EQ(readerA_actual3, expected3) << "value read is not the value just written";
     client.send_process_read_metadata(31U);
     boost::uint64_t readerA_rev3 = readerA.get_last_read_revision();
@@ -451,10 +474,10 @@ TEST(mmap_container_test, process_read_metadata_multi_key)
     const char* keyB = "process_read_metadata_multi_B";
     const char* keyC = "process_read_metadata_multi_C";
 
-    container_value expectedA1("abc1");
-    client.send_write(10U, keyA, expectedA1);
-    const container_value& readerA_actual1 = readerA.read<container_value>(keyA);
-    const container_value& readerB_actual1 = readerB.read<container_value>(keyA);
+    string_value expectedA1("abc1");
+    client.send_write_string(10U, keyA, expectedA1);
+    const string_value& readerA_actual1 = readerA.read<string_value>(keyA);
+    const string_value& readerB_actual1 = readerB.read<string_value>(keyA);
     EXPECT_EQ(readerA_actual1, expectedA1) << "value read is not the value just written";
     EXPECT_EQ(readerB_actual1, expectedA1) << "value read is not the value just written";
     client.send_process_read_metadata(11U);
@@ -465,10 +488,10 @@ TEST(mmap_container_test, process_read_metadata_multi_key)
     EXPECT_EQ(readerA_rev1, oldest_rev1) << "oldest global read revision is not correct";
     EXPECT_EQ(readerB_rev1, oldest_rev1) << "oldest global read revision is not correct";
 
-    container_value expectedB1("xyz1");
-    client.send_write(20U, keyB, expectedB1);
-    const container_value& readerA_actual2 = readerA.read<container_value>(keyB);
-    const container_value& readerB_actual2 = readerB.read<container_value>(keyB);
+    string_value expectedB1("xyz1");
+    client.send_write_string(20U, keyB, expectedB1);
+    const string_value& readerA_actual2 = readerA.read<string_value>(keyB);
+    const string_value& readerB_actual2 = readerB.read<string_value>(keyB);
     EXPECT_EQ(readerA_actual2, expectedB1) << "value read is not the value just written";
     EXPECT_EQ(readerB_actual2, expectedB1) << "value read is not the value just written";
     client.send_process_read_metadata(21U);
@@ -480,9 +503,9 @@ TEST(mmap_container_test, process_read_metadata_multi_key)
     EXPECT_EQ(readerA_rev2, oldest_rev2) << "oldest global read revision is not correct";
     EXPECT_EQ(readerB_rev2, oldest_rev2) << "oldest global read revision is not correct";
 
-    container_value expectedC1("!@#1");
-    client.send_write(30U, keyC, expectedC1);
-    const container_value& readerB_actual3 = readerB.read<container_value>(keyC);
+    string_value expectedC1("!@#1");
+    client.send_write_string(30U, keyC, expectedC1);
+    const string_value& readerB_actual3 = readerB.read<string_value>(keyC);
     EXPECT_EQ(readerB_actual3, expectedC1) << "value read is not the value just written";
     client.send_process_read_metadata(31U);
     boost::uint64_t readerA_rev3 = readerA.get_last_read_revision();
@@ -507,20 +530,20 @@ TEST(mmap_container_test, process_read_metadata_subset)
     const char* keyA = "process_read_metadata_multi_A";
     const char* keyB = "process_read_metadata_multi_B";
 
-    container_value expectedA1("abc123");
-    client.send_write(10U, keyA, expectedA1);
-    readerA.read<container_value>(keyA);
-    readerB.read<container_value>(keyA);
-    readerC.read<container_value>(keyA);
+    string_value expectedA1("abc123");
+    client.send_write_string(10U, keyA, expectedA1);
+    readerA.read<string_value>(keyA);
+    readerB.read<string_value>(keyA);
+    readerC.read<string_value>(keyA);
 
-    container_value expectedB1("def456");
-    client.send_write(20U, keyB, expectedB1);
-    readerA.read<container_value>(keyB);
-    readerB.read<container_value>(keyB);
+    string_value expectedB1("def456");
+    client.send_write_string(20U, keyB, expectedB1);
+    readerA.read<string_value>(keyB);
+    readerB.read<string_value>(keyB);
 
-    container_value expectedA2("xyz123");
-    client.send_write(30U, keyA, expectedA2);
-    readerA.read<container_value>(keyA);
+    string_value expectedA2("xyz123");
+    client.send_write_string(30U, keyA, expectedA2);
+    readerA.read<string_value>(keyA);
 
     client.send_process_read_metadata(40U, readerA.get_reader_token_id(), readerC.get_reader_token_id());
     boost::uint64_t readerA_rev = readerA.get_last_read_revision();
@@ -541,15 +564,15 @@ TEST(mmap_container_test, process_write_metadata_single_key)
     service_client client(conf);
     std::string key("process_write_metadata_single");
 
-    container_value value1("abc123");
-    client.send_write(10U, key.c_str(), value1);
+    string_value value1("abc123");
+    client.send_write_string(10U, key.c_str(), value1);
     client.send_process_write_metadata(11U);
     std::vector<std::string> registered1(client.send_get_registered_keys(12U));
     EXPECT_EQ(registered1.size(), 1U);
     EXPECT_EQ(registered1.at(0), key);
 
-    container_value value2("abc456");
-    client.send_write(20U, key.c_str(), value2);
+    string_value value2("abc456");
+    client.send_write_string(20U, key.c_str(), value2);
     client.send_process_write_metadata(21U);
     std::vector<std::string> registered2(client.send_get_registered_keys(22U));
     EXPECT_EQ(registered1.size(), 1U);
@@ -567,20 +590,20 @@ TEST(mmap_container_test, process_write_metadata_multi_key)
     std::string keyB("process_write_metadata_B");
     std::string keyC("process_write_metadata_C");
 
-    container_value valueC1("abc123");
-    client.send_write(10U, keyC.c_str(), valueC1);
-    container_value valueB1("def123");
-    client.send_write(11U, keyB.c_str(), valueB1);
+    string_value valueC1("abc123");
+    client.send_write_string(10U, keyC.c_str(), valueC1);
+    string_value valueB1("def123");
+    client.send_write_string(11U, keyB.c_str(), valueB1);
     client.send_process_write_metadata(12U);
     std::vector<std::string> registered1(client.send_get_registered_keys(13U));
     EXPECT_EQ(registered1.size(), 2U);
     EXPECT_EQ(registered1.at(0), keyB);
     EXPECT_EQ(registered1.at(1), keyC);
 
-    container_value valueC2("abc456");
-    client.send_write(20U, keyC.c_str(), valueC2);
-    container_value valueA1("ghi123");
-    client.send_write(21U, keyA.c_str(), valueA1);
+    string_value valueC2("abc456");
+    client.send_write_string(20U, keyC.c_str(), valueC2);
+    string_value valueA1("ghi123");
+    client.send_write_string(21U, keyA.c_str(), valueA1);
     client.send_process_write_metadata(22U);
     std::vector<std::string> registered2(client.send_get_registered_keys(23U));
     EXPECT_EQ(registered2.size(), 3U);
@@ -600,19 +623,19 @@ TEST(mmap_container_test, process_write_metadata_subset)
     std::string keyB("process_write_metadata_B");
     std::string keyC("process_write_metadata_C");
 
-    container_value valueC1("abc123");
-    client.send_write(10U, keyC.c_str(), valueC1);
-    container_value valueB1("def123");
-    client.send_write(11U, keyB.c_str(), valueB1);
+    string_value valueC1("abc123");
+    client.send_write_string(10U, keyC.c_str(), valueC1);
+    string_value valueB1("def123");
+    client.send_write_string(11U, keyB.c_str(), valueB1);
     client.send_process_write_metadata(12U, 1U);
     std::vector<std::string> registered1(client.send_get_registered_keys(13U));
     EXPECT_EQ(registered1.size(), 1U);
     EXPECT_EQ(registered1.at(0), keyC);
 
-    container_value valueC2("abc456");
-    client.send_write(20U, keyC.c_str(), valueC2);
-    container_value valueA1("ghi123");
-    client.send_write(21U, keyA.c_str(), valueA1);
+    string_value valueC2("abc456");
+    client.send_write_string(20U, keyC.c_str(), valueC2);
+    string_value valueA1("ghi123");
+    client.send_write_string(21U, keyA.c_str(), valueA1);
     client.send_process_write_metadata(22U, 1U);
     std::vector<std::string> registered2(client.send_get_registered_keys(23U));
     EXPECT_EQ(registered2.size(), 2U);
