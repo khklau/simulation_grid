@@ -81,6 +81,18 @@ message get_last_read_revision_instr
     required fixed32 sequence = 1;
 }
 
+message get_oldest_string_revision_instr
+{
+    required fixed32 sequence = 1;
+    required string key = 2;
+}
+
+message get_oldest_struct_revision_instr
+{
+    required fixed32 sequence = 1;
+    required string key = 2;
+}
+
 message get_global_oldest_revision_read_instr
 {
     required fixed32 sequence = 1;
@@ -120,10 +132,12 @@ message instruction
 	COLLECT_GARBAGE_2 = 10;
 	GET_READER_TOKEN_ID = 11;
 	GET_LAST_READ_REVISION = 12;
-	GET_GLOBAL_OLDEST_REVISION_READ = 13;
-	GET_REGISTERED_KEYS = 14;
-	GET_STRING_HISTORY_DEPTH = 15;
-	GET_STRUCT_HISTORY_DEPTH = 16;
+	GET_OLDEST_STRING_REVISION = 13;
+	GET_OLDEST_STRUCT_REVISION = 14;
+	GET_GLOBAL_OLDEST_REVISION_READ = 15;
+	GET_REGISTERED_KEYS = 16;
+	GET_STRING_HISTORY_DEPTH = 17;
+	GET_STRUCT_HISTORY_DEPTH = 18;
     }
     required opcode_t opcode = 1;
     optional terminate_instr terminate = 2;
@@ -139,10 +153,12 @@ message instruction
     optional collect_garbage_2_instr collect_garbage_2 = 12;
     optional get_reader_token_id_instr get_reader_token_id = 13;
     optional get_last_read_revision_instr get_last_read_revision = 14;
-    optional get_global_oldest_revision_read_instr get_global_oldest_revision_read = 15;
-    optional get_registered_keys_instr get_registered_keys = 16;
-    optional get_string_history_depth_instr get_string_history_depth = 17;
-    optional get_struct_history_depth_instr get_struct_history_depth = 18;
+    optional get_oldest_string_revision_instr get_oldest_string_revision = 15;
+    optional get_oldest_struct_revision_instr get_oldest_struct_revision = 16;
+    optional get_global_oldest_revision_read_instr get_global_oldest_revision_read = 17;
+    optional get_registered_keys_instr get_registered_keys = 18;
+    optional get_string_history_depth_instr get_string_history_depth = 19;
+    optional get_struct_history_depth_instr get_struct_history_depth = 20;
 }
 
 message malformed_message_result

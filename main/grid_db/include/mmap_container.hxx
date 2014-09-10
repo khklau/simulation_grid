@@ -295,6 +295,21 @@ boost::uint64_t get_last_read_revision_(const mvcc_mmap_container& container, co
     }
 }
 
+template <class element_t>
+boost::uint64_t get_oldest_revision_(const mvcc_mmap_reader_handle& handle, const char* key)
+{
+    typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type recringbuf_t;
+    const recringbuf_t* ringbuf = find_const<recringbuf_t>(handle.container, key);
+    if (UNLIKELY_EXT(!ringbuf || ringbuf->empty()))
+    {
+	throw malformed_db_error("Could not find data")
+		<< info_db_identity(handle.container.path.string())
+		<< info_component_identity("mvcc_mmap_reader")
+		<< info_data_identity(key);
+    }
+    return ringbuf->back().revision;
+}
+
 #endif
 
 } // anonymous namespace
@@ -331,6 +346,12 @@ boost::uint64_t mvcc_mmap_reader::get_last_read_revision() const
     return get_last_read_revision_(container_, reader_handle_);
 }
 
+template <class element_t>
+boost::uint64_t mvcc_mmap_reader::get_oldest_revision(const char* key) const
+{
+    return ::get_oldest_revision_<element_t>(reader_handle_, key);
+}
+
 #endif
 
 template <class element_t>
@@ -361,6 +382,12 @@ reader_token_id mvcc_mmap_owner::get_reader_token_id() const
 boost::uint64_t mvcc_mmap_owner::get_last_read_revision() const
 {
     return get_last_read_revision_(container_, reader_handle_);
+}
+
+template <class element_t>
+boost::uint64_t mvcc_mmap_owner::get_oldest_revision(const char* key) const
+{
+    return ::get_oldest_revision_<element_t>(reader_handle_, key);
 }
 
 boost::uint64_t mvcc_mmap_owner::get_global_oldest_revision_read() const
