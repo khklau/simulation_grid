@@ -20,6 +20,7 @@
 #include <zmq.hpp>
 #include <simulation_grid/core/compiler_extensions.hpp>
 #include <simulation_grid/core/process_utility.hpp>
+#include <simulation_grid/core/tcpip_utility.hpp>
 #include "exception.hpp"
 #include "mmap_container.hpp"
 #include "mmap_container.hxx"
@@ -29,6 +30,7 @@ namespace bas = boost::asio;
 namespace bfs = boost::filesystem;
 namespace bpt = boost::posix_time;
 namespace scp = simulation_grid::core::process_utility;
+namespace sct = simulation_grid::core::tcpip_utility;
 namespace sgd = simulation_grid::grid_db;
 
 namespace {
@@ -117,8 +119,12 @@ public:
     void send_write_struct(boost::uint32_t sequence, const char* key, const struct_value& value);
     void send_process_read_metadata(boost::uint32_t sequence, sgd::reader_token_id from = 0, sgd::reader_token_id to = sgd::MVCC_READER_LIMIT);
     void send_process_write_metadata(boost::uint32_t sequence, std::size_t max_attempts = 0);
+    std::string send_collect_garbage(boost::uint32_t sequence, std::size_t max_attempts = 0);
+    std::string send_collect_garbage(boost::uint32_t sequence, const std::string& from, std::size_t max_attempts = 0);
     boost::uint64_t send_get_global_oldest_revision_read(boost::uint32_t sequence);
     std::vector<std::string> send_get_registered_keys(boost::uint32_t sequence);
+    std::size_t send_get_string_history_depth(boost::uint32_t sequence, const char* key);
+    std::size_t send_get_struct_history_depth(boost::uint32_t sequence, const char* key);
 private:
     bool terminate_sent_;
     static int init_zmq_socket(zmq::socket_t& socket, const config& config);
@@ -254,8 +260,35 @@ void service_client::send_process_write_metadata(boost::uint32_t sequence, std::
     instr.set_max_attempts(max_attempts);
     inmsg.set_process_write_metadata(instr);
     sgd::result_msg outmsg(send(inmsg));
-    EXPECT_TRUE(outmsg.is_confirmation()) << "unexpected process_read_metadata result";
+    EXPECT_TRUE(outmsg.is_confirmation()) << "unexpected process_write_metadata result";
     EXPECT_EQ(inmsg.get_process_write_metadata().sequence(), outmsg.get_confirmation().sequence()) << "sequence number mismatch";
+}
+
+std::string service_client::send_collect_garbage(boost::uint32_t sequence, std::size_t max_attempts)
+{
+    sgd::instruction_msg inmsg;
+    sgd::collect_garbage_1_instr instr;
+    instr.set_sequence(sequence);
+    instr.set_max_attempts(max_attempts);
+    inmsg.set_collect_garbage_1(instr);
+    sgd::result_msg outmsg(send(inmsg));
+    EXPECT_TRUE(outmsg.is_key()) << "unexpected collect_garbage_1 result";
+    EXPECT_EQ(inmsg.get_collect_garbage_1().sequence(), outmsg.get_key().sequence()) << "sequence number mismatch";
+    return outmsg.get_key().key();
+}
+
+std::string service_client::send_collect_garbage(boost::uint32_t sequence, const std::string& from, std::size_t max_attempts)
+{
+    sgd::instruction_msg inmsg;
+    sgd::collect_garbage_2_instr instr;
+    instr.set_sequence(sequence);
+    instr.set_from(from);
+    instr.set_max_attempts(max_attempts);
+    inmsg.set_collect_garbage_2(instr);
+    sgd::result_msg outmsg(send(inmsg));
+    EXPECT_TRUE(outmsg.is_key()) << "unexpected collect_garbage_1 result";
+    EXPECT_EQ(inmsg.get_collect_garbage_2().sequence(), outmsg.get_key().sequence()) << "sequence number mismatch";
+    return outmsg.get_key().key();
 }
 
 boost::uint64_t service_client::send_get_global_oldest_revision_read(boost::uint32_t sequence)
@@ -285,6 +318,32 @@ std::vector<std::string> service_client::send_get_registered_keys(boost::uint32_
 	result.push_back(outmsg.get_key_list().key_list().Get(iter));
     }
     return result;
+}
+
+std::size_t service_client::send_get_string_history_depth(boost::uint32_t sequence, const char* key)
+{
+    sgd::instruction_msg inmsg;
+    sgd::get_string_history_depth_instr instr;
+    instr.set_sequence(sequence);
+    instr.set_key(key);
+    inmsg.set_get_string_history_depth(instr);
+    sgd::result_msg outmsg(send(inmsg));
+    EXPECT_TRUE(outmsg.is_size()) << "unexpected get_string_history_depth result";
+    EXPECT_EQ(inmsg.get_get_string_history_depth().sequence(), outmsg.get_size().sequence()) << "sequence number mismatch";
+    return outmsg.get_size().size();
+}
+
+std::size_t service_client::send_get_struct_history_depth(boost::uint32_t sequence, const char* key)
+{
+    sgd::instruction_msg inmsg;
+    sgd::get_struct_history_depth_instr instr;
+    instr.set_sequence(sequence);
+    instr.set_key(key);
+    inmsg.set_get_struct_history_depth(instr);
+    sgd::result_msg outmsg(send(inmsg));
+    EXPECT_TRUE(outmsg.is_size()) << "unexpected get_struct_history_depth result";
+    EXPECT_EQ(inmsg.get_get_struct_history_depth().sequence(), outmsg.get_size().sequence()) << "sequence number mismatch";
+    return outmsg.get_size().size();
 }
 
 class service_launcher
@@ -350,7 +409,7 @@ service_launcher::service_launcher(const config& config) :
     {
 	ipcpath = bfs::path("/dev/shm") / bfs::path(config.name);
     }
-    while (!bfs::exists(ipcpath))
+    while (!sct::is_port_open(sct::protocol::tcpv4, "127.0.0.1", config.port))
     {
 	boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
     }
@@ -380,6 +439,14 @@ int service_launcher::wait()
 }
 
 } // anonymous namespace
+
+TEST(mmap_container_test, startup_and_shutdown_benchmark)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
+    service_launcher launcher(conf);
+    service_client client(conf);
+    client.send_terminate(1U);
+}
 
 TEST(mmap_container_test, access_historical)
 {
@@ -568,15 +635,15 @@ TEST(mmap_container_test, process_write_metadata_single_key)
     client.send_write_string(10U, key.c_str(), value1);
     client.send_process_write_metadata(11U);
     std::vector<std::string> registered1(client.send_get_registered_keys(12U));
-    EXPECT_EQ(registered1.size(), 1U);
-    EXPECT_EQ(registered1.at(0), key);
+    EXPECT_EQ(registered1.size(), 1U) << "incorrect number of registered values";
+    EXPECT_EQ(registered1.at(0), key) << "unexpected registered key";
 
     string_value value2("abc456");
     client.send_write_string(20U, key.c_str(), value2);
     client.send_process_write_metadata(21U);
     std::vector<std::string> registered2(client.send_get_registered_keys(22U));
-    EXPECT_EQ(registered1.size(), 1U);
-    EXPECT_EQ(registered1.at(0), key);
+    EXPECT_EQ(registered1.size(), 1U) << "incorrect number of registered values";
+    EXPECT_EQ(registered1.at(0), key) << "unexpected registered key";
 
     client.send_terminate(30U);
 }
@@ -596,9 +663,9 @@ TEST(mmap_container_test, process_write_metadata_multi_key)
     client.send_write_string(11U, keyB.c_str(), valueB1);
     client.send_process_write_metadata(12U);
     std::vector<std::string> registered1(client.send_get_registered_keys(13U));
-    EXPECT_EQ(registered1.size(), 2U);
-    EXPECT_EQ(registered1.at(0), keyB);
-    EXPECT_EQ(registered1.at(1), keyC);
+    EXPECT_EQ(registered1.size(), 2U) << "incorrect number of registered values";
+    EXPECT_EQ(registered1.at(0), keyB) << "unexpected registered key";
+    EXPECT_EQ(registered1.at(1), keyC) << "unexpected registered key";
 
     string_value valueC2("abc456");
     client.send_write_string(20U, keyC.c_str(), valueC2);
@@ -606,10 +673,10 @@ TEST(mmap_container_test, process_write_metadata_multi_key)
     client.send_write_string(21U, keyA.c_str(), valueA1);
     client.send_process_write_metadata(22U);
     std::vector<std::string> registered2(client.send_get_registered_keys(23U));
-    EXPECT_EQ(registered2.size(), 3U);
-    EXPECT_EQ(registered2.at(0), keyA);
-    EXPECT_EQ(registered2.at(1), keyB);
-    EXPECT_EQ(registered2.at(2), keyC);
+    EXPECT_EQ(registered2.size(), 3U) << "incorrect number of registered values";
+    EXPECT_EQ(registered2.at(0), keyA) << "unexpected registered key";
+    EXPECT_EQ(registered2.at(1), keyB) << "unexpected registered key";
+    EXPECT_EQ(registered2.at(2), keyC) << "unexpected registered key";
 
     client.send_terminate(30U);
 }
@@ -629,8 +696,8 @@ TEST(mmap_container_test, process_write_metadata_subset)
     client.send_write_string(11U, keyB.c_str(), valueB1);
     client.send_process_write_metadata(12U, 1U);
     std::vector<std::string> registered1(client.send_get_registered_keys(13U));
-    EXPECT_EQ(registered1.size(), 1U);
-    EXPECT_EQ(registered1.at(0), keyC);
+    EXPECT_EQ(registered1.size(), 1U) << "incorrect number of registered values";
+    EXPECT_EQ(registered1.at(0), keyC) << "unexpected registered key";
 
     string_value valueC2("abc456");
     client.send_write_string(20U, keyC.c_str(), valueC2);
@@ -638,16 +705,140 @@ TEST(mmap_container_test, process_write_metadata_subset)
     client.send_write_string(21U, keyA.c_str(), valueA1);
     client.send_process_write_metadata(22U, 1U);
     std::vector<std::string> registered2(client.send_get_registered_keys(23U));
-    EXPECT_EQ(registered2.size(), 2U);
-    EXPECT_EQ(registered2.at(0), keyB);
-    EXPECT_EQ(registered2.at(1), keyC);
+    EXPECT_EQ(registered2.size(), 2U) << "incorrect number of registered values";
+    EXPECT_EQ(registered2.at(0), keyB) << "unexpected registered key";
+    EXPECT_EQ(registered2.at(1), keyC) << "unexpected registered key";
 
     client.send_process_write_metadata(40U, 5U);
     std::vector<std::string> registered3(client.send_get_registered_keys(41U));
-    EXPECT_EQ(registered3.size(), 3U);
-    EXPECT_EQ(registered3.at(0), keyA);
-    EXPECT_EQ(registered3.at(1), keyB);
-    EXPECT_EQ(registered3.at(2), keyC);
+    EXPECT_EQ(registered3.size(), 3U) << "incorrect number of registered values";
+    EXPECT_EQ(registered3.at(0), keyA) << "unexpected registered key";
+    EXPECT_EQ(registered3.at(1), keyB) << "unexpected registered key";
+    EXPECT_EQ(registered3.at(2), keyC) << "unexpected registered key";
 
     client.send_terminate(50U);
+}
+
+TEST(mmap_container_test, collect_garbage_single_key_single_type)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
+    service_launcher launcher(conf);
+    service_client client(conf);
+    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
+    mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
+    std::string keyA("collect_garbage_A");
+
+    std::size_t depth1 = 0;
+    string_value valueA1("abc123");
+    client.send_write_string(10U, keyA.c_str(), valueA1);
+    ++depth1;
+    readerA.read<string_value>(keyA.c_str());
+    readerB.read<string_value>(keyA.c_str());
+    boost::uint64_t oldestrevA1 = readerA.get_oldest_revision<string_value>(keyA.c_str());
+    boost::uint64_t oldestrevB1 = readerB.get_oldest_revision<string_value>(keyA.c_str());
+    EXPECT_EQ(oldestrevA1, oldestrevB1) << "oldest revision of same value is inconsistent";
+    string_value valueA2("def123");
+    client.send_write_string(11U, keyA.c_str(), valueA2);
+    ++depth1;
+    EXPECT_EQ(depth1, client.send_get_string_history_depth(12U, keyA.c_str())) << "unexpected history depth";
+    readerA.read<string_value>(keyA.c_str());
+    boost::uint64_t oldestrevA2 = readerA.get_oldest_revision<string_value>(keyA.c_str());
+    boost::uint64_t oldestrevB2 = readerB.get_oldest_revision<string_value>(keyA.c_str());
+    EXPECT_EQ(oldestrevA2, oldestrevB2) << "oldest revision of same value is inconsistent";
+    client.send_process_read_metadata(13U);
+    client.send_process_write_metadata(14U);
+    boost::uint64_t oldestrev1 = client.send_get_global_oldest_revision_read(12U);
+    EXPECT_EQ(oldestrev1, oldestrevA1) << "global oldest revision read is wrong";
+    client.send_collect_garbage(15U);
+    readerB.read<string_value>(keyA.c_str());
+    EXPECT_EQ(depth1, client.send_get_string_history_depth(16U, keyA.c_str())) << "read value was collected";
+
+    std::size_t depth2 = depth1;
+    string_value valueA3("ghi23");
+    client.send_write_string(20U, keyA.c_str(), valueA3);
+    ++depth2;
+    readerA.read<string_value>(keyA.c_str());
+    boost::uint64_t oldestrevA3 = readerA.get_oldest_revision<string_value>(keyA.c_str());
+    boost::uint64_t oldestrevB3 = readerB.get_oldest_revision<string_value>(keyA.c_str());
+    EXPECT_EQ(oldestrevA3, oldestrevB3) << "oldest revision of same value is inconsistent";
+    client.send_process_read_metadata(21U);
+    client.send_process_write_metadata(22U);
+    boost::uint64_t oldestrev2 = client.send_get_global_oldest_revision_read(12U);
+    EXPECT_NE(oldestrev2, oldestrevA1) << "global oldest revision read not updated after newer reads";
+    client.send_collect_garbage(23U);
+    --depth2;
+    boost::uint64_t oldestrevA4 = readerA.get_oldest_revision<string_value>(keyA.c_str());
+    boost::uint64_t oldestrevB4 = readerB.get_oldest_revision<string_value>(keyA.c_str());
+    EXPECT_EQ(oldestrevA4, oldestrevB4) << "oldest revision of same value is inconsistent";
+    EXPECT_NE(oldestrevA3, oldestrevA4) << "oldest revision not updated after garbage collection";
+    EXPECT_EQ(depth2, client.send_get_string_history_depth(24U, keyA.c_str())) << "unused value was not collected";
+
+    client.send_terminate(30U);
+}
+
+TEST(mmap_container_test, collect_garbage_single_key_multi_type)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
+    service_launcher launcher(conf);
+    service_client client(conf);
+    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
+    mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
+    std::string keyA("collect_garbage_A");
+    std::string keyB("collect_garbage_B");
+    std::size_t depthA1 = 0;
+    std::size_t depthB1 = 0;
+
+    string_value valueA1("abc123");
+    struct_value valueB1(true, 5, 12.5);
+    client.send_write_string(10U, keyA.c_str(), valueA1);
+    client.send_write_struct(11U, keyB.c_str(), valueB1);
+    ++depthA1;
+    ++depthB1;
+    readerA.read<string_value>(keyA.c_str());
+    readerB.read<string_value>(keyA.c_str());
+    boost::uint64_t readerArev1 = readerA.get_last_read_revision();
+    boost::uint64_t readerBrev1 = readerB.get_last_read_revision();
+    readerA.read<struct_value>(keyB.c_str());
+    readerB.read<struct_value>(keyB.c_str());
+    boost::uint64_t readerArev2 = readerA.get_last_read_revision();
+    boost::uint64_t readerBrev2 = readerB.get_last_read_revision();
+    client.send_process_read_metadata(12U);
+    client.send_process_write_metadata(13U);
+    boost::uint64_t oldestrev1 = client.send_get_global_oldest_revision_read(14U);
+    EXPECT_NE(readerArev1, readerArev2) << "revision of newer read is not greater than old read";
+    EXPECT_NE(readerBrev1, readerBrev2) << "revision of newer read is not greater than old read";
+    EXPECT_EQ(oldestrev1, readerArev2) << "global oldest revision read not updated after newer reads";
+    EXPECT_EQ(oldestrev1, readerBrev2) << "global oldest revision read not updated after newer reads";
+    client.send_collect_garbage(15U);
+    --depthA1;
+    EXPECT_EQ(depthA1, client.send_get_string_history_depth(16U, keyA.c_str())) << "read value was not collected";
+    EXPECT_EQ(depthB1, client.send_get_struct_history_depth(17U, keyB.c_str())) << "value in use was collected";
+
+    string_value valueA2("def456");
+    client.send_write_string(20U, keyA.c_str(), valueA2);
+    ++depthA1;
+    readerA.read<string_value>(keyA.c_str());
+    boost::uint64_t readerArev3 = readerA.get_last_read_revision();
+    EXPECT_NE(readerArev2, readerArev3) << "revision of newer read is not greater than old read";
+    client.send_process_read_metadata(21U);
+    client.send_process_write_metadata(22U);
+    boost::uint64_t oldestrev2 = client.send_get_global_oldest_revision_read(23U);
+    EXPECT_EQ(oldestrev1, oldestrev2) << "global oldest revision should not have changed";
+    client.send_collect_garbage(24U);
+    EXPECT_EQ(depthA1, client.send_get_string_history_depth(25U, keyA.c_str())) << "value in use was collected";
+    EXPECT_EQ(depthB1, client.send_get_struct_history_depth(26U, keyB.c_str())) << "value in use was collected";
+
+    readerB.read<string_value>(keyA.c_str());
+    boost::uint64_t readerBrev3 = readerB.get_last_read_revision();
+    EXPECT_NE(readerBrev2, readerBrev3) << "revision of newer read is not greater than old read";
+    client.send_process_read_metadata(30U);
+    client.send_process_write_metadata(31U);
+    boost::uint64_t oldestrev3 = client.send_get_global_oldest_revision_read(23U);
+    EXPECT_NE(oldestrev2, oldestrev3) << "global oldest revision not updated";
+    client.send_collect_garbage(32U);
+    --depthB1;
+    EXPECT_EQ(depthA1, client.send_get_string_history_depth(33U, keyA.c_str())) << "value in use was collected";
+    EXPECT_EQ(depthB1, client.send_get_struct_history_depth(334, keyB.c_str())) << "read value was not collected";
+
+    client.send_terminate(40U);
 }

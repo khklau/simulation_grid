@@ -386,21 +386,27 @@ void mvcc_mmap_owner::process_write_metadata(std::size_t max_attempts)
 
 std::string mvcc_mmap_owner::collect_garbage(std::size_t max_attempts)
 {
-    std::string from(mut_resource_pool(container_).owner_token.registry.begin()->first.c_str);
+    std::string from;
     return collect_garbage(from, max_attempts);
 }
 
 std::string mvcc_mmap_owner::collect_garbage(const std::string& from, std::size_t max_attempts)
 {
     mvcc_mmap_resource_pool& pool = mut_resource_pool(container_);
+    if (pool.owner_token.registry.empty())
+    {
+	return "";
+    }
     if (!pool.owner_token.oldest_revision_found)
     {
 	return pool.owner_token.registry.begin()->first.c_str;
     }
     mvcc_revision oldest = pool.owner_token.oldest_revision_found.get();
     mvcc_key key(from.c_str());
-    registry_map::const_iterator iter = pool.owner_token.registry.find(key);
-    std::string result(iter->first.c_str);
+    registry_map::const_iterator iter = from.empty() ?
+	    pool.owner_token.registry.begin() :
+	    pool.owner_token.registry.find(key);
+    std::string result;
     for (std::size_t attempts = 0; iter != pool.owner_token.registry.end() && (max_attempts == 0 || attempts < max_attempts); ++attempts, ++iter)
     {
 	iter->second.function(container_, iter->first.c_str, oldest);
