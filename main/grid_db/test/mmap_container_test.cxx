@@ -842,3 +842,96 @@ TEST(mmap_container_test, collect_garbage_single_key_multi_type)
 
     client.send_terminate(40U);
 }
+
+TEST(mmap_container_test, collect_garbage_multi_key_multi_type)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
+    service_launcher launcher(conf);
+    service_client client(conf);
+    mvcc_mmap_reader reader1(bfs::path(conf.name.c_str()));
+    mvcc_mmap_reader reader2(bfs::path(conf.name.c_str()));
+    std::string stringKeyA("collect_string_A");
+    std::string stringKeyB("collect_string_B");
+    std::string structKeyA("collect_struct_A");
+    std::string structKeyB("collect_struct_B");
+    std::size_t stringAdepth = 0;
+    std::size_t stringBdepth = 0;
+    std::size_t structAdepth = 0;
+    std::size_t structBdepth = 0;
+
+    string_value stringA1("abc123");
+    client.send_write_string(10U, stringKeyA.c_str(), stringA1);
+    ++stringAdepth;
+    boost::uint64_t stringA1Rev = reader1.get_oldest_revision<string_value>(stringKeyA.c_str());
+    reader1.read<string_value>(stringKeyA.c_str());
+    string_value stringB1("def123");
+    client.send_write_string(11U, stringKeyB.c_str(), stringB1);
+    ++stringBdepth;
+    boost::uint64_t stringB1Rev = reader2.get_oldest_revision<string_value>(stringKeyB.c_str());
+    reader2.read<string_value>(stringKeyB.c_str());
+    string_value stringB2("def456");
+    client.send_write_string(12U, stringKeyB.c_str(), stringB2);
+    ++stringBdepth;
+    reader1.read<string_value>(stringKeyB.c_str());
+    boost::uint64_t stringB2Rev = reader1.get_last_read_revision();
+    client.send_process_read_metadata(13U);
+    client.send_process_write_metadata(14U);
+    client.send_collect_garbage(15U);
+    --stringAdepth;
+    EXPECT_EQ(stringAdepth, client.send_get_string_history_depth(16U, stringKeyA.c_str())) << "read value was not collected";
+    EXPECT_NE(stringA1Rev, reader1.get_oldest_revision<string_value>(stringKeyA.c_str())) << "revision 1 of stringKeyA was not collected";
+
+    struct_value structA1(true, 5, 12.5);
+    client.send_write_struct(20U, structKeyA.c_str(), structA1);
+    ++structAdepth;
+    boost::uint64_t structA1Rev = reader2.get_oldest_revision<struct_value>(structKeyA.c_str());
+    reader2.read<struct_value>(structKeyA.c_str());
+    client.send_process_read_metadata(21U);
+    client.send_process_write_metadata(22U);
+    client.send_collect_garbage(23U);
+    --stringBdepth;
+    EXPECT_EQ(stringBdepth, client.send_get_string_history_depth(24U, stringKeyB.c_str())) << "read value was not collected";
+    EXPECT_NE(stringB1Rev, reader2.get_oldest_revision<struct_value>(stringKeyB.c_str())) << "revision 1 of stringKeyA was not collected";
+
+    struct_value structB1(false, 9, 23.8);
+    client.send_write_struct(30U, structKeyB.c_str(), structB1);
+    ++structBdepth;
+    boost::uint64_t structB1Rev = reader1.get_oldest_revision<struct_value>(structKeyB.c_str());
+    reader1.read<struct_value>(structKeyB.c_str());
+    client.send_process_read_metadata(31U);
+    client.send_process_write_metadata(32U);
+    client.send_collect_garbage(33U);
+    --stringBdepth;
+    EXPECT_EQ(stringBdepth, client.send_get_string_history_depth(34U, stringKeyB.c_str())) << "read value was not collected";
+    EXPECT_NE(stringB2Rev, reader1.get_oldest_revision<struct_value>(stringKeyB.c_str())) << "revision 2 of stringKeyA was not collected";
+
+    struct_value structB2(false, 40, 378.99);
+    client.send_write_struct(40U, structKeyB.c_str(), structB2);
+    ++structBdepth;
+    reader2.read<struct_value>(structKeyB.c_str());
+    boost::uint64_t structB2Rev = reader2.get_last_read_revision();
+    client.send_process_read_metadata(41U);
+    client.send_process_write_metadata(42U);
+    client.send_collect_garbage(43U);
+    --structAdepth;
+    EXPECT_EQ(structAdepth, client.send_get_struct_history_depth(44U, structKeyA.c_str())) << "read value was not collected";
+    EXPECT_NE(structA1Rev, reader2.get_oldest_revision<struct_value>(structKeyA.c_str())) << "revision 1 of structKeyA was not collected";
+
+    string_value stringA2("abc456");
+    client.send_write_string(50U, stringKeyA.c_str(), stringA2);
+    ++stringAdepth;
+    reader1.read<string_value>(stringKeyA.c_str());
+    reader2.read<string_value>(stringKeyA.c_str());
+    client.send_process_read_metadata(51U);
+    client.send_process_write_metadata(52U);
+    client.send_collect_garbage(53U);
+    --structBdepth;
+    EXPECT_EQ(structBdepth, client.send_get_struct_history_depth(54U, structKeyB.c_str())) << "values were not collected";
+    EXPECT_NE(structB1Rev, reader1.get_oldest_revision<struct_value>(structKeyB.c_str())) << "revision 1 of structKeyB was not collected";
+    client.send_collect_garbage(55U);
+    --structBdepth;
+    EXPECT_EQ(structBdepth, client.send_get_struct_history_depth(56U, structKeyB.c_str())) << "values were not collected";
+    EXPECT_NE(structB2Rev, reader2.get_oldest_revision<struct_value>(structKeyB.c_str())) << "revision 2 of structKeyB was not collected";
+
+    client.send_terminate(60U);
+}
