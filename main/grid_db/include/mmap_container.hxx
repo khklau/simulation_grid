@@ -302,12 +302,12 @@ boost::uint64_t get_oldest_revision_(const mvcc_mmap_reader_handle& handle, cons
     const recringbuf_t* ringbuf = find_const<recringbuf_t>(handle.container, key);
     if (UNLIKELY_EXT(!ringbuf || ringbuf->empty()))
     {
-	throw malformed_db_error("Could not find data")
-		<< info_db_identity(handle.container.path.string())
-		<< info_component_identity("mvcc_mmap_reader")
-		<< info_data_identity(key);
+	return 0U;
     }
-    return ringbuf->back().revision;
+    else
+    {
+	return ringbuf->back().revision;
+    }
 }
 
 #endif
