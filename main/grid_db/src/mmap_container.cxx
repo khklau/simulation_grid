@@ -397,22 +397,24 @@ std::string mvcc_mmap_owner::collect_garbage(const std::string& from, std::size_
     {
 	return "";
     }
-    if (!pool.owner_token.oldest_revision_found)
-    {
-	return pool.owner_token.registry.begin()->first.c_str;
-    }
-    mvcc_revision oldest = pool.owner_token.oldest_revision_found.get();
     mvcc_key key(from.c_str());
     registry_map::const_iterator iter = from.empty() ?
 	    pool.owner_token.registry.begin() :
 	    pool.owner_token.registry.find(key);
-    std::string result;
-    for (std::size_t attempts = 0; iter != pool.owner_token.registry.end() && (max_attempts == 0 || attempts < max_attempts); ++attempts, ++iter)
+    if (pool.owner_token.oldest_revision_found)
     {
-	iter->second.function(container_, iter->first.c_str, oldest);
-	result.assign(iter->first.c_str);
+	mvcc_revision oldest = pool.owner_token.oldest_revision_found.get();
+	for (std::size_t attempts = 0; iter != pool.owner_token.registry.end() && (max_attempts == 0 || attempts < max_attempts); ++attempts, ++iter)
+	{
+	    iter->second.function(container_, iter->first.c_str, oldest);
+	}
     }
-    return result;
+    if (iter == pool.owner_token.registry.end())
+    {
+	// Next collect attempt should start again from beginning
+	iter = pool.owner_token.registry.begin();
+    }
+    return iter->first.c_str;
 }
 
 void mvcc_mmap_owner::flush()
