@@ -169,9 +169,9 @@ namespace {
 using namespace simulation_grid::grid_db;
 
 template <class value_t>
-struct mvcc_record
+struct mvcc_value
 {
-    mvcc_record(const value_t& v, const mvcc_revision& r, const bpt::ptime& t) :
+    mvcc_value(const value_t& v, const mvcc_revision& r, const bpt::ptime& t) :
 	    value(v), revision(r), timestamp(t)
     { }
     value_t value;
@@ -182,8 +182,21 @@ struct mvcc_record
 template <class content_t>
 struct mmap_ring_buffer
 {
-    typedef multi_reader_ring_buffer<content_t, bip::allocator<content_t, bip::managed_mapped_file::segment_manager> > type;
+    typedef bip::allocator<content_t, bip::managed_mapped_file::segment_manager> allocator_type;
+    typedef multi_reader_ring_buffer<content_t, allocator_type> type;
 };
+
+template <class content_t>
+struct mvcc_record
+{
+    typedef typename mmap_ring_buffer< mvcc_value<content_t> >::type ringbuf_t;
+    mvcc_record(const typename mmap_ring_buffer< mvcc_value<content_t> >::allocator_type& allocator, std::size_t depth = DEFAULT_HISTORY_DEPTH) :
+	    ringbuf(depth, allocator),
+	    want_deletion(false)
+    { }
+    typename mmap_ring_buffer< mvcc_value<content_t> >::type ringbuf;
+    bool want_deletion;
+} __attribute__((aligned(LEVEL1_DCACHE_LINESIZE)));
 
 template <class value_t>
 const value_t* find_const(const mvcc_mmap_container& container, const bip::managed_mapped_file::char_type* key)
@@ -203,44 +216,40 @@ value_t* find_mut(mvcc_mmap_container& container, const bip::managed_mapped_file
 template <class element_t>
 bool exists_(const mvcc_mmap_reader_handle& handle, const char* key)
 {
-    typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type recringbuf_t;
-    const recringbuf_t* ringbuf = find_const<recringbuf_t>(handle.container, key);
-    return ringbuf && !ringbuf->empty();
+    const mvcc_record<element_t>* record = find_const< mvcc_record<element_t> >(handle.container, key);
+    return record && !record->want_deletion && !record->ringbuf.empty();
 }
 
 template <class element_t>
-const mvcc_record<element_t>& read_(const mvcc_mmap_reader_handle& handle, const char* key)
+const mvcc_value<element_t>& read_(const mvcc_mmap_reader_handle& handle, const char* key)
 {
-    typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type recringbuf_t;
-    const recringbuf_t* ringbuf = find_const<recringbuf_t>(handle.container, key);
-    if (UNLIKELY_EXT(!ringbuf || ringbuf->empty()))
+    const mvcc_record<element_t>* record = find_const< mvcc_record<element_t> >(handle.container, key);
+    if (UNLIKELY_EXT(!record || record->want_deletion || record->ringbuf.empty()))
     {
 	throw malformed_db_error("Could not find data")
 		<< info_db_identity(handle.container.path.string())
 		<< info_component_identity("mvcc_mmap_reader")
 		<< info_data_identity(key);
     }
-    const mvcc_record<element_t>& record = ringbuf->front();
+    const mvcc_value<element_t>& value = record->ringbuf.front();
     // the mvcc_mmap_reader_token will ensure the returned reference remains valid
     mut_resource_pool(handle.container).reader_token_pool[handle.token_id].
-	    last_read_timestamp.reset(record.timestamp);
+	    last_read_timestamp.reset(value.timestamp);
     mut_resource_pool(handle.container).reader_token_pool[handle.token_id].
-	    last_read_revision.reset(record.revision);
-    return record;
+	    last_read_revision.reset(value.revision);
+    return value;
 }
 
 template <class element_t>
 void delete_oldest(mvcc_mmap_container& container, const char* key, mvcc_revision threshold)
 {
-    typedef mvcc_record<element_t> record_t;
-    typedef typename mmap_ring_buffer<record_t>::type recringbuf_t;
-    recringbuf_t* ringbuf = find_mut<recringbuf_t>(container, key);
-    if (ringbuf)
+    mvcc_record<element_t>* record = find_mut< mvcc_record<element_t> >(container, key);
+    if (record)
     {
-	const mvcc_record<element_t>& record = ringbuf->back();
-	if (ringbuf->element_count() > 1 && record.revision < threshold)
+	const mvcc_value<element_t>& value = record->ringbuf.back();
+	if (record->ringbuf.element_count() > 1 && value.revision < threshold)
 	{
-	    ringbuf->pop_back(record);
+	    record->ringbuf.pop_back(value);
 	}
     }
 }
@@ -249,10 +258,8 @@ void delete_oldest(mvcc_mmap_container& container, const char* key, mvcc_revisio
 template <class element_t>
 void write_(mvcc_mmap_writer_handle& handle, const char* key, const element_t& value)
 {
-    typedef mvcc_record<element_t> record_t;
-    typedef typename mmap_ring_buffer<record_t>::type recringbuf_t;
     mvcc_key mkey(key);
-    if (!find_const<recringbuf_t>(handle.container, mkey.c_str))
+    if (!find_const< mvcc_record<element_t> >(handle.container, mkey.c_str))
     {
 	bra::mt19937 seed;
 	bra::uniform_int_distribution<> generator(100, 200);
@@ -262,18 +269,17 @@ void write_(mvcc_mmap_writer_handle& handle, const char* key, const element_t& v
 	    boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
 	}
     }
-    recringbuf_t* ringbuf = handle.container.file.find_or_construct<recringbuf_t>(mkey.c_str)(
-	    DEFAULT_HISTORY_DEPTH, 
+    mvcc_record<element_t>* record = handle.container.file.find_or_construct< mvcc_record<element_t> >(mkey.c_str)(
 	    handle.container.file.get_segment_manager());
-    if (UNLIKELY_EXT(ringbuf->full()))
+    if (UNLIKELY_EXT(record->ringbuf.full()))
     {
 	// TODO: need a smarter growth algorithm
-	ringbuf->grow(ringbuf->capacity() * 1.5);
+	record->ringbuf.grow(record->ringbuf.capacity() * 1.5);
     }
-    record_t tmp(value, mut_resource_pool(handle.container).global_revision.fetch_add(
+    mvcc_value<element_t> tmp(value, mut_resource_pool(handle.container).global_revision.fetch_add(
 	    1, boost::memory_order_relaxed),
 	    bpt::microsec_clock::local_time());
-    ringbuf->push_front(tmp);
+    record->ringbuf.push_front(tmp);
     mut_resource_pool(handle.container).writer_token_pool[handle.token_id].
 	    last_write_timestamp.reset(tmp.timestamp);
     mut_resource_pool(handle.container).writer_token_pool[handle.token_id].
@@ -298,30 +304,28 @@ boost::uint64_t get_last_read_revision_(const mvcc_mmap_container& container, co
 template <class element_t>
 boost::uint64_t get_oldest_revision_(const mvcc_mmap_reader_handle& handle, const char* key)
 {
-    typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type recringbuf_t;
-    const recringbuf_t* ringbuf = find_const<recringbuf_t>(handle.container, key);
-    if (UNLIKELY_EXT(!ringbuf || ringbuf->empty()))
+    const mvcc_record<element_t>* record = find_const< mvcc_record<element_t> >(handle.container, key);
+    if (UNLIKELY_EXT(!record || record->ringbuf.empty()))
     {
 	return 0U;
     }
     else
     {
-	return ringbuf->back().revision;
+	return record->ringbuf.back().revision;
     }
 }
 
 template <class element_t>
 boost::uint64_t get_newest_revision_(const mvcc_mmap_reader_handle& handle, const char* key)
 {
-    typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type recringbuf_t;
-    const recringbuf_t* ringbuf = find_const<recringbuf_t>(handle.container, key);
-    if (UNLIKELY_EXT(!ringbuf || ringbuf->empty()))
+    const mvcc_record<element_t>* record = find_const< mvcc_record<element_t> >(handle.container, key);
+    if (UNLIKELY_EXT(!record || record->ringbuf.empty()))
     {
 	return 0U;
     }
     else
     {
-	return ringbuf->front().revision;
+	return record->ringbuf.front().revision;
     }
 }
 
@@ -443,15 +447,14 @@ std::vector<std::string> mvcc_mmap_owner::get_registered_keys() const
 template <class element_t> 
 std::size_t mvcc_mmap_owner::get_history_depth(const char* key) const
 {
-    typedef typename mmap_ring_buffer< mvcc_record<element_t> >::type recringbuf_t;
-    const recringbuf_t* ringbuf = find_const<recringbuf_t>(container_, key);
-    if (!ringbuf || ringbuf->empty())
+    const mvcc_record<element_t>* record = find_const< mvcc_record<element_t> >(container_, key);
+    if (!record || record->ringbuf.empty())
     {
 	return 0U;
     }
     else
     {
-	return ringbuf->element_count();
+	return record->ringbuf.element_count();
     }
 }
 
