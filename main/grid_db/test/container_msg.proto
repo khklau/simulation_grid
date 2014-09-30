@@ -45,6 +45,18 @@ message write_struct_instr
     required double value3 = 5;
 }
 
+message remove_string_instr
+{
+    required fixed32 sequence = 1;
+    required string key = 2;
+}
+
+message remove_struct_instr
+{
+    required fixed32 sequence = 1;
+    required string key = 2;
+}
+
 message process_read_metadata_instr
 {
     required fixed32 sequence = 1;
@@ -126,18 +138,20 @@ message instruction
 	READ_STRUCT = 4;
 	WRITE_STRING = 5;
 	WRITE_STRUCT = 6;
-	PROCESS_READ_METADATA = 7;
-	PROCESS_WRITE_METADATA = 8;
-	COLLECT_GARBAGE_1 = 9;
-	COLLECT_GARBAGE_2 = 10;
-	GET_READER_TOKEN_ID = 11;
-	GET_LAST_READ_REVISION = 12;
-	GET_OLDEST_STRING_REVISION = 13;
-	GET_OLDEST_STRUCT_REVISION = 14;
-	GET_GLOBAL_OLDEST_REVISION_READ = 15;
-	GET_REGISTERED_KEYS = 16;
-	GET_STRING_HISTORY_DEPTH = 17;
-	GET_STRUCT_HISTORY_DEPTH = 18;
+	REMOVE_STRING = 7;
+	REMOVE_STRUCT = 8;
+	PROCESS_READ_METADATA = 9;
+	PROCESS_WRITE_METADATA = 10;
+	COLLECT_GARBAGE_1 = 11;
+	COLLECT_GARBAGE_2 = 12;
+	GET_READER_TOKEN_ID = 13;
+	GET_LAST_READ_REVISION = 14;
+	GET_OLDEST_STRING_REVISION = 15;
+	GET_OLDEST_STRUCT_REVISION = 16;
+	GET_GLOBAL_OLDEST_REVISION_READ = 17;
+	GET_REGISTERED_KEYS = 18;
+	GET_STRING_HISTORY_DEPTH = 19;
+	GET_STRUCT_HISTORY_DEPTH = 20;
     }
     required opcode_t opcode = 1;
     optional terminate_instr terminate = 2;
@@ -147,18 +161,20 @@ message instruction
     optional read_struct_instr read_struct = 6;
     optional write_string_instr write_string = 7;
     optional write_struct_instr write_struct = 8;
-    optional process_read_metadata_instr process_read_metadata = 9;
-    optional process_write_metadata_instr process_write_metadata = 10;
-    optional collect_garbage_1_instr collect_garbage_1 = 11;
-    optional collect_garbage_2_instr collect_garbage_2 = 12;
-    optional get_reader_token_id_instr get_reader_token_id = 13;
-    optional get_last_read_revision_instr get_last_read_revision = 14;
-    optional get_oldest_string_revision_instr get_oldest_string_revision = 15;
-    optional get_oldest_struct_revision_instr get_oldest_struct_revision = 16;
-    optional get_global_oldest_revision_read_instr get_global_oldest_revision_read = 17;
-    optional get_registered_keys_instr get_registered_keys = 18;
-    optional get_string_history_depth_instr get_string_history_depth = 19;
-    optional get_struct_history_depth_instr get_struct_history_depth = 20;
+    optional remove_string_instr remove_string = 9;
+    optional remove_struct_instr remove_struct = 10;
+    optional process_read_metadata_instr process_read_metadata = 11;
+    optional process_write_metadata_instr process_write_metadata = 12;
+    optional collect_garbage_1_instr collect_garbage_1 = 13;
+    optional collect_garbage_2_instr collect_garbage_2 = 14;
+    optional get_reader_token_id_instr get_reader_token_id = 15;
+    optional get_last_read_revision_instr get_last_read_revision = 16;
+    optional get_oldest_string_revision_instr get_oldest_string_revision = 17;
+    optional get_oldest_struct_revision_instr get_oldest_struct_revision = 18;
+    optional get_global_oldest_revision_read_instr get_global_oldest_revision_read = 19;
+    optional get_registered_keys_instr get_registered_keys = 20;
+    optional get_string_history_depth_instr get_string_history_depth = 21;
+    optional get_struct_history_depth_instr get_struct_history_depth = 22;
 }
 
 message malformed_message_result

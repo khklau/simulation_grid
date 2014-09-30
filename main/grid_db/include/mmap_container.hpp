@@ -82,6 +82,7 @@ public:
     template <class element_t> bool exists(const char* key) const;
     template <class element_t> const element_t& read(const char* key) const;
     template <class element_t> void write(const char* key, const element_t& value);
+    template <class element_t> void remove(const char* key);
     void process_read_metadata(reader_token_id from = 0, reader_token_id to = MVCC_READER_LIMIT);
     void process_write_metadata(std::size_t max_attempts = 0);
     std::string collect_garbage(std::size_t max_attempts = 0);

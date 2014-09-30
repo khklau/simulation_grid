@@ -56,6 +56,8 @@ public:
     inline bool is_read_struct() { return msg_.opcode() == simulation_grid::grid_db::instruction::READ_STRUCT; }
     inline bool is_write_string() { return msg_.opcode() == simulation_grid::grid_db::instruction::WRITE_STRING; }
     inline bool is_write_struct() { return msg_.opcode() == simulation_grid::grid_db::instruction::WRITE_STRUCT; }
+    inline bool is_remove_string() { return msg_.opcode() == simulation_grid::grid_db::instruction::REMOVE_STRING; }
+    inline bool is_remove_struct() { return msg_.opcode() == simulation_grid::grid_db::instruction::REMOVE_STRUCT; }
     inline bool is_process_read_metadata() { return msg_.opcode() == simulation_grid::grid_db::instruction::PROCESS_READ_METADATA; }
     inline bool is_process_write_metadata() { return msg_.opcode() == simulation_grid::grid_db::instruction::PROCESS_WRITE_METADATA; }
     inline bool is_collect_garbage_1() { return msg_.opcode() == simulation_grid::grid_db::instruction::COLLECT_GARBAGE_1; }
@@ -75,6 +77,8 @@ public:
     inline const simulation_grid::grid_db::read_struct_instr& get_read_struct() { return msg_.read_struct(); }
     inline const simulation_grid::grid_db::write_string_instr& get_write_string() { return msg_.write_string(); }
     inline const simulation_grid::grid_db::write_struct_instr& get_write_struct() { return msg_.write_struct(); }
+    inline const simulation_grid::grid_db::remove_string_instr& get_remove_string() { return msg_.remove_string(); }
+    inline const simulation_grid::grid_db::remove_struct_instr& get_remove_struct() { return msg_.remove_struct(); }
     inline const simulation_grid::grid_db::process_read_metadata_instr& get_process_read_metadata() { return msg_.process_read_metadata(); }
     inline const simulation_grid::grid_db::process_write_metadata_instr& get_process_write_metadata() { return msg_.process_write_metadata(); }
     inline const simulation_grid::grid_db::collect_garbage_1_instr& get_collect_garbage_1() { return msg_.collect_garbage_1(); }
@@ -94,6 +98,8 @@ public:
     void set_read_struct(const simulation_grid::grid_db::read_struct_instr& instr);
     void set_write_string(const simulation_grid::grid_db::write_string_instr& instr);
     void set_write_struct(const simulation_grid::grid_db::write_struct_instr& instr);
+    void set_remove_string(const simulation_grid::grid_db::remove_string_instr& instr);
+    void set_remove_struct(const simulation_grid::grid_db::remove_struct_instr& instr);
     void set_process_read_metadata(const simulation_grid::grid_db::process_read_metadata_instr& instr);
     void set_process_write_metadata(const simulation_grid::grid_db::process_write_metadata_instr& instr);
     void set_collect_garbage_1(const simulation_grid::grid_db::collect_garbage_1_instr& instr);

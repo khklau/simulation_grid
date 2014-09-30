@@ -277,6 +277,8 @@ private:
     void exec_read_struct(const sgd::read_struct_instr& input, sgd::result_msg& output);
     void exec_write_string(const sgd::write_string_instr& input, sgd::result_msg& output);
     void exec_write_struct(const sgd::write_struct_instr& input, sgd::result_msg& output);
+    void exec_remove_string(const sgd::remove_string_instr& input, sgd::result_msg& output);
+    void exec_remove_struct(const sgd::remove_struct_instr& input, sgd::result_msg& output);
     void exec_process_read_metadata(const sgd::process_read_metadata_instr& input, sgd::result_msg& output);
     void exec_process_write_metadata(const sgd::process_write_metadata_instr& input, sgd::result_msg& output);
     void exec_collect_garbage_1(const sgd::collect_garbage_1_instr& input, sgd::result_msg& output);
@@ -406,6 +408,14 @@ void container_service::receive_instruction(const bsy::error_code& error, size_t
 	{
 	    exec_write_struct(instr_.get_write_struct(), result_);
 	}
+	else if (instr_.is_remove_string())
+	{
+	    exec_remove_string(instr_.get_remove_string(), result_);
+	}
+	else if (instr_.is_remove_struct())
+	{
+	    exec_remove_struct(instr_.get_remove_struct(), result_);
+	}
 	else if (instr_.is_process_read_metadata())
 	{
 	    exec_process_read_metadata(instr_.get_process_read_metadata(), result_);
@@ -532,6 +542,22 @@ void container_service::exec_write_struct(const sgd::write_struct_instr& input, 
     tmp.set_sequence(input.sequence());
     struct_value value(input.value1(), input.value2(), input.value3());
     owner_.write<struct_value>(input.key().c_str(), value);
+    output.set_confirmation(tmp);
+}
+
+void container_service::exec_remove_string(const sgd::remove_string_instr& input, sgd::result_msg& output)
+{
+    sgd::confirmation_result tmp;
+    tmp.set_sequence(input.sequence());
+    owner_.remove<string_value>(input.key().c_str());
+    output.set_confirmation(tmp);
+}
+
+void container_service::exec_remove_struct(const sgd::remove_struct_instr& input, sgd::result_msg& output)
+{
+    sgd::confirmation_result tmp;
+    tmp.set_sequence(input.sequence());
+    owner_.remove<struct_value>(input.key().c_str());
     output.set_confirmation(tmp);
 }
 

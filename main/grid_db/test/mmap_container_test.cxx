@@ -117,6 +117,8 @@ public:
     void send_terminate(boost::uint32_t sequence);
     void send_write_string(boost::uint32_t sequence, const char* key, const string_value& value);
     void send_write_struct(boost::uint32_t sequence, const char* key, const struct_value& value);
+    void send_remove_string(boost::uint32_t sequence, const char* key);
+    void send_remove_struct(boost::uint32_t sequence, const char* key);
     void send_process_read_metadata(boost::uint32_t sequence, sgd::reader_token_id from = 0, sgd::reader_token_id to = sgd::MVCC_READER_LIMIT);
     void send_process_write_metadata(boost::uint32_t sequence, std::size_t max_attempts = 0);
     std::string send_collect_garbage(boost::uint32_t sequence, std::size_t max_attempts = 0);
@@ -237,6 +239,30 @@ void service_client::send_write_struct(boost::uint32_t sequence, const char* key
     sgd::result_msg outmsg(send(inmsg));
     EXPECT_TRUE(outmsg.is_confirmation()) << "unexpected write result";
     EXPECT_EQ(inmsg.get_write_struct().sequence(), outmsg.get_confirmation().sequence()) << "sequence number mismatch";
+}
+
+void service_client::send_remove_string(boost::uint32_t sequence, const char* key)
+{
+    sgd::instruction_msg inmsg;
+    sgd::remove_string_instr instr;
+    instr.set_sequence(sequence);
+    instr.set_key(key);
+    inmsg.set_remove_string(instr);
+    sgd::result_msg outmsg(send(inmsg));
+    EXPECT_TRUE(outmsg.is_confirmation()) << "unexpected remove result";
+    EXPECT_EQ(inmsg.get_remove_string().sequence(), outmsg.get_confirmation().sequence()) << "sequence number mismatch";
+}
+
+void service_client::send_remove_struct(boost::uint32_t sequence, const char* key)
+{
+    sgd::instruction_msg inmsg;
+    sgd::remove_struct_instr instr;
+    instr.set_sequence(sequence);
+    instr.set_key(key);
+    inmsg.set_remove_struct(instr);
+    sgd::result_msg outmsg(send(inmsg));
+    EXPECT_TRUE(outmsg.is_confirmation()) << "unexpected remove result";
+    EXPECT_EQ(inmsg.get_remove_struct().sequence(), outmsg.get_confirmation().sequence()) << "sequence number mismatch";
 }
 
 void service_client::send_process_read_metadata(boost::uint32_t sequence, sgd::reader_token_id from, sgd::reader_token_id to)
@@ -1038,4 +1064,68 @@ TEST(mmap_container_test, collect_garbage_subset)
     EXPECT_TRUE(nextKey3 == structKeyA || nextKey3 == structKeyB) << "next key to collect is not one of the keys available for collection";
 
     client.send_terminate(60U);
+}
+
+TEST(mmap_container_test, exists_after_removed)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
+    service_launcher launcher(conf);
+    service_client client(conf);
+    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
+    mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
+    std::string stringKey("string_@@@");
+    std::string structKey("struct_@@@");
+    std::size_t stringDepth = 0;
+    std::size_t structDepth = 0;
+
+    string_value stringValue1("abc123");
+    client.send_write_string(10U, stringKey.c_str(), stringValue1);
+    ++stringDepth;
+    EXPECT_TRUE(readerA.exists<string_value>(stringKey.c_str())) << "write failed";
+    client.send_remove_string(11U, stringKey.c_str());
+    EXPECT_FALSE(readerB.exists<string_value>(stringKey.c_str())) << "remove failed";
+
+    struct_value structValue1(true, 5, 12.5);
+    client.send_write_struct(20U, structKey.c_str(), structValue1);
+    ++structDepth;
+    EXPECT_TRUE(readerB.exists<struct_value>(structKey.c_str())) << "write failed";
+    client.send_remove_struct(21U, structKey.c_str());
+    EXPECT_FALSE(readerA.exists<struct_value>(structKey.c_str())) << "remove failed";
+
+    client.send_terminate(30U);
+}
+
+TEST(mmap_container_test, write_after_remove)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
+    service_launcher launcher(conf);
+    service_client client(conf);
+    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
+    mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
+    std::string stringKey("string_@@@");
+    std::string structKey("struct_@@@");
+    std::size_t stringDepth = 0;
+    std::size_t structDepth = 0;
+
+    string_value stringValue1("abc123");
+    client.send_write_string(10U, stringKey.c_str(), stringValue1);
+    ++stringDepth;
+    client.send_remove_string(11U, stringKey.c_str());
+    EXPECT_FALSE(readerB.exists<string_value>(stringKey.c_str())) << "remove failed";
+    string_value stringValue2("abc456");
+    client.send_write_string(12U, stringKey.c_str(), stringValue2);
+    ++stringDepth;
+    EXPECT_TRUE(readerA.exists<string_value>(stringKey.c_str())) << "write failed";
+
+    struct_value structValue1(true, 5, 12.5);
+    client.send_write_struct(20U, structKey.c_str(), structValue1);
+    ++structDepth;
+    client.send_remove_struct(21U, structKey.c_str());
+    EXPECT_FALSE(readerA.exists<struct_value>(structKey.c_str())) << "remove failed";
+    struct_value structValue2(true, 90, 37.2);
+    client.send_write_struct(22U, structKey.c_str(), structValue2);
+    ++structDepth;
+    EXPECT_TRUE(readerB.exists<struct_value>(structKey.c_str())) << "write failed";
+
+    client.send_terminate(30U);
 }

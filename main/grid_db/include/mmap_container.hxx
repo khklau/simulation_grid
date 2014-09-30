@@ -192,10 +192,10 @@ struct mvcc_record
     typedef typename mmap_ring_buffer< mvcc_value<content_t> >::type ringbuf_t;
     mvcc_record(const typename mmap_ring_buffer< mvcc_value<content_t> >::allocator_type& allocator, std::size_t depth = DEFAULT_HISTORY_DEPTH) :
 	    ringbuf(depth, allocator),
-	    want_deletion(false)
+	    want_removed(false)
     { }
     typename mmap_ring_buffer< mvcc_value<content_t> >::type ringbuf;
-    bool want_deletion;
+    boost::atomic<bool> want_removed;
 } __attribute__((aligned(LEVEL1_DCACHE_LINESIZE)));
 
 template <class value_t>
@@ -217,14 +217,14 @@ template <class element_t>
 bool exists_(const mvcc_mmap_reader_handle& handle, const char* key)
 {
     const mvcc_record<element_t>* record = find_const< mvcc_record<element_t> >(handle.container, key);
-    return record && !record->want_deletion && !record->ringbuf.empty();
+    return record && !record->ringbuf.empty() && !record->want_removed;
 }
 
 template <class element_t>
 const mvcc_value<element_t>& read_(const mvcc_mmap_reader_handle& handle, const char* key)
 {
     const mvcc_record<element_t>* record = find_const< mvcc_record<element_t> >(handle.container, key);
-    if (UNLIKELY_EXT(!record || record->want_deletion || record->ringbuf.empty()))
+    if (UNLIKELY_EXT(!record || record->ringbuf.empty() || record->want_removed))
     {
 	throw malformed_db_error("Could not find data")
 		<< info_db_identity(handle.container.path.string())
@@ -247,7 +247,7 @@ void delete_oldest(mvcc_mmap_container& container, const char* key, mvcc_revisio
     if (record)
     {
 	const mvcc_value<element_t>& value = record->ringbuf.back();
-	if (record->ringbuf.element_count() > 1 && value.revision < threshold)
+	if ((record->ringbuf.element_count() > 1 && value.revision < threshold) || record->want_removed)
 	{
 	    record->ringbuf.pop_back(value);
 	}
@@ -280,10 +280,21 @@ void write_(mvcc_mmap_writer_handle& handle, const char* key, const element_t& v
 	    1, boost::memory_order_relaxed),
 	    bpt::microsec_clock::local_time());
     record->ringbuf.push_front(tmp);
+    record->want_removed = false;
     mut_resource_pool(handle.container).writer_token_pool[handle.token_id].
 	    last_write_timestamp.reset(tmp.timestamp);
     mut_resource_pool(handle.container).writer_token_pool[handle.token_id].
 	    last_write_revision.reset(tmp.revision);
+}
+
+template <class element_t>
+void remove_(mvcc_mmap_writer_handle& handle, const char* key)
+{
+    mvcc_record<element_t>* record = find_mut< mvcc_record<element_t> >(handle.container, key);
+    if (record)
+    {
+	record->want_removed = true;
+    }
 }
 
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
@@ -395,6 +406,12 @@ template <class element_t>
 void mvcc_mmap_owner::write(const char* key, const element_t& value)
 {
     ::write_(writer_handle_, key, value);
+}
+
+template <class element_t>
+void mvcc_mmap_owner::remove(const char* key)
+{
+    ::remove_<element_t>(writer_handle_, key);
 }
 
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG

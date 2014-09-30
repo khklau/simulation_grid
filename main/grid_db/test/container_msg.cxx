@@ -141,6 +141,8 @@ instruction_msg::msg_status instruction_msg::deserialize(zmq::socket_t& socket)
 	    (is_read_struct() && msg_.has_read_struct()) ||
 	    (is_write_string() && msg_.has_write_string()) ||
 	    (is_write_struct() && msg_.has_write_struct()) ||
+	    (is_remove_string() && msg_.has_remove_string()) ||
+	    (is_remove_struct() && msg_.has_remove_struct()) ||
 	    (is_process_read_metadata() && msg_.has_process_read_metadata()) ||
 	    (is_process_write_metadata() && msg_.has_process_write_metadata()) ||
 	    (is_collect_garbage_1() && msg_.has_collect_garbage_1()) ||
@@ -200,6 +202,18 @@ void instruction_msg::set_write_struct(const write_struct_instr& instr)
 {
     msg_.set_opcode(instruction::WRITE_STRUCT);
     *msg_.mutable_write_struct() = instr;
+}
+
+void instruction_msg::set_remove_string(const remove_string_instr& instr)
+{
+    msg_.set_opcode(instruction::REMOVE_STRING);
+    *msg_.mutable_remove_string() = instr;
+}
+
+void instruction_msg::set_remove_struct(const remove_struct_instr& instr)
+{
+    msg_.set_opcode(instruction::REMOVE_STRUCT);
+    *msg_.mutable_remove_struct() = instr;
 }
 
 void instruction_msg::set_process_read_metadata(const process_read_metadata_instr& instr)
