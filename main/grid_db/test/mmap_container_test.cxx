@@ -1129,3 +1129,46 @@ TEST(mmap_container_test, write_after_remove)
 
     client.send_terminate(30U);
 }
+
+TEST(mmap_container_test, collect_garbage_after_remove)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
+    service_launcher launcher(conf);
+    service_client client(conf);
+    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
+    mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
+    std::string stringKey("string_@@@");
+    std::string structKey("struct_@@@");
+    std::size_t stringDepth = 0;
+    std::size_t structDepth = 0;
+
+    string_value stringValue1("abc123");
+    client.send_write_string(10U, stringKey.c_str(), stringValue1);
+    ++stringDepth;
+    readerA.read<string_value>(stringKey.c_str());
+    readerB.read<string_value>(stringKey.c_str());
+    client.send_process_read_metadata(11U);
+    client.send_process_write_metadata(12U);
+    client.send_collect_garbage(13U);
+    EXPECT_EQ(stringDepth, client.send_get_string_history_depth(14U, stringKey.c_str())) << "last remaining value was collected";
+    client.send_remove_string(15U, stringKey.c_str());
+    client.send_collect_garbage(16U);
+    --stringDepth;
+    EXPECT_EQ(stringDepth, client.send_get_string_history_depth(17U, stringKey.c_str())) << "value we want removed was not collected";
+
+    struct_value structValue1(true, 5, 12.5);
+    client.send_write_struct(20U, structKey.c_str(), structValue1);
+    ++structDepth;
+    readerA.read<struct_value>(structKey.c_str());
+    readerB.read<struct_value>(structKey.c_str());
+    client.send_process_read_metadata(21U);
+    client.send_process_write_metadata(22U);
+    client.send_collect_garbage(23U);
+    EXPECT_EQ(structDepth, client.send_get_struct_history_depth(24U, structKey.c_str())) << "last remaining value was collected";
+    client.send_remove_struct(25U, structKey.c_str());
+    client.send_collect_garbage(26U);
+    --structDepth;
+    EXPECT_EQ(structDepth, client.send_get_struct_history_depth(27U, structKey.c_str())) << "value we want removed was not collected";
+
+    client.send_terminate(30U);
+}
