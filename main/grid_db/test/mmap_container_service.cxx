@@ -510,21 +510,40 @@ void container_service::exec_exists_struct(const sgd::exists_struct_instr& input
 void container_service::exec_read_string(const sgd::read_string_instr& input, sgd::result_msg& output)
 {
     sgd::string_value_result tmp;
+    sgd::invalid_argument_result failed;
     tmp.set_sequence(input.sequence());
-    std::string result(owner_.read<string_value>(input.key().c_str()).c_str);
-    tmp.set_value(result);
-    output.set_string_value(tmp);
+    failed.set_sequence(input.sequence());
+    const boost::optional<const string_value&> result = owner_.read<string_value>(input.key().c_str());
+    if (result)
+    {
+	std::string tmpString(result.get().c_str);
+	tmp.set_value(tmpString);
+	output.set_string_value(tmp);
+    }
+    else
+    {
+	output.set_invalid_argument(failed);
+    }
 }
 
 void container_service::exec_read_struct(const sgd::read_struct_instr& input, sgd::result_msg& output)
 {
     sgd::struct_value_result tmp;
+    sgd::invalid_argument_result failed;
     tmp.set_sequence(input.sequence());
-    struct_value result(owner_.read<struct_value>(input.key().c_str()));
-    tmp.set_value1(result.value1);
-    tmp.set_value2(result.value2);
-    tmp.set_value3(result.value3);
-    output.set_struct_value(tmp);
+    failed.set_sequence(input.sequence());
+    const boost::optional<const struct_value&> result = owner_.read<struct_value>(input.key().c_str());
+    if (result)
+    {
+	tmp.set_value1(result.get().value1);
+	tmp.set_value2(result.get().value2);
+	tmp.set_value3(result.get().value3);
+	output.set_struct_value(tmp);
+    }
+    else
+    {
+	output.set_invalid_argument(failed);
+    }
 }
 
 void container_service::exec_write_string(const sgd::write_string_instr& input, sgd::result_msg& output)

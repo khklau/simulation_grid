@@ -485,15 +485,17 @@ TEST(mmap_container_test, access_historical)
     string_value expected1("11");
     client.send_write_string(1U, key, expected1);
     ASSERT_TRUE(readerA.exists<string_value>(key)) << "write failed";
-    const string_value& actual1 = readerA.read<string_value>(key);
-    EXPECT_EQ(expected1, actual1) << "read value is not the value just written";
+    const boost::optional<const string_value&> actual1 = readerA.read<string_value>(key);
+    EXPECT_TRUE(actual1) << "read failed";
+    EXPECT_EQ(expected1, actual1.get()) << "read value is not the value just written";
 
     string_value expected2("22");
     client.send_write_string(2U, key, expected2);
     ASSERT_TRUE(readerA.exists<string_value>(key)) << "write failed";
-    const string_value& actual2 = readerA.read<string_value>(key);
-    EXPECT_EQ(expected2, actual2) << "read value is not the value just written";
-    EXPECT_EQ(expected1, actual1) << "incorrect historical value";
+    const boost::optional<const string_value&> actual2 = readerA.read<string_value>(key);
+    EXPECT_TRUE(actual2) << "read failed";
+    EXPECT_EQ(expected2, actual2.get()) << "read value is not the value just written";
+    EXPECT_EQ(expected1, actual1.get()) << "incorrect historical value";
 
     client.send_terminate(3U);
 }
@@ -515,10 +517,12 @@ TEST(mmap_container_test, process_read_metadata_single_key)
 
     string_value expected1("abc1");
     client.send_write_string(10U, key, expected1);
-    const string_value& readerA_actual1 = readerA.read<string_value>(key);
-    const string_value& readerB_actual1 = readerB.read<string_value>(key);
-    EXPECT_EQ(readerA_actual1, expected1) << "value read is not the value just written";
-    EXPECT_EQ(readerB_actual1, expected1) << "value read is not the value just written";
+    const boost::optional<const string_value&> readerA_actual1 = readerA.read<string_value>(key);
+    const boost::optional<const string_value&> readerB_actual1 = readerB.read<string_value>(key);
+    EXPECT_TRUE(readerA_actual1) << "read failed";
+    EXPECT_TRUE(readerB_actual1) << "read failed";
+    EXPECT_EQ(readerA_actual1.get(), expected1) << "value read is not the value just written";
+    EXPECT_EQ(readerB_actual1.get(), expected1) << "value read is not the value just written";
     client.send_process_read_metadata(11U);
     boost::uint64_t readerA_rev1 = readerA.get_last_read_revision();
     boost::uint64_t readerB_rev1 = readerB.get_last_read_revision();
@@ -529,10 +533,12 @@ TEST(mmap_container_test, process_read_metadata_single_key)
 
     string_value expected2("abc2");
     client.send_write_string(20U, key, expected2);
-    const string_value& readerA_actual2 = readerA.read<string_value>(key);
-    const string_value& readerB_actual2 = readerB.read<string_value>(key);
-    EXPECT_EQ(readerA_actual2, expected2) << "value read is not the value just written";
-    EXPECT_EQ(readerB_actual2, expected2) << "value read is not the value just written";
+    const boost::optional<const string_value&> readerA_actual2 = readerA.read<string_value>(key);
+    const boost::optional<const string_value&> readerB_actual2 = readerB.read<string_value>(key);
+    EXPECT_TRUE(readerA_actual2) << "read failed";
+    EXPECT_TRUE(readerB_actual2) << "read failed";
+    EXPECT_EQ(readerA_actual2.get(), expected2) << "value read is not the value just written";
+    EXPECT_EQ(readerB_actual2.get(), expected2) << "value read is not the value just written";
     client.send_process_read_metadata(21U);
     boost::uint64_t readerA_rev2 = readerA.get_last_read_revision();
     boost::uint64_t readerB_rev2 = readerB.get_last_read_revision();
@@ -543,8 +549,9 @@ TEST(mmap_container_test, process_read_metadata_single_key)
 
     string_value expected3("abc3");
     client.send_write_string(30U, key, expected3);
-    const string_value& readerA_actual3 = readerA.read<string_value>(key);
-    EXPECT_EQ(readerA_actual3, expected3) << "value read is not the value just written";
+    const boost::optional<const string_value&> readerA_actual3 = readerA.read<string_value>(key);
+    EXPECT_TRUE(readerA_actual3) << "read failed";
+    EXPECT_EQ(readerA_actual3.get(), expected3) << "value read is not the value just written";
     client.send_process_read_metadata(31U);
     boost::uint64_t readerA_rev3 = readerA.get_last_read_revision();
     boost::uint64_t readerB_rev3 = readerB.get_last_read_revision();
@@ -552,6 +559,9 @@ TEST(mmap_container_test, process_read_metadata_single_key)
     EXPECT_NE(readerA_rev3, oldest_rev3) << "oldest global read revision is not correct";
     EXPECT_EQ(readerB_rev3, oldest_rev3) << "oldest global read revision is not correct";
     EXPECT_EQ(readerB_rev2, readerB_rev3) << "last read revision is not correct";
+
+    const boost::optional<const string_value&> readerB_actual3 = readerA.read<string_value>("foobar");
+    EXPECT_FALSE(readerB_actual3) << "read succeeded";
 
     client.send_terminate(40U);
 }
@@ -569,10 +579,12 @@ TEST(mmap_container_test, process_read_metadata_multi_key)
 
     string_value expectedA1("abc1");
     client.send_write_string(10U, keyA, expectedA1);
-    const string_value& readerA_actual1 = readerA.read<string_value>(keyA);
-    const string_value& readerB_actual1 = readerB.read<string_value>(keyA);
-    EXPECT_EQ(readerA_actual1, expectedA1) << "value read is not the value just written";
-    EXPECT_EQ(readerB_actual1, expectedA1) << "value read is not the value just written";
+    const boost::optional<const string_value&> readerA_actual1 = readerA.read<string_value>(keyA);
+    const boost::optional<const string_value&> readerB_actual1 = readerB.read<string_value>(keyA);
+    EXPECT_TRUE(readerA_actual1) << "read failed";
+    EXPECT_TRUE(readerB_actual1) << "read failed";
+    EXPECT_EQ(readerA_actual1.get(), expectedA1) << "value read is not the value just written";
+    EXPECT_EQ(readerB_actual1.get(), expectedA1) << "value read is not the value just written";
     client.send_process_read_metadata(11U);
     boost::uint64_t readerA_rev1 = readerA.get_last_read_revision();
     boost::uint64_t readerB_rev1 = readerB.get_last_read_revision();
@@ -583,10 +595,12 @@ TEST(mmap_container_test, process_read_metadata_multi_key)
 
     string_value expectedB1("xyz1");
     client.send_write_string(20U, keyB, expectedB1);
-    const string_value& readerA_actual2 = readerA.read<string_value>(keyB);
-    const string_value& readerB_actual2 = readerB.read<string_value>(keyB);
-    EXPECT_EQ(readerA_actual2, expectedB1) << "value read is not the value just written";
-    EXPECT_EQ(readerB_actual2, expectedB1) << "value read is not the value just written";
+    const boost::optional<const string_value&> readerA_actual2 = readerA.read<string_value>(keyB);
+    const boost::optional<const string_value&> readerB_actual2 = readerB.read<string_value>(keyB);
+    EXPECT_TRUE(readerA_actual2) << "read failed";
+    EXPECT_TRUE(readerB_actual2) << "read failed";
+    EXPECT_EQ(readerA_actual2.get(), expectedB1) << "value read is not the value just written";
+    EXPECT_EQ(readerB_actual2.get(), expectedB1) << "value read is not the value just written";
     client.send_process_read_metadata(21U);
     boost::uint64_t readerA_rev2 = readerA.get_last_read_revision();
     boost::uint64_t readerB_rev2 = readerB.get_last_read_revision();
@@ -598,8 +612,9 @@ TEST(mmap_container_test, process_read_metadata_multi_key)
 
     string_value expectedC1("!@#1");
     client.send_write_string(30U, keyC, expectedC1);
-    const string_value& readerB_actual3 = readerB.read<string_value>(keyC);
-    EXPECT_EQ(readerB_actual3, expectedC1) << "value read is not the value just written";
+    const boost::optional<const string_value&> readerB_actual3 = readerB.read<string_value>(keyC);
+    EXPECT_TRUE(readerB_actual3) << "read failed";
+    EXPECT_EQ(readerB_actual3.get(), expectedC1) << "value read is not the value just written";
     client.send_process_read_metadata(31U);
     boost::uint64_t readerA_rev3 = readerA.get_last_read_revision();
     boost::uint64_t readerB_rev3 = readerB.get_last_read_revision();
@@ -608,6 +623,9 @@ TEST(mmap_container_test, process_read_metadata_multi_key)
     EXPECT_EQ(oldest_rev2, oldest_rev3) << "process_read_metadata incorrectly changed the oldest found";
     EXPECT_TRUE(oldest_rev3 < readerB_rev3) << "oldest global read revision is not correct";
     EXPECT_EQ(readerA_rev3,  oldest_rev3) << "oldest global read revision is not correct";
+
+    const boost::optional<const string_value&> readerA_actual3 = readerA.read<string_value>("foobar");
+    EXPECT_FALSE(readerA_actual3) << "read succeeded";
 
     client.send_terminate(40U);
 }
@@ -1169,6 +1187,45 @@ TEST(mmap_container_test, collect_garbage_after_remove)
     client.send_collect_garbage(26U);
     --structDepth;
     EXPECT_EQ(structDepth, client.send_get_struct_history_depth(27U, structKey.c_str())) << "value we want removed was not collected";
+
+    client.send_terminate(30U);
+}
+
+TEST(mmap_container_test, read_after_remove)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
+    service_launcher launcher(conf);
+    service_client client(conf);
+    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
+    mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
+    mvcc_mmap_reader readerC(bfs::path(conf.name.c_str()));
+    mvcc_mmap_reader readerD(bfs::path(conf.name.c_str()));
+    std::string stringKey("string_@@@");
+    std::string structKey("struct_@@@");
+
+    string_value stringValue1("abc123");
+    client.send_write_string(10U, stringKey.c_str(), stringValue1);
+    const boost::optional<const string_value&> readString1 = readerA.read<string_value>(stringKey.c_str());
+    EXPECT_TRUE(readString1) << "read failed";
+    client.send_remove_string(11U, stringKey.c_str());
+    const boost::optional<const string_value&> readString2 = readerB.read<string_value>(stringKey.c_str());
+    EXPECT_FALSE(readString2) << "remove failed";
+    boost::uint64_t readerA_rev1 = readerA.get_last_read_revision();
+    boost::uint64_t readerB_rev1 = readerB.get_last_read_revision();
+    EXPECT_NE(readerA_rev1, 0U) << "last read revision was not updated for successful read";
+    EXPECT_EQ(readerB_rev1, 0U) << "last read revision was updated for unsuccessful read";
+
+    struct_value structValue1(true, 5, 12.5);
+    client.send_write_struct(20U, structKey.c_str(), structValue1);
+    const boost::optional<const struct_value&> readStruct1 = readerC.read<struct_value>(structKey.c_str());
+    EXPECT_TRUE(readStruct1) << "read failed";
+    client.send_remove_struct(21U, structKey.c_str());
+    const boost::optional<const struct_value&> readStruct2 = readerD.read<struct_value>(structKey.c_str());
+    EXPECT_FALSE(readStruct2) << "remove failed";
+    boost::uint64_t readerC_rev1 = readerC.get_last_read_revision();
+    boost::uint64_t readerD_rev1 = readerD.get_last_read_revision();
+    EXPECT_NE(readerC_rev1, 0U) << "last read revision was not updated for successful read";
+    EXPECT_EQ(readerD_rev1, 0U) << "last read revision was updated for unsuccessful read";
 
     client.send_terminate(30U);
 }

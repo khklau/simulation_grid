@@ -221,23 +221,21 @@ bool exists_(const mvcc_mmap_reader_handle& handle, const char* key)
 }
 
 template <class element_t>
-const mvcc_value<element_t>& read_(const mvcc_mmap_reader_handle& handle, const char* key)
+const boost::optional<const element_t&> read_(const mvcc_mmap_reader_handle& handle, const char* key)
 {
     const mvcc_record<element_t>* record = find_const< mvcc_record<element_t> >(handle.container, key);
-    if (UNLIKELY_EXT(!record || record->ringbuf.empty() || record->want_removed))
+    boost::optional<const element_t&> result;
+    if (record && !record->ringbuf.empty() && !record->want_removed)
     {
-	throw malformed_db_error("Could not find data")
-		<< info_db_identity(handle.container.path.string())
-		<< info_component_identity("mvcc_mmap_reader")
-		<< info_data_identity(key);
+	const mvcc_value<element_t>& value = record->ringbuf.front();
+	result = value.value;
+	// the mvcc_mmap_reader_token will ensure the returned reference remains valid
+	mut_resource_pool(handle.container).reader_token_pool[handle.token_id].
+		last_read_timestamp.reset(value.timestamp);
+	mut_resource_pool(handle.container).reader_token_pool[handle.token_id].
+		last_read_revision.reset(value.revision);
     }
-    const mvcc_value<element_t>& value = record->ringbuf.front();
-    // the mvcc_mmap_reader_token will ensure the returned reference remains valid
-    mut_resource_pool(handle.container).reader_token_pool[handle.token_id].
-	    last_read_timestamp.reset(value.timestamp);
-    mut_resource_pool(handle.container).reader_token_pool[handle.token_id].
-	    last_read_revision.reset(value.revision);
-    return value;
+    return result;
 }
 
 template <class element_t>
@@ -359,9 +357,9 @@ bool mvcc_mmap_reader::exists(const char* key) const
 }
 
 template <class element_t>
-const element_t& mvcc_mmap_reader::read(const char* key) const
+const boost::optional<const element_t&> mvcc_mmap_reader::read(const char* key) const
 {
-    return ::read_<element_t>(reader_handle_, key).value;
+    return ::read_<element_t>(reader_handle_, key);
 }
 
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
@@ -397,9 +395,9 @@ bool mvcc_mmap_owner::exists(const char* key) const
 }
 
 template <class element_t>
-const element_t& mvcc_mmap_owner::read(const char* key) const
+const boost::optional<const element_t&> mvcc_mmap_owner::read(const char* key) const
 {
-    return ::read_<element_t>(reader_handle_, key).value;
+    return ::read_<element_t>(reader_handle_, key);
 }
 
 template <class element_t>

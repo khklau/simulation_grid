@@ -11,6 +11,7 @@
 #include <boost/lockfree/policies.hpp>
 #include <boost/lockfree/queue.hpp>
 #include <boost/noncopyable.hpp>
+#include <boost/optional.hpp>
 #include <simulation_grid/grid_db/about.hpp>
 #include "role.hpp"
 
@@ -58,7 +59,7 @@ public:
     mvcc_mmap_reader(const boost::filesystem::path& path);
     ~mvcc_mmap_reader();
     template <class element_t> bool exists(const char* key) const;
-    template <class element_t> const element_t& read(const char* key) const;
+    template <class element_t> const boost::optional<const element_t&> read(const char* key) const;
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
     reader_token_id get_reader_token_id() const;
     boost::uint64_t get_last_read_revision() const;
@@ -80,7 +81,7 @@ public:
     mvcc_mmap_owner(const boost::filesystem::path& path, std::size_t size);
     ~mvcc_mmap_owner();
     template <class element_t> bool exists(const char* key) const;
-    template <class element_t> const element_t& read(const char* key) const;
+    template <class element_t> const boost::optional<const element_t&> read(const char* key) const;
     template <class element_t> void write(const char* key, const element_t& value);
     template <class element_t> void remove(const char* key);
     void process_read_metadata(reader_token_id from = 0, reader_token_id to = MVCC_READER_LIMIT);
