@@ -1,5 +1,5 @@
-#ifndef SIMULATION_GRID_GRID_DB_MMAP_CONTAINER_HPP
-#define SIMULATION_GRID_GRID_DB_MMAP_CONTAINER_HPP
+#ifndef SIMULATION_GRID_GRID_DB_MVCC_CONTAINER_HPP
+#define SIMULATION_GRID_GRID_DB_MVCC_CONTAINER_HPP
 
 #include <string>
 #include <limits>
@@ -25,39 +25,39 @@ static const size_t MVCC_READER_LIMIT = (1 << std::numeric_limits<reader_token_i
 static const size_t MVCC_WRITER_LIMIT = 1;
 static const size_t MVCC_MAX_KEY_LENGTH = 31;
 
-struct mvcc_mmap_container
+struct mvcc_container
 {
     static const version MIN_SUPPORTED_VERSION;
     static const version MAX_SUPPORTED_VERSION;
-    mvcc_mmap_container(const owner_t, const boost::filesystem::path& path, size_t size);
-    mvcc_mmap_container(const reader_t, const boost::filesystem::path& path);
+    mvcc_container(const owner_t, const boost::filesystem::path& path, size_t size);
+    mvcc_container(const reader_t, const boost::filesystem::path& path);
     std::size_t available_space() const;
     bool exists;
     const boost::filesystem::path path;
     boost::interprocess::managed_mapped_file file;
 };
 
-struct mvcc_mmap_reader_handle : private boost::noncopyable
+struct mvcc_reader_handle : private boost::noncopyable
 {
-    mvcc_mmap_reader_handle(mvcc_mmap_container& container);
-    ~mvcc_mmap_reader_handle();
-    mvcc_mmap_container& container;
+    mvcc_reader_handle(mvcc_container& container);
+    ~mvcc_reader_handle();
+    mvcc_container& container;
     const reader_token_id token_id;
 };
 
-struct mvcc_mmap_writer_handle : private boost::noncopyable
+struct mvcc_writer_handle : private boost::noncopyable
 {
-    mvcc_mmap_writer_handle(mvcc_mmap_container& container);
-    ~mvcc_mmap_writer_handle();
-    mvcc_mmap_container& container;
+    mvcc_writer_handle(mvcc_container& container);
+    ~mvcc_writer_handle();
+    mvcc_container& container;
     const writer_token_id token_id;
 };
 
-class mvcc_mmap_reader : private boost::noncopyable
+class mvcc_reader : private boost::noncopyable
 {
 public:
-    mvcc_mmap_reader(const boost::filesystem::path& path);
-    ~mvcc_mmap_reader();
+    mvcc_reader(const boost::filesystem::path& path);
+    ~mvcc_reader();
     template <class element_t> bool exists(const char* key) const;
     template <class element_t> const boost::optional<const element_t&> read(const char* key) const;
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
@@ -67,19 +67,19 @@ public:
     template <class element_t> boost::uint64_t get_newest_revision(const char* key) const;
 #endif
 private:
-    mvcc_mmap_container container_;
-    mvcc_mmap_reader_handle reader_handle_;
+    mvcc_container container_;
+    mvcc_reader_handle reader_handle_;
 };
 
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
 #include <vector>
 #endif
 
-class mvcc_mmap_owner : private boost::noncopyable
+class mvcc_owner : private boost::noncopyable
 {
 public:
-    mvcc_mmap_owner(const boost::filesystem::path& path, std::size_t size);
-    ~mvcc_mmap_owner();
+    mvcc_owner(const boost::filesystem::path& path, std::size_t size);
+    ~mvcc_owner();
     template <class element_t> bool exists(const char* key) const;
     template <class element_t> const boost::optional<const element_t&> read(const char* key) const;
     template <class element_t> void write(const char* key, const element_t& value);
@@ -100,9 +100,9 @@ public:
 #endif
 private:
     void flush_impl();
-    mvcc_mmap_container container_;
-    mvcc_mmap_writer_handle writer_handle_;
-    mvcc_mmap_reader_handle reader_handle_;
+    mvcc_container container_;
+    mvcc_writer_handle writer_handle_;
+    mvcc_reader_handle reader_handle_;
     boost::interprocess::file_lock file_lock_;
 };
 
