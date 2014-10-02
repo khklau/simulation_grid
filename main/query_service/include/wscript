@@ -1,5 +1,0 @@
-def build(buildCtx):
-    return
-
-def install(buildCtx):
-    return
