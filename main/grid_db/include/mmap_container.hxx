@@ -35,25 +35,25 @@ typedef boost::uint8_t history_depth;
 typedef boost::function<void(mvcc_mmap_container&, const char*, mvcc_revision)> delete_function;
 static const size_t DEFAULT_HISTORY_DEPTH = 1 <<  std::numeric_limits<history_depth>::digits;
 
-struct mvcc_key
+struct mmap_key
 {
-    mvcc_key();
-    mvcc_key(const char* key);
-    mvcc_key(const mvcc_key& other);
-    ~mvcc_key();
-    mvcc_key& operator=(const mvcc_key& other);
-    bool operator<(const mvcc_key& other) const;
+    mmap_key();
+    mmap_key(const char* key);
+    mmap_key(const mmap_key& other);
+    ~mmap_key();
+    mmap_key& operator=(const mmap_key& other);
+    bool operator<(const mmap_key& other) const;
     char c_str[MVCC_MAX_KEY_LENGTH + 1];
 };
 
-struct mvcc_deleter
+struct mmap_deleter
 {
-    mvcc_deleter();
-    mvcc_deleter(const mvcc_key& k, const delete_function& fn);
-    mvcc_deleter(const mvcc_deleter& other);
-    ~mvcc_deleter();
-    mvcc_deleter& operator=(const mvcc_deleter& other);
-    mvcc_key key;
+    mmap_deleter();
+    mmap_deleter(const mmap_key& k, const delete_function& fn);
+    mmap_deleter(const mmap_deleter& other);
+    ~mmap_deleter();
+    mmap_deleter& operator=(const mmap_deleter& other);
+    mmap_key key;
     delete_function function;
 };
 
@@ -65,13 +65,13 @@ namespace boost {
 namespace sgd = simulation_grid::grid_db;
 
 template <>
-struct has_trivial_destructor<sgd::mvcc_deleter>
+struct has_trivial_destructor<sgd::mmap_deleter>
 {
     static const bool value = true;
 };
 
 template <>
-struct has_trivial_assign<sgd::mvcc_deleter>
+struct has_trivial_assign<sgd::mmap_deleter>
 {
     static const bool value = true;
 };
@@ -131,7 +131,7 @@ struct mvcc_mmap_writer_token
 
 #endif
 
-typedef mmap_map<mvcc_key, mvcc_deleter>::type registry_map;
+typedef mmap_map<mmap_key, mmap_deleter>::type registry_map;
 
 struct mvcc_mmap_owner_token
 {
@@ -153,7 +153,7 @@ struct mvcc_mmap_resource_pool
     mvcc_mmap_owner_token owner_token;
     mmap_queue<reader_token_id, MVCC_READER_LIMIT>::type reader_free_list;
     mmap_queue<writer_token_id, MVCC_WRITER_LIMIT>::type writer_free_list;
-    mmap_queue<mvcc_deleter, DEFAULT_HISTORY_DEPTH>::type deleter_list;
+    mmap_queue<mmap_deleter, DEFAULT_HISTORY_DEPTH>::type deleter_list;
 };
 
 const mvcc_mmap_header& const_header(const mvcc_mmap_container& container);
@@ -256,12 +256,12 @@ void delete_oldest(mvcc_mmap_container& container, const char* key, mvcc_revisio
 template <class element_t>
 void write_(mvcc_mmap_writer_handle& handle, const char* key, const element_t& value)
 {
-    mvcc_key mkey(key);
+    mmap_key mkey(key);
     if (!find_const< mvcc_record<element_t> >(handle.container, mkey.c_str))
     {
 	bra::mt19937 seed;
 	bra::uniform_int_distribution<> generator(100, 200);
-	mvcc_deleter deleter(mkey, &delete_oldest<element_t>);
+	mmap_deleter deleter(mkey, &delete_oldest<element_t>);
 	while (UNLIKELY_EXT(!mut_resource_pool(handle.container).deleter_list.push(deleter)))
 	{
 	    boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));

@@ -129,31 +129,31 @@ void release_writer_token(mvcc_mmap_container& container, const writer_token_id&
 namespace simulation_grid {
 namespace grid_db {
 
-mvcc_key::mvcc_key()
+mmap_key::mmap_key()
 {
     c_str[0] = '\0';
 }
 
-mvcc_key::mvcc_key(const char* key)
+mmap_key::mmap_key(const char* key)
 {
     if (UNLIKELY_EXT(strlen(key) > MVCC_MAX_KEY_LENGTH))
     {
 	throw grid_db_error("Maximum key length exceeded")
-		<< info_component_identity("mvcc_key")
+		<< info_component_identity("mmap_key")
 		<< info_data_identity(key);
     }
     strncpy(c_str, key, sizeof(c_str));
 }
 
-mvcc_key::mvcc_key(const mvcc_key& other)
+mmap_key::mmap_key(const mmap_key& other)
 {
     strncpy(c_str, other.c_str, sizeof(c_str));
 }
 
-mvcc_key::~mvcc_key()
+mmap_key::~mmap_key()
 { }
 
-mvcc_key& mvcc_key::operator=(const mvcc_key& other)
+mmap_key& mmap_key::operator=(const mmap_key& other)
 {
     if (this != &other)
     {
@@ -162,27 +162,27 @@ mvcc_key& mvcc_key::operator=(const mvcc_key& other)
     return *this;
 }
 
-bool mvcc_key::operator<(const mvcc_key& other) const
+bool mmap_key::operator<(const mmap_key& other) const
 {
     return strncmp(c_str, other.c_str, sizeof(c_str)) < 0;
 }
 
-mvcc_deleter::mvcc_deleter() :
+mmap_deleter::mmap_deleter() :
     key(), function()
 { }
 
-mvcc_deleter::mvcc_deleter(const mvcc_key& k, const delete_function& fn) :
+mmap_deleter::mmap_deleter(const mmap_key& k, const delete_function& fn) :
     key(k), function(fn)
 { }
 
-mvcc_deleter::mvcc_deleter(const mvcc_deleter& other) :
+mmap_deleter::mmap_deleter(const mmap_deleter& other) :
     key(other.key), function(other.function)
 { }
 
-mvcc_deleter::~mvcc_deleter()
+mmap_deleter::~mmap_deleter()
 { }
 
-mvcc_deleter& mvcc_deleter::operator=(const mvcc_deleter& other)
+mmap_deleter& mmap_deleter::operator=(const mmap_deleter& other)
 {
     if (this != &other)
     {
@@ -373,7 +373,7 @@ void mvcc_mmap_owner::process_read_metadata(reader_token_id from, reader_token_i
 
 void mvcc_mmap_owner::process_write_metadata(std::size_t max_attempts)
 {
-    mvcc_deleter deleter;
+    mmap_deleter deleter;
     mvcc_mmap_resource_pool& pool = mut_resource_pool(container_);
     for (std::size_t attempts = 0; !pool.deleter_list.empty() && (max_attempts == 0 || attempts < max_attempts); ++attempts)
     {
@@ -397,7 +397,7 @@ std::string mvcc_mmap_owner::collect_garbage(const std::string& from, std::size_
     {
 	return "";
     }
-    mvcc_key key(from.c_str());
+    mmap_key key(from.c_str());
     registry_map::const_iterator iter = from.empty() ?
 	    pool.owner_token.registry.begin() :
 	    pool.owner_token.registry.find(key);
