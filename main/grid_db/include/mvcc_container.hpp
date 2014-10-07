@@ -6,6 +6,7 @@
 #include <boost/cstdint.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/interprocess/managed_mapped_file.hpp>
+#include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/segment_manager.hpp>
 #include <boost/interprocess/sync/file_lock.hpp>
 #include <boost/lockfree/policies.hpp>
@@ -25,16 +26,22 @@ static const size_t MVCC_READER_LIMIT = (1 << std::numeric_limits<reader_token_i
 static const size_t MVCC_WRITER_LIMIT = 1;
 static const size_t MVCC_MAX_KEY_LENGTH = 31;
 
-struct mvcc_container
+class mvcc_container
 {
+public:
     static const version MIN_SUPPORTED_VERSION;
     static const version MAX_SUPPORTED_VERSION;
     mvcc_container(const owner_t, const boost::filesystem::path& path, size_t size);
     mvcc_container(const reader_t, const boost::filesystem::path& path);
+    template <class element_t> const element_t* find_const(const char* key) const;
+    template <class element_t> element_t* find_mut(const char* key);
     std::size_t available_space() const;
-    bool exists;
-    const boost::filesystem::path path;
-    boost::interprocess::managed_mapped_file file;
+    const boost::filesystem::path& get_path() const { return path_; }
+    boost::interprocess::managed_mapped_file& get_file() { return file_; }
+private:
+    bool exists_;
+    const boost::filesystem::path path_;
+    boost::interprocess::managed_mapped_file file_;
 };
 
 struct mvcc_reader_handle : private boost::noncopyable
