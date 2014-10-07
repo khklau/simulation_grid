@@ -435,7 +435,7 @@ service_launcher::service_launcher(const config& config) :
     {
 	ipcpath = bfs::path("/dev/shm") / bfs::path(config.name);
     }
-    while (!sct::is_port_open(sct::protocol::tcpv4, "127.0.0.1", config.port))
+    while (!sct::is_tcp_port_open("127.0.0.1", config.port))
     {
 	boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
     }
