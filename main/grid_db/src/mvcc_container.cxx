@@ -27,17 +27,17 @@ static const char* MVCC_FILE_TYPE_TAG = "simulation_grid::grid_db::mvcc_containe
 
 void init(mvcc_container& container)
 {
-    container.get_file().construct<mvcc_header>(HEADER_KEY)();
-    container.get_file().construct<mvcc_resource_pool>(RESOURCE_POOL_KEY)(&container.get_file());
+    container.memory.construct<mvcc_header>(HEADER_KEY)();
+    container.memory.construct<mvcc_resource_pool>(RESOURCE_POOL_KEY)(&container.memory);
 }
 
 void check(const mvcc_container& container)
 {
-    const mvcc_header* header = container.find_const<mvcc_header>(HEADER_KEY);
+    const mvcc_header* header = find_const<mvcc_header>(container, HEADER_KEY);
     if (UNLIKELY_EXT(!header))
     {
 	throw malformed_db_error("Could not find header")
-		<< info_db_identity(container.get_path().string())
+		<< info_db_identity(container.path.string())
 		<< info_component_identity("mvcc_container")
 		<< info_data_identity(HEADER_KEY);
     }
@@ -45,14 +45,14 @@ void check(const mvcc_container& container)
     if (UNLIKELY_EXT(header->endianess_indicator != std::numeric_limits<boost::uint8_t>::max()))
     {
 	throw unsupported_db_error("Container requires byte swapping")
-		<< info_db_identity(container.get_path().string())
+		<< info_db_identity(container.path.string())
 		<< info_component_identity("mvcc_container")
 		<< info_version_found(header->container_version);
     }
     if (UNLIKELY_EXT(strncmp(header->file_type_tag, MVCC_FILE_TYPE_TAG, sizeof(header->file_type_tag))))
     {
 	throw malformed_db_error("Incorrect file type tag found")
-		<< info_db_identity(container.get_path().string())
+		<< info_db_identity(container.path.string())
 		<< info_component_identity("mvcc_container")
 		<< info_data_identity(HEADER_KEY);
     }
@@ -60,7 +60,7 @@ void check(const mvcc_container& container)
 	    header->container_version > mvcc_container::MAX_SUPPORTED_VERSION))
     {
 	throw unsupported_db_error("Unsuported container version")
-		<< info_db_identity(container.get_path().string())
+		<< info_db_identity(container.path.string())
 		<< info_component_identity("mvcc_container")
 		<< info_version_found(header->container_version)
 		<< info_min_supported_version(mvcc_container::MIN_SUPPORTED_VERSION)
@@ -69,7 +69,7 @@ void check(const mvcc_container& container)
     if (UNLIKELY_EXT(sizeof(mvcc_header) != header->header_size))
     {
 	throw malformed_db_error("Wrong header size")
-		<< info_db_identity(container.get_path().string())
+		<< info_db_identity(container.path.string())
 		<< info_component_identity("mvcc_container")
 		<< info_data_identity(HEADER_KEY);
     }
@@ -81,7 +81,7 @@ reader_token_id acquire_reader_token(mvcc_container& container)
     if (UNLIKELY_EXT(!mut_resource_pool(container).reader_free_list.pop(reservation)))
     {
 	throw busy_condition("No reader token available")
-		<< info_db_identity(container.get_path().string())
+		<< info_db_identity(container.path.string())
 		<< info_component_identity("mvcc_container");
     }
     return reservation;
@@ -103,7 +103,7 @@ writer_token_id acquire_writer_token(mvcc_container& container)
     if (UNLIKELY_EXT(!mut_resource_pool(container).writer_free_list.pop(reservation)))
     {
 	throw busy_condition("No writer token available")
-		<< info_db_identity(container.get_path().string())
+		<< info_db_identity(container.path.string())
 		<< info_component_identity("mvcc_container");
     }
     return reservation;
@@ -192,24 +192,24 @@ const version mvcc_container::MAX_SUPPORTED_VERSION(1, 1, 1, 1);
 
 const mvcc_header& const_header(const mvcc_container& container)
 {
-    return *container.find_const<const mvcc_header>(HEADER_KEY);
+    return *find_const<const mvcc_header>(container, HEADER_KEY);
 }
 
 mvcc_header& mut_header(mvcc_container& container)
 {
-    return *container.find_mut<mvcc_header>(HEADER_KEY);
+    return *find_mut<mvcc_header>(container, HEADER_KEY);
 }
 
 const mvcc_resource_pool& const_resource_pool(const mvcc_container& container)
 {
-    return *container.find_const<const mvcc_resource_pool>(RESOURCE_POOL_KEY);
+    return *find_const<const mvcc_resource_pool>(container, RESOURCE_POOL_KEY);
 }
 
 // Note: the parameter is const since const operations on the container still
 // need to modify the mutexes inside the resource pool
 mvcc_resource_pool& mut_resource_pool(const mvcc_container& container)
 {
-    return *const_cast<mvcc_container&>(container).find_mut<mvcc_resource_pool>(RESOURCE_POOL_KEY);
+    return *find_mut<mvcc_resource_pool>(const_cast<mvcc_container&>(container), RESOURCE_POOL_KEY);
 }
 
 mvcc_header::mvcc_header() :
@@ -242,23 +242,23 @@ mvcc_resource_pool::mvcc_resource_pool(bip::managed_mapped_file* file) :
 }
 
 mvcc_container::mvcc_container(const owner_t, const bfs::path& path, size_t size) :
-    exists_(bfs::exists(path)), path_(path), file_(bip::open_or_create, path.string().c_str(), size)
+    path(path), memory(bip::open_or_create, path.string().c_str(), size)
 {
-    if (exists_)
+    if (bfs::exists(path))
     {
 	check(*this);
     }
     else
     {
 	boost::function<void ()> init_func(boost::bind(&init, boost::ref(*this)));
-	get_file().get_segment_manager()->atomic_func(init_func);
+	memory.get_segment_manager()->atomic_func(init_func);
     }
 }
 
 mvcc_container::mvcc_container(const reader_t, const bfs::path& path) :
-    exists_(bfs::exists(path)), path_(path), file_(bip::open_only, path.string().c_str())
+    path(path), memory(bip::open_only, path.string().c_str())
 {
-    if (exists_)
+    if (bfs::exists(path))
     {
 	check(*this);
     }
@@ -271,7 +271,7 @@ mvcc_container::mvcc_container(const reader_t, const bfs::path& path) :
 
 std::size_t mvcc_container::available_space() const
 {
-    return file_.get_free_memory();
+    return memory.get_free_memory();
 }
 
 mvcc_reader_handle::mvcc_reader_handle(mvcc_container& container) :
@@ -415,14 +415,14 @@ std::string mvcc_owner::collect_garbage(const std::string& from, std::size_t max
 void mvcc_owner::flush()
 {
     boost::function<void ()> flush_func(boost::bind(&mvcc_owner::flush_impl, boost::ref(*this)));
-    container_.get_file().get_segment_manager()->atomic_func(flush_func);
+    container_.memory.get_segment_manager()->atomic_func(flush_func);
 }
 
 void mvcc_owner::flush_impl()
 {
     mut_resource_pool(container_).owner_token.last_flush_timestamp = bpt::microsec_clock::local_time();
     mut_resource_pool(container_).owner_token.last_flush_revision = const_resource_pool(container_).global_revision;
-    container_.get_file().flush();
+    container_.memory.flush();
 }
 
 } // namespace grid_db

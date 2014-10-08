@@ -32,7 +32,6 @@ namespace grid_db {
 
 typedef boost::uint64_t mvcc_revision;
 typedef boost::uint8_t history_depth;
-typedef boost::function<void(mvcc_container&, const char*, mvcc_revision)> delete_function;
 static const size_t DEFAULT_HISTORY_DEPTH = 1 <<  std::numeric_limits<history_depth>::digits;
 
 struct mvcc_key
@@ -48,6 +47,7 @@ struct mvcc_key
 
 struct mvcc_deleter
 {
+    typedef boost::function<void(mvcc_container&, const char*, mvcc_revision)> delete_function;
     mvcc_deleter();
     mvcc_deleter(const mvcc_key& k, const delete_function& fn);
     mvcc_deleter(const mvcc_deleter& other);
@@ -203,16 +203,31 @@ struct mvcc_record
 #endif
 
 template <class element_t>
+const element_t* find_const(const mvcc_container& container, const char* key)
+{
+    // Unfortunately boost::interprocess::managed_mapped_file::find is not a const function
+    // due to use of internal locks which were not declared as mutable, so this function
+    // has been provided to fake constness
+    return const_cast<mvcc_container&>(container).memory.find<element_t>(key).first;
+}
+
+template <class element_t>
+element_t* find_mut(mvcc_container& container, const char* key)
+{
+    return container.memory.find<element_t>(key).first;
+}
+
+template <class element_t>
 bool exists_(const mvcc_reader_handle& handle, const char* key)
 {
-    const mvcc_record<element_t>* record = handle.container.find_const< mvcc_record<element_t> >(key);
+    const mvcc_record<element_t>* record = find_const< mvcc_record<element_t> >(handle.container, key);
     return record && !record->ringbuf.empty() && !record->want_removed;
 }
 
 template <class element_t>
 const boost::optional<const element_t&> read_(const mvcc_reader_handle& handle, const char* key)
 {
-    const mvcc_record<element_t>* record = handle.container.find_const< mvcc_record<element_t> >(key);
+    const mvcc_record<element_t>* record = find_const< mvcc_record<element_t> >(handle.container, key);
     boost::optional<const element_t&> result;
     if (record && !record->ringbuf.empty() && !record->want_removed)
     {
@@ -230,7 +245,7 @@ const boost::optional<const element_t&> read_(const mvcc_reader_handle& handle, 
 template <class element_t>
 void delete_oldest(mvcc_container& container, const char* key, mvcc_revision threshold)
 {
-    mvcc_record<element_t>* record = container.find_mut< mvcc_record<element_t> >(key);
+    mvcc_record<element_t>* record = find_mut< mvcc_record<element_t> >(container, key);
     if (record)
     {
 	const mvcc_value<element_t>& value = record->ringbuf.back();
@@ -246,7 +261,7 @@ template <class element_t>
 void write_(mvcc_writer_handle& handle, const char* key, const element_t& value)
 {
     mvcc_key mkey(key);
-    if (!handle.container.find_const< mvcc_record<element_t> >(mkey.c_str))
+    if (!find_const< mvcc_record<element_t> >(handle.container, mkey.c_str))
     {
 	bra::mt19937 seed;
 	bra::uniform_int_distribution<> generator(100, 200);
@@ -256,8 +271,8 @@ void write_(mvcc_writer_handle& handle, const char* key, const element_t& value)
 	    boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
 	}
     }
-    mvcc_record<element_t>* record = handle.container.get_file().find_or_construct< mvcc_record<element_t> >(mkey.c_str)(
-	    handle.container.get_file().get_segment_manager());
+    mvcc_record<element_t>* record = handle.container.memory.find_or_construct< mvcc_record<element_t> >(mkey.c_str)(
+	    handle.container.memory.get_segment_manager());
     if (UNLIKELY_EXT(record->ringbuf.full()))
     {
 	// TODO: need a smarter growth algorithm
@@ -277,7 +292,7 @@ void write_(mvcc_writer_handle& handle, const char* key, const element_t& value)
 template <class element_t>
 void remove_(mvcc_writer_handle& handle, const char* key)
 {
-    mvcc_record<element_t>* record = handle.container.find_mut< mvcc_record<element_t> >(key);
+    mvcc_record<element_t>* record = find_mut< mvcc_record<element_t> >(handle.container, key);
     if (record)
     {
 	record->want_removed = true;
@@ -302,7 +317,7 @@ boost::uint64_t get_last_read_revision_(const mvcc_container& container, const m
 template <class element_t>
 boost::uint64_t get_oldest_revision_(const mvcc_reader_handle& handle, const char* key)
 {
-    const mvcc_record<element_t>* record = handle.container.find_const< mvcc_record<element_t> >(key);
+    const mvcc_record<element_t>* record = find_const< mvcc_record<element_t> >(handle.container, key);
     if (UNLIKELY_EXT(!record || record->ringbuf.empty()))
     {
 	return 0U;
@@ -316,7 +331,7 @@ boost::uint64_t get_oldest_revision_(const mvcc_reader_handle& handle, const cha
 template <class element_t>
 boost::uint64_t get_newest_revision_(const mvcc_reader_handle& handle, const char* key)
 {
-    const mvcc_record<element_t>* record = handle.container.find_const< mvcc_record<element_t> >(key);
+    const mvcc_record<element_t>* record = find_const< mvcc_record<element_t> >(handle.container, key);
     if (UNLIKELY_EXT(!record || record->ringbuf.empty()))
     {
 	return 0U;
@@ -333,21 +348,6 @@ boost::uint64_t get_newest_revision_(const mvcc_reader_handle& handle, const cha
 
 namespace simulation_grid {
 namespace grid_db {
-
-template <class element_t>
-const element_t* mvcc_container::find_const(const bip::managed_mapped_file::char_type* key) const
-{
-    // Unfortunately boost::interprocess::managed_mapped_file::find is not a const function
-    // due to use of internal locks which were not declared as mutable, so this function
-    // has been provided to fake constness
-    return const_cast<mvcc_container*>(this)->file_.find<element_t>(key).first;
-}
-
-template <class element_t>
-element_t* mvcc_container::find_mut(const bip::managed_mapped_file::char_type* key)
-{
-    return file_.find<element_t>(key).first;
-}
 
 const mvcc_header& const_header(const mvcc_container& container);
 mvcc_header& mut_header(mvcc_container& container);
@@ -466,7 +466,7 @@ std::vector<std::string> mvcc_owner::get_registered_keys() const
 template <class element_t> 
 std::size_t mvcc_owner::get_history_depth(const char* key) const
 {
-    const mvcc_record<element_t>* record = container_.find_const< mvcc_record<element_t> >(key);
+    const mvcc_record<element_t>* record = find_const< mvcc_record<element_t> >(container_, key);
     if (!record || record->ringbuf.empty())
     {
 	return 0U;
