@@ -45,11 +45,20 @@ struct mvcc_reader_handle : private boost::noncopyable
     const reader_token_id token_id;
 };
 
-struct mvcc_writer_handle : private boost::noncopyable
+template <class memory_t>
+class mvcc_writer_handle : private boost::noncopyable
 {
-    mvcc_writer_handle(mvcc_container& container);
+public:
+    mvcc_writer_handle(memory_t& memory);
     ~mvcc_writer_handle();
-    mvcc_container& container;
+    template <class value_t> const value_t* find_const(const char* key) const;
+    template <class value_t> value_t* find_mut(const char* key);
+    template <class value_t> void write(const char* key, const value_t& value);
+    template <class value_t> void remove(const char* key);
+private:
+    static writer_token_id acquire_writer_token(memory_t& memory);
+    static void release_writer_token(memory_t& memory, const writer_token_id& id);
+    memory_t& memory;
     const writer_token_id token_id;
 };
 
@@ -101,7 +110,7 @@ public:
 private:
     void flush_impl();
     mvcc_container container_;
-    mvcc_writer_handle writer_handle_;
+    mvcc_writer_handle<boost::interprocess::managed_mapped_file> writer_handle_;
     mvcc_reader_handle reader_handle_;
     boost::interprocess::file_lock file_lock_;
 };

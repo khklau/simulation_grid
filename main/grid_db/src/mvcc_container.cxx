@@ -22,7 +22,6 @@ namespace {
 using namespace simulation_grid::grid_db;
 
 static const char* HEADER_KEY = "@@HEADER@@";
-static const char* RESOURCE_POOL_KEY = "@@RESOURCE_POOL@@";
 static const char* MVCC_FILE_TYPE_TAG = "simulation_grid::grid_db::mvcc_container";
 
 void init(mvcc_container& container)
@@ -290,22 +289,6 @@ mvcc_reader_handle::~mvcc_reader_handle()
     }
 }
 
-mvcc_writer_handle::mvcc_writer_handle(mvcc_container& container) :
-    container(container), token_id(acquire_writer_token(container))
-{ }
-
-mvcc_writer_handle::~mvcc_writer_handle()
-{
-    try
-    {
-	release_writer_token(container, token_id);
-    }
-    catch(...)
-    {
-	// do nothing
-    }
-}
-
 mvcc_reader::mvcc_reader(const bfs::path& path) :
     container_(reader, path), reader_handle_(container_)
 { }
@@ -315,7 +298,7 @@ mvcc_reader::~mvcc_reader()
 
 mvcc_owner::mvcc_owner(const bfs::path& path, std::size_t size) :
     container_(owner, path, size),
-    writer_handle_(container_),
+    writer_handle_(container_.memory),
     reader_handle_(container_),
     file_lock_(path.string().c_str())
 {

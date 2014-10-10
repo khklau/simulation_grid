@@ -168,6 +168,8 @@ namespace {
 
 using namespace simulation_grid::grid_db;
 
+static const char* RESOURCE_POOL_KEY = "@@RESOURCE_POOL@@";
+
 template <class value_t>
 struct mvcc_value
 {
@@ -256,6 +258,7 @@ void delete_oldest(mvcc_container& container, const char* key, mvcc_revision thr
     }
 }
 
+/*
 // TODO: provide strong exception guarantee
 template <class element_t>
 void write_(mvcc_writer_handle& handle, const char* key, const element_t& value)
@@ -298,6 +301,14 @@ void remove_(mvcc_writer_handle& handle, const char* key)
 	record->want_removed = true;
     }
 }
+*/
+
+template <class memory_t>
+mvcc_resource_pool& mut_resource_pool_(memory_t& memory)
+{
+    return *(memory.template find<mvcc_resource_pool>(RESOURCE_POOL_KEY).first);
+}
+
 
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
 
@@ -349,10 +360,108 @@ boost::uint64_t get_newest_revision_(const mvcc_reader_handle& handle, const cha
 namespace simulation_grid {
 namespace grid_db {
 
-const mvcc_header& const_header(const mvcc_container& container);
-mvcc_header& mut_header(mvcc_container& container);
-const mvcc_resource_pool& const_resource_pool(const mvcc_container& container);
-mvcc_resource_pool& mut_resource_pool(const mvcc_container& container);
+template <class memory_t>
+mvcc_writer_handle<memory_t>::mvcc_writer_handle(memory_t& memory) :
+    memory(memory), token_id(acquire_writer_token(memory))
+{ }
+
+template <class memory_t>
+mvcc_writer_handle<memory_t>::~mvcc_writer_handle()
+{
+    try
+    {
+	release_writer_token(memory, token_id);
+    }
+    catch(...)
+    {
+	// do nothing
+    }
+}
+
+template <class memory_t>
+template <class value_t>
+const value_t* mvcc_writer_handle<memory_t>::find_const(const char* key) const
+{
+    // Unfortunately boost::interprocess::managed_mapped_file::find is not a const function
+    // due to use of internal locks which were not declared as mutable, so this function
+    // has been provided to fake constness
+    return const_cast<mvcc_writer_handle<memory_t>*>(this)->memory.template find<value_t>(key).first;
+}
+
+template <class memory_t>
+template <class value_t>
+value_t* mvcc_writer_handle<memory_t>::find_mut(const char* key)
+{
+    return memory.template find<value_t>(key).first;
+}
+
+// TODO: provide strong exception guarantee
+template <class memory_t>
+template <class value_t>
+void mvcc_writer_handle<memory_t>::write(const char* key, const value_t& value)
+{
+    mvcc_key mkey(key);
+    if (!find_const< mvcc_record<value_t> >(mkey.c_str))
+    {
+	bra::mt19937 seed;
+	bra::uniform_int_distribution<> generator(100, 200);
+	mvcc_deleter deleter(mkey, &delete_oldest<value_t>);
+	while (UNLIKELY_EXT(!mut_resource_pool_(memory).deleter_list.push(deleter)))
+	{
+	    boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
+	}
+    }
+    mvcc_record<value_t>* record = memory.template find_or_construct< mvcc_record<value_t> >(mkey.c_str)(
+	    memory.get_segment_manager());
+    if (UNLIKELY_EXT(record->ringbuf.full()))
+    {
+	// TODO: need a smarter growth algorithm
+	record->ringbuf.grow(record->ringbuf.capacity() * 1.5);
+    }
+    mvcc_value<value_t> tmp(value, mut_resource_pool_(memory).global_revision.fetch_add(
+	    1, boost::memory_order_relaxed),
+	    bpt::microsec_clock::local_time());
+    record->ringbuf.push_front(tmp);
+    record->want_removed = false;
+    mut_resource_pool_(memory).writer_token_pool[token_id].
+	    last_write_timestamp.reset(tmp.timestamp);
+    mut_resource_pool_(memory).writer_token_pool[token_id].
+	    last_write_revision.reset(tmp.revision);
+}
+
+template <class memory_t>
+template <class value_t>
+void mvcc_writer_handle<memory_t>::remove(const char* key)
+{
+    mvcc_record<value_t>* record = find_mut< mvcc_record<value_t> >(key);
+    if (record)
+    {
+	record->want_removed = true;
+    }
+}
+
+template <class memory_t>
+writer_token_id mvcc_writer_handle<memory_t>::acquire_writer_token(memory_t& memory)
+{
+    writer_token_id reservation;
+    if (UNLIKELY_EXT(!mut_resource_pool_(memory).writer_free_list.pop(reservation)))
+    {
+	throw busy_condition("No writer token available")
+		<< info_component_identity("mvcc_container");
+    }
+    return reservation;
+}
+
+template <class memory_t>
+void mvcc_writer_handle<memory_t>::release_writer_token(memory_t& memory, const writer_token_id& id)
+{
+    bra::mt19937 seed;
+    bra::uniform_int_distribution<> generator(100, 200);
+    while (!UNLIKELY_EXT(mut_resource_pool_(memory).writer_free_list.push(id)))
+    {
+	boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
+    }
+}
 
 template <class element_t>
 bool mvcc_reader::exists(const char* key) const
@@ -407,13 +516,13 @@ const boost::optional<const element_t&> mvcc_owner::read(const char* key) const
 template <class element_t>
 void mvcc_owner::write(const char* key, const element_t& value)
 {
-    ::write_(writer_handle_, key, value);
+    writer_handle_.write(key, value);
 }
 
 template <class element_t>
 void mvcc_owner::remove(const char* key)
 {
-    ::remove_<element_t>(writer_handle_, key);
+    writer_handle_.remove<element_t>(key);
 }
 
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
