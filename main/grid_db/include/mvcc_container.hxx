@@ -204,53 +204,28 @@ struct mvcc_record
 
 #endif
 
-template <class element_t>
-const element_t* find_const(const mvcc_container& container, const char* key)
+template <class value_t>
+const value_t* find_const(const mvcc_container& container, const char* key)
 {
     // Unfortunately boost::interprocess::managed_mapped_file::find is not a const function
     // due to use of internal locks which were not declared as mutable, so this function
     // has been provided to fake constness
-    return const_cast<mvcc_container&>(container).memory.find<element_t>(key).first;
+    return const_cast<mvcc_container&>(container).memory.find<value_t>(key).first;
 }
 
-template <class element_t>
-element_t* find_mut(mvcc_container& container, const char* key)
+template <class value_t>
+value_t* find_mut(mvcc_container& container, const char* key)
 {
-    return container.memory.find<element_t>(key).first;
+    return container.memory.find<value_t>(key).first;
 }
 
-template <class element_t>
-bool exists_(const mvcc_reader_handle& handle, const char* key)
-{
-    const mvcc_record<element_t>* record = find_const< mvcc_record<element_t> >(handle.container, key);
-    return record && !record->ringbuf.empty() && !record->want_removed;
-}
-
-template <class element_t>
-const boost::optional<const element_t&> read_(const mvcc_reader_handle& handle, const char* key)
-{
-    const mvcc_record<element_t>* record = find_const< mvcc_record<element_t> >(handle.container, key);
-    boost::optional<const element_t&> result;
-    if (record && !record->ringbuf.empty() && !record->want_removed)
-    {
-	const mvcc_value<element_t>& value = record->ringbuf.front();
-	result = value.value;
-	// the mvcc_reader_token will ensure the returned reference remains valid
-	mut_resource_pool(handle.container).reader_token_pool[handle.token_id].
-		last_read_timestamp.reset(value.timestamp);
-	mut_resource_pool(handle.container).reader_token_pool[handle.token_id].
-		last_read_revision.reset(value.revision);
-    }
-    return result;
-}
-
-template <class element_t>
+template <class value_t>
 void delete_oldest(mvcc_container& container, const char* key, mvcc_revision threshold)
 {
-    mvcc_record<element_t>* record = find_mut< mvcc_record<element_t> >(container, key);
+    mvcc_record<value_t>* record = find_mut< mvcc_record<value_t> >(container, key);
     if (record)
     {
-	const mvcc_value<element_t>& value = record->ringbuf.back();
+	const mvcc_value<value_t>& value = record->ringbuf.back();
 	if ((record->ringbuf.element_count() > 1 && value.revision < threshold) || record->want_removed)
 	{
 	    record->ringbuf.pop_back(value);
@@ -258,50 +233,11 @@ void delete_oldest(mvcc_container& container, const char* key, mvcc_revision thr
     }
 }
 
-/*
-// TODO: provide strong exception guarantee
-template <class element_t>
-void write_(mvcc_writer_handle& handle, const char* key, const element_t& value)
+template <class memory_t>
+const mvcc_resource_pool& const_resource_pool(const memory_t& memory)
 {
-    mvcc_key mkey(key);
-    if (!find_const< mvcc_record<element_t> >(handle.container, mkey.c_str))
-    {
-	bra::mt19937 seed;
-	bra::uniform_int_distribution<> generator(100, 200);
-	mvcc_deleter deleter(mkey, &delete_oldest<element_t>);
-	while (UNLIKELY_EXT(!mut_resource_pool(handle.container).deleter_list.push(deleter)))
-	{
-	    boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
-	}
-    }
-    mvcc_record<element_t>* record = handle.container.memory.find_or_construct< mvcc_record<element_t> >(mkey.c_str)(
-	    handle.container.memory.get_segment_manager());
-    if (UNLIKELY_EXT(record->ringbuf.full()))
-    {
-	// TODO: need a smarter growth algorithm
-	record->ringbuf.grow(record->ringbuf.capacity() * 1.5);
-    }
-    mvcc_value<element_t> tmp(value, mut_resource_pool(handle.container).global_revision.fetch_add(
-	    1, boost::memory_order_relaxed),
-	    bpt::microsec_clock::local_time());
-    record->ringbuf.push_front(tmp);
-    record->want_removed = false;
-    mut_resource_pool(handle.container).writer_token_pool[handle.token_id].
-	    last_write_timestamp.reset(tmp.timestamp);
-    mut_resource_pool(handle.container).writer_token_pool[handle.token_id].
-	    last_write_revision.reset(tmp.revision);
+    return *(const_cast<memory_t&>(memory).template find<const mvcc_resource_pool>(RESOURCE_POOL_KEY).first);
 }
-
-template <class element_t>
-void remove_(mvcc_writer_handle& handle, const char* key)
-{
-    mvcc_record<element_t>* record = find_mut< mvcc_record<element_t> >(handle.container, key);
-    if (record)
-    {
-	record->want_removed = true;
-    }
-}
-*/
 
 template <class memory_t>
 mvcc_resource_pool& mut_resource_pool_(memory_t& memory)
@@ -325,10 +261,10 @@ boost::uint64_t get_last_read_revision_(const mvcc_container& container, const m
     }
 }
 
-template <class element_t>
+template <class value_t>
 boost::uint64_t get_oldest_revision_(const mvcc_reader_handle& handle, const char* key)
 {
-    const mvcc_record<element_t>* record = find_const< mvcc_record<element_t> >(handle.container, key);
+    const mvcc_record<value_t>* record = find_const< mvcc_record<value_t> >(handle.container, key);
     if (UNLIKELY_EXT(!record || record->ringbuf.empty()))
     {
 	return 0U;
@@ -339,10 +275,10 @@ boost::uint64_t get_oldest_revision_(const mvcc_reader_handle& handle, const cha
     }
 }
 
-template <class element_t>
+template <class value_t>
 boost::uint64_t get_newest_revision_(const mvcc_reader_handle& handle, const char* key)
 {
-    const mvcc_record<element_t>* record = find_const< mvcc_record<element_t> >(handle.container, key);
+    const mvcc_record<value_t>* record = find_const< mvcc_record<value_t> >(handle.container, key);
     if (UNLIKELY_EXT(!record || record->ringbuf.empty()))
     {
 	return 0U;
@@ -359,6 +295,84 @@ boost::uint64_t get_newest_revision_(const mvcc_reader_handle& handle, const cha
 
 namespace simulation_grid {
 namespace grid_db {
+
+template <class memory_t>
+mvcc_reader_handle<memory_t>::mvcc_reader_handle(memory_t& memory) :
+    memory(memory), token_id(acquire_reader_token(memory))
+{ }
+
+template <class memory_t>
+mvcc_reader_handle<memory_t>::~mvcc_reader_handle()
+{
+    try
+    {
+	release_reader_token(memory, token_id);
+    }
+    catch(...)
+    {
+	// do nothing
+    }
+}
+
+template <class memory_t>
+template <class value_t>
+const value_t* mvcc_reader_handle<memory_t>::find_const(const char* key) const
+{
+    // Unfortunately boost::interprocess::managed_mapped_file::find is not a const function
+    // due to use of internal locks which were not declared as mutable, so this function
+    // has been provided to fake constness
+    return const_cast<mvcc_reader_handle<memory_t>*>(this)->memory.template find<value_t>(key).first;
+}
+
+template <class memory_t>
+template <class value_t>
+bool mvcc_reader_handle<memory_t>::exists(const char* key) const
+{
+    const mvcc_record<value_t>* record = find_const< mvcc_record<value_t> >(key);
+    return record && !record->ringbuf.empty() && !record->want_removed;
+}
+
+template <class memory_t>
+template <class value_t>
+const boost::optional<const value_t&> mvcc_reader_handle<memory_t>::read(const char* key) const
+{
+    const mvcc_record<value_t>* record = find_const< mvcc_record<value_t> >(key);
+    boost::optional<const value_t&> result;
+    if (record && !record->ringbuf.empty() && !record->want_removed)
+    {
+	const mvcc_value<value_t>& value = record->ringbuf.front();
+	result = value.value;
+	// the mvcc_reader_token will ensure the returned reference remains valid
+	mut_resource_pool_(memory).reader_token_pool[token_id].
+		last_read_timestamp.reset(value.timestamp);
+	mut_resource_pool_(memory).reader_token_pool[token_id].
+		last_read_revision.reset(value.revision);
+    }
+    return result;
+}
+
+template <class memory_t>
+reader_token_id mvcc_reader_handle<memory_t>::acquire_reader_token(memory_t& memory)
+{
+    reader_token_id reservation;
+    if (UNLIKELY_EXT(!mut_resource_pool_(memory).reader_free_list.pop(reservation)))
+    {
+	throw busy_condition("No reader token available")
+		<< info_component_identity("mvcc_container");
+    }
+    return reservation;
+}
+
+template <class memory_t>
+void mvcc_reader_handle<memory_t>::release_reader_token(memory_t& memory, const reader_token_id& id)
+{
+    bra::mt19937 seed;
+    bra::uniform_int_distribution<> generator(100, 200);
+    while (UNLIKELY_EXT(!mut_resource_pool_(memory).reader_free_list.push(id)))
+    {
+	boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
+    }
+}
 
 template <class memory_t>
 mvcc_writer_handle<memory_t>::mvcc_writer_handle(memory_t& memory) :
@@ -463,16 +477,16 @@ void mvcc_writer_handle<memory_t>::release_writer_token(memory_t& memory, const 
     }
 }
 
-template <class element_t>
+template <class value_t>
 bool mvcc_reader::exists(const char* key) const
 {
-    return ::exists_<element_t>(reader_handle_, key);
+    return reader_handle_.exists<value_t>(key);
 }
 
-template <class element_t>
-const boost::optional<const element_t&> mvcc_reader::read(const char* key) const
+template <class value_t>
+const boost::optional<const value_t&> mvcc_reader::read(const char* key) const
 {
-    return ::read_<element_t>(reader_handle_, key);
+    return reader_handle_.template read<value_t>(key);
 }
 
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
@@ -487,42 +501,42 @@ boost::uint64_t mvcc_reader::get_last_read_revision() const
     return get_last_read_revision_(container_, reader_handle_);
 }
 
-template <class element_t>
+template <class value_t>
 boost::uint64_t mvcc_reader::get_oldest_revision(const char* key) const
 {
-    return ::get_oldest_revision_<element_t>(reader_handle_, key);
+    return ::get_oldest_revision_<value_t>(reader_handle_, key);
 }
 
-template <class element_t>
+template <class value_t>
 boost::uint64_t mvcc_reader::get_newest_revision(const char* key) const
 {
-    return ::get_newest_revision_<element_t>(reader_handle_, key);
+    return ::get_newest_revision_<value_t>(reader_handle_, key);
 }
 
 #endif
 
-template <class element_t>
+template <class value_t>
 bool mvcc_owner::exists(const char* key) const
 {
-    return ::exists_<element_t>(reader_handle_, key);
+    return reader_handle_.exists<value_t>(key);
 }
 
-template <class element_t>
-const boost::optional<const element_t&> mvcc_owner::read(const char* key) const
+template <class value_t>
+const boost::optional<const value_t&> mvcc_owner::read(const char* key) const
 {
-    return ::read_<element_t>(reader_handle_, key);
+    return reader_handle_.template read_<value_t>(key);
 }
 
-template <class element_t>
-void mvcc_owner::write(const char* key, const element_t& value)
+template <class value_t>
+void mvcc_owner::write(const char* key, const value_t& value)
 {
     writer_handle_.write(key, value);
 }
 
-template <class element_t>
+template <class value_t>
 void mvcc_owner::remove(const char* key)
 {
-    writer_handle_.remove<element_t>(key);
+    writer_handle_.remove<value_t>(key);
 }
 
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
@@ -537,16 +551,16 @@ boost::uint64_t mvcc_owner::get_last_read_revision() const
     return get_last_read_revision_(container_, reader_handle_);
 }
 
-template <class element_t>
+template <class value_t>
 boost::uint64_t mvcc_owner::get_oldest_revision(const char* key) const
 {
-    return ::get_oldest_revision_<element_t>(reader_handle_, key);
+    return ::get_oldest_revision_<value_t>(reader_handle_, key);
 }
 
-template <class element_t>
+template <class value_t>
 boost::uint64_t mvcc_owner::get_newest_revision(const char* key) const
 {
-    return ::get_newest_revision_<element_t>(reader_handle_, key);
+    return ::get_newest_revision_<value_t>(reader_handle_, key);
 }
 
 boost::uint64_t mvcc_owner::get_global_oldest_revision_read() const
@@ -572,10 +586,10 @@ std::vector<std::string> mvcc_owner::get_registered_keys() const
     return result;
 }
 
-template <class element_t> 
+template <class value_t> 
 std::size_t mvcc_owner::get_history_depth(const char* key) const
 {
-    const mvcc_record<element_t>* record = find_const< mvcc_record<element_t> >(container_, key);
+    const mvcc_record<value_t>* record = find_const< mvcc_record<value_t> >(container_, key);
     if (!record || record->ringbuf.empty())
     {
 	return 0U;

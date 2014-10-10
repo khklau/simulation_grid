@@ -74,50 +74,6 @@ void check(const mvcc_container& container)
     }
 }
 
-reader_token_id acquire_reader_token(mvcc_container& container)
-{
-    reader_token_id reservation;
-    if (UNLIKELY_EXT(!mut_resource_pool(container).reader_free_list.pop(reservation)))
-    {
-	throw busy_condition("No reader token available")
-		<< info_db_identity(container.path.string())
-		<< info_component_identity("mvcc_container");
-    }
-    return reservation;
-}
-
-void release_reader_token(mvcc_container& container, const reader_token_id& id)
-{
-    bra::mt19937 seed;
-    bra::uniform_int_distribution<> generator(100, 200);
-    while (UNLIKELY_EXT(!mut_resource_pool(container).reader_free_list.push(id)))
-    {
-	boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
-    }
-}
-
-writer_token_id acquire_writer_token(mvcc_container& container)
-{
-    writer_token_id reservation;
-    if (UNLIKELY_EXT(!mut_resource_pool(container).writer_free_list.pop(reservation)))
-    {
-	throw busy_condition("No writer token available")
-		<< info_db_identity(container.path.string())
-		<< info_component_identity("mvcc_container");
-    }
-    return reservation;
-}
-
-void release_writer_token(mvcc_container& container, const writer_token_id& id)
-{
-    bra::mt19937 seed;
-    bra::uniform_int_distribution<> generator(100, 200);
-    while (!UNLIKELY_EXT(mut_resource_pool(container).writer_free_list.push(id)))
-    {
-	boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
-    }
-}
-
 } // anonymous namespace
 
 namespace simulation_grid {
@@ -273,24 +229,8 @@ std::size_t mvcc_container::available_space() const
     return memory.get_free_memory();
 }
 
-mvcc_reader_handle::mvcc_reader_handle(mvcc_container& container) :
-    container(container), token_id(acquire_reader_token(container))
-{ }
-
-mvcc_reader_handle::~mvcc_reader_handle()
-{
-    try
-    {
-	release_reader_token(container, token_id);
-    }
-    catch(...)
-    {
-	// do nothing
-    }
-}
-
 mvcc_reader::mvcc_reader(const bfs::path& path) :
-    container_(reader, path), reader_handle_(container_)
+    container_(reader, path), reader_handle_(container_.memory)
 { }
 
 mvcc_reader::~mvcc_reader()
@@ -299,7 +239,7 @@ mvcc_reader::~mvcc_reader()
 mvcc_owner::mvcc_owner(const bfs::path& path, std::size_t size) :
     container_(owner, path, size),
     writer_handle_(container_.memory),
-    reader_handle_(container_),
+    reader_handle_(container_.memory),
     file_lock_(path.string().c_str())
 {
     flush();
