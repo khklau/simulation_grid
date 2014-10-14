@@ -12,6 +12,7 @@
 #include <boost/interprocess/creation_tags.hpp>
 #include <boost/interprocess/containers/map.hpp>
 #include <boost/interprocess/managed_mapped_file.hpp>
+#include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/optional.hpp>
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int_distribution.hpp>
@@ -45,6 +46,19 @@ struct mvcc_key
     char c_str[MVCC_MAX_KEY_LENGTH + 1];
 };
 
+template <class memory_t>
+struct mvcc_deleter_
+{
+    typedef boost::function<void(memory_t&, const char*, mvcc_revision)> delete_function;
+    mvcc_deleter_();
+    mvcc_deleter_(const mvcc_key& k, const delete_function& fn);
+    mvcc_deleter_(const mvcc_deleter_<memory_t>& other);
+    ~mvcc_deleter_();
+    mvcc_deleter_& operator=(const mvcc_deleter_<memory_t>& other);
+    mvcc_key key;
+    delete_function function;
+};
+
 struct mvcc_deleter
 {
     typedef boost::function<void(mvcc_container&, const char*, mvcc_revision)> delete_function;
@@ -70,8 +84,34 @@ struct has_trivial_destructor<sgd::mvcc_deleter>
     static const bool value = true;
 };
 
+// FIXME: this is anti-generic but we don't have a better solution right now
+
+template <>
+struct has_trivial_destructor< sgd::mvcc_deleter_<bip::managed_mapped_file> >
+{
+    static const bool value = true;
+};
+
+template <>
+struct has_trivial_destructor< sgd::mvcc_deleter_<bip::managed_shared_memory> >
+{
+    static const bool value = true;
+};
+
 template <>
 struct has_trivial_assign<sgd::mvcc_deleter>
+{
+    static const bool value = true;
+};
+
+template <>
+struct has_trivial_assign< sgd::mvcc_deleter_<bip::managed_mapped_file> >
+{
+    static const bool value = true;
+};
+
+template <>
+struct has_trivial_assign< sgd::mvcc_deleter_<bip::managed_shared_memory> >
 {
     static const bool value = true;
 };
@@ -83,26 +123,25 @@ namespace grid_db {
 
 // TODO: replace the following with type aliases after moving to a C++11 compiler
 
-template <class content_t>
+template <class content_t, class memory_t = bip::managed_mapped_file>
 struct mvcc_allocator
 {
-    typedef boost::interprocess::allocator<content_t, 
-	    boost::interprocess::managed_mapped_file::segment_manager> type;
+    typedef bip::allocator<content_t, typename memory_t::segment_manager> type;
 };
 
-template <class key_t, class value_t>
+template <class key_t, class value_t, class memory_t = bip::managed_mapped_file>
 struct mvcc_map
 {
-    typedef typename mvcc_allocator< std::pair<const key_t, value_t> >::type allocator_t;
+    typedef typename mvcc_allocator<std::pair<const key_t, value_t>, memory_t>::type allocator_t;
     typedef boost::interprocess::map<key_t, value_t, std::less<key_t>, allocator_t> type;
 };
 
-template <class content_t, size_t size>
+template <class content_t, size_t size, class memory_t = bip::managed_mapped_file>
 struct mvcc_queue 
 {
     typedef typename boost::lockfree::capacity<size> capacity;
     typedef typename boost::lockfree::fixed_sized<true> fixed;
-    typedef typename boost::lockfree::allocator<typename mvcc_allocator<content_t>::type> allocator_t;
+    typedef typename boost::lockfree::allocator<typename mvcc_allocator<content_t, memory_t>::type> allocator_t;
     typedef boost::lockfree::queue<content_t, capacity, fixed, allocator_t> type;
 };
 
@@ -144,6 +183,19 @@ struct mvcc_owner_token
     registry_map registry;
 };
 
+template <class memory_t>
+struct mvcc_owner_token_
+{
+    typedef typename mvcc_map<mvcc_key, mvcc_deleter_<memory_t>, memory_t>::type registry_map_;
+    mvcc_owner_token_(memory_t* file);
+    boost::optional<mvcc_revision> last_flush_revision;
+    boost::optional<bpt::ptime> last_flush_timestamp;
+    boost::optional<reader_token_id> oldest_reader_id_found;
+    boost::optional<mvcc_revision> oldest_revision_found;
+    boost::optional<bpt::ptime> oldest_timestamp_found;
+    registry_map_ registry;
+};
+
 struct mvcc_resource_pool
 {
     mvcc_resource_pool(bip::managed_mapped_file* file);
@@ -154,6 +206,19 @@ struct mvcc_resource_pool
     mvcc_queue<reader_token_id, MVCC_READER_LIMIT>::type reader_free_list;
     mvcc_queue<writer_token_id, MVCC_WRITER_LIMIT>::type writer_free_list;
     mvcc_queue<mvcc_deleter, DEFAULT_HISTORY_DEPTH>::type deleter_list;
+};
+
+template <class memory_t>
+struct mvcc_resource_pool_
+{
+    mvcc_resource_pool_(memory_t* memory);
+    mvcc_reader_token reader_token_pool[MVCC_READER_LIMIT];
+    mvcc_writer_token writer_token_pool[MVCC_WRITER_LIMIT];
+    boost::atomic<mvcc_revision> global_revision;
+    mvcc_owner_token_<memory_t> owner_token;
+    typename mvcc_queue<reader_token_id, MVCC_READER_LIMIT, memory_t>::type reader_free_list;
+    typename mvcc_queue<writer_token_id, MVCC_WRITER_LIMIT, memory_t>::type writer_free_list;
+    typename mvcc_queue<mvcc_deleter_<memory_t>, DEFAULT_HISTORY_DEPTH, memory_t>::type deleter_list;
 };
 
 const mvcc_header& const_header(const mvcc_container& container);
@@ -240,9 +305,9 @@ const mvcc_resource_pool& const_resource_pool(const memory_t& memory)
 }
 
 template <class memory_t>
-mvcc_resource_pool& mut_resource_pool_(memory_t& memory)
+mvcc_resource_pool_<memory_t>& mut_resource_pool_(memory_t& memory)
 {
-    return *(memory.template find<mvcc_resource_pool>(RESOURCE_POOL_KEY).first);
+    return *(memory.template find< mvcc_resource_pool_<memory_t> >(RESOURCE_POOL_KEY).first);
 }
 
 
@@ -295,6 +360,59 @@ boost::uint64_t get_newest_revision_(const mvcc_reader_handle& handle, const cha
 
 namespace simulation_grid {
 namespace grid_db {
+
+template <class memory_t>
+mvcc_deleter_<memory_t>::mvcc_deleter_() :
+    key(), function()
+{ }
+
+template <class memory_t>
+mvcc_deleter_<memory_t>::mvcc_deleter_(const mvcc_key& k, const delete_function& fn) :
+    key(k), function(fn)
+{ }
+
+template <class memory_t>
+mvcc_deleter_<memory_t>::mvcc_deleter_(const mvcc_deleter_<memory_t>& other) :
+    key(other.key), function(other.function)
+{ }
+
+template <class memory_t>
+mvcc_deleter_<memory_t>::~mvcc_deleter_()
+{ }
+
+template <class memory_t>
+mvcc_deleter_<memory_t>& mvcc_deleter_<memory_t>::operator=(const mvcc_deleter_<memory_t>& other)
+{
+    if (this != &other)
+    {
+	key = other.key;
+	function = other.function;
+    }
+    return *this;
+}
+
+template <class memory_t>
+mvcc_owner_token_<memory_t>::mvcc_owner_token_(memory_t* memory) :
+    registry(std::less<typename registry_map_::key_type>(), memory->get_segment_manager())
+{ }
+
+template <class memory_t>
+mvcc_resource_pool_<memory_t>::mvcc_resource_pool_(memory_t* memory) :
+    global_revision(1),
+    owner_token(memory),
+    reader_free_list(memory->get_segment_manager()),
+    writer_free_list(memory->get_segment_manager()),
+    deleter_list(memory->get_segment_manager())
+{
+    for (reader_token_id id = 0; id < MVCC_READER_LIMIT; ++id)
+    {
+	reader_free_list.push(id);
+    }
+    for (writer_token_id id = 0; id < MVCC_WRITER_LIMIT; ++id)
+    {
+	writer_free_list.push(id);
+    }
+}
 
 template <class memory_t>
 mvcc_reader_handle<memory_t>::mvcc_reader_handle(memory_t& memory) :
@@ -419,7 +537,7 @@ void mvcc_writer_handle<memory_t>::write(const char* key, const value_t& value)
     {
 	bra::mt19937 seed;
 	bra::uniform_int_distribution<> generator(100, 200);
-	mvcc_deleter deleter(mkey, &delete_oldest<value_t>);
+	mvcc_deleter_<memory_t> deleter(mkey, &delete_oldest<value_t>);
 	while (UNLIKELY_EXT(!mut_resource_pool_(memory).deleter_list.push(deleter)))
 	{
 	    boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
@@ -475,6 +593,113 @@ void mvcc_writer_handle<memory_t>::release_writer_token(memory_t& memory, const 
     {
 	boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
     }
+}
+
+template <class memory_t>
+mvcc_owner_handle<memory_t>::mvcc_owner_handle(memory_t& memory) :
+    memory(memory)
+{ }
+
+template <class memory_t>
+mvcc_owner_handle<memory_t>::~mvcc_owner_handle()
+{ }
+
+template <class memory_t>
+template <class value_t>
+const value_t* mvcc_owner_handle<memory_t>::find_const(const char* key) const
+{
+    // Unfortunately boost::interprocess::managed_mapped_file::find is not a const function
+    // due to use of internal locks which were not declared as mutable, so this function
+    // has been provided to fake constness
+    return const_cast<mvcc_owner_handle<memory_t>*>(this)->memory.template find<value_t>(key).first;
+}
+
+template <class memory_t>
+template <class value_t>
+value_t* mvcc_owner_handle<memory_t>::find_mut(const char* key)
+{
+    return memory.template find<value_t>(key).first;
+}
+
+template <class memory_t>
+void mvcc_owner_handle<memory_t>::process_read_metadata(reader_token_id from, reader_token_id to)
+{
+    if (from >= MVCC_READER_LIMIT)
+    {
+	return;
+    }
+    mvcc_resource_pool& pool = mut_resource_pool_(memory);
+    if (pool.owner_token.oldest_reader_id_found && pool.owner_token.oldest_revision_found)
+    {
+	reader_token_id token_id = pool.owner_token.oldest_reader_id_found.get();
+	if (pool.reader_token_pool[token_id].last_read_revision &&
+	    pool.owner_token.oldest_revision_found.get() != pool.reader_token_pool[token_id].last_read_revision.get())
+	{
+	    pool.owner_token.oldest_reader_id_found.reset();
+	    pool.owner_token.oldest_revision_found.reset();
+	    pool.owner_token.oldest_timestamp_found.reset();
+	}
+    }
+    for (reader_token_id iter = from; iter < MVCC_READER_LIMIT && iter < to; ++iter)
+    {
+	if ((!pool.owner_token.oldest_revision_found && pool.reader_token_pool[iter].last_read_revision) || 
+	    (pool.owner_token.oldest_revision_found && pool.reader_token_pool[iter].last_read_revision &&
+	    pool.reader_token_pool[iter].last_read_revision.get() < pool.owner_token.oldest_revision_found.get()))
+	{
+	    pool.owner_token.oldest_reader_id_found.reset(iter);
+	    pool.owner_token.oldest_revision_found.reset(pool.reader_token_pool[iter].last_read_revision.get());
+	    pool.owner_token.oldest_timestamp_found.reset(pool.reader_token_pool[iter].last_read_timestamp.get());
+	}
+    }
+}
+
+template <class memory_t>
+void mvcc_owner_handle<memory_t>::process_write_metadata(std::size_t max_attempts)
+{
+    mvcc_deleter deleter;
+    mvcc_resource_pool& pool = mut_resource_pool_(memory);
+    for (std::size_t attempts = 0; !pool.deleter_list.empty() && (max_attempts == 0 || attempts < max_attempts); ++attempts)
+    {
+	if (pool.deleter_list.pop(deleter))
+	{
+	    pool.owner_token.registry.insert(std::make_pair(deleter.key, deleter));
+	}
+    }
+}
+
+template <class memory_t>
+std::string mvcc_owner_handle<memory_t>::collect_garbage(std::size_t max_attempts)
+{
+    std::string from;
+    return collect_garbage(from, max_attempts);
+}
+
+template <class memory_t>
+std::string mvcc_owner_handle<memory_t>::collect_garbage(const std::string& from, std::size_t max_attempts)
+{
+    mvcc_resource_pool& pool = mut_resource_pool_(memory);
+    if (pool.owner_token.registry.empty())
+    {
+	return "";
+    }
+    mvcc_key key(from.c_str());
+    registry_map::const_iterator iter = from.empty() ?
+	    pool.owner_token.registry.begin() :
+	    pool.owner_token.registry.find(key);
+    if (pool.owner_token.oldest_revision_found)
+    {
+	mvcc_revision oldest = pool.owner_token.oldest_revision_found.get();
+	for (std::size_t attempts = 0; iter != pool.owner_token.registry.end() && (max_attempts == 0 || attempts < max_attempts); ++attempts, ++iter)
+	{
+	    iter->second.function(memory, iter->first.c_str, oldest);
+	}
+    }
+    if (iter == pool.owner_token.registry.end())
+    {
+	// Next collect attempt should start again from beginning
+	iter = pool.owner_token.registry.begin();
+    }
+    return iter->first.c_str;
 }
 
 template <class value_t>
