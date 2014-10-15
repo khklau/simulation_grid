@@ -21,9 +21,6 @@ namespace {
 
 using namespace simulation_grid::grid_db;
 
-static const char* HEADER_KEY = "@@HEADER@@";
-static const char* MVCC_FILE_TYPE_TAG = "simulation_grid::grid_db::mvcc_container";
-
 void init(mvcc_container& container)
 {
     container.memory.construct<mvcc_header>(HEADER_KEY)();
@@ -344,7 +341,7 @@ void mvcc_owner::flush()
 void mvcc_owner::flush_impl()
 {
     mut_resource_pool(container_).owner_token.last_flush_timestamp = bpt::microsec_clock::local_time();
-    mut_resource_pool(container_).owner_token.last_flush_revision = const_resource_pool_(container_.memory).global_revision;
+    mut_resource_pool(container_).owner_token.last_flush_revision = const_resource_pool_ref_(container_.memory).global_revision;
     container_.memory.flush();
 }
 

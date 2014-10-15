@@ -25,6 +25,8 @@ typedef boost::uint16_t writer_token_id;
 static const size_t MVCC_READER_LIMIT = (1 << std::numeric_limits<reader_token_id>::digits) - 4; // due to boost::lockfree limit
 static const size_t MVCC_WRITER_LIMIT = 1;
 static const size_t MVCC_MAX_KEY_LENGTH = 31;
+const version MVCC_MIN_SUPPORTED_VERSION(1, 1, 1, 1);
+const version MVCC_MAX_SUPPORTED_VERSION(1, 1, 1, 1);
 
 struct mvcc_container
 {
@@ -43,6 +45,7 @@ class mvcc_reader_handle : private boost::noncopyable
 public:
     mvcc_reader_handle(memory_t& memory);
     ~mvcc_reader_handle();
+    void check();
     template <class value_t> const value_t* find_const(const char* key) const;
     template <class value_t> bool exists(const char* key) const;
     template <class value_t> const boost::optional<const value_t&> read(const char* key) const;
@@ -59,6 +62,7 @@ class mvcc_writer_handle : private boost::noncopyable
 public:
     mvcc_writer_handle(memory_t& memory);
     ~mvcc_writer_handle();
+    void check();
     template <class value_t> const value_t* find_const(const char* key) const;
     template <class value_t> value_t* find_mut(const char* key);
     template <class value_t> void write(const char* key, const value_t& value);
@@ -76,6 +80,7 @@ class mvcc_owner_handle : private boost::noncopyable
 public:
     mvcc_owner_handle(memory_t& memory);
     ~mvcc_owner_handle();
+    void check();
     template <class value_t> const value_t* find_const(const char* key) const;
     template <class value_t> value_t* find_mut(const char* key);
     void process_read_metadata(reader_token_id from = 0, reader_token_id to = MVCC_READER_LIMIT);

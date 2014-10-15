@@ -234,6 +234,8 @@ namespace {
 using namespace simulation_grid::grid_db;
 
 static const char* RESOURCE_POOL_KEY = "@@RESOURCE_POOL@@";
+static const char* HEADER_KEY = "@@HEADER@@";
+static const char* MVCC_FILE_TYPE_TAG = "simulation_grid::grid_db::mvcc_container";
 
 template <class value_t>
 struct mvcc_value
@@ -299,23 +301,98 @@ void delete_oldest(mvcc_container& container, const char* key, mvcc_revision thr
 }
 
 template <class memory_t>
-const mvcc_resource_pool& const_resource_pool_(const memory_t& memory)
+const mvcc_resource_pool* const_resource_pool_ptr_(const memory_t& memory)
 {
-    return *(const_cast<memory_t&>(memory).template find<const mvcc_resource_pool>(RESOURCE_POOL_KEY).first);
+    return const_cast<memory_t&>(memory).template find<const mvcc_resource_pool>(RESOURCE_POOL_KEY).first;
 }
 
 template <class memory_t>
-mvcc_resource_pool_<memory_t>& mut_resource_pool_(memory_t& memory)
+mvcc_resource_pool_<memory_t>* mut_resource_pool_ptr_(memory_t& memory)
 {
-    return *(memory.template find< mvcc_resource_pool_<memory_t> >(RESOURCE_POOL_KEY).first);
+    return memory.template find< mvcc_resource_pool_<memory_t> >(RESOURCE_POOL_KEY).first;
 }
 
+template <class memory_t>
+const mvcc_resource_pool& const_resource_pool_ref_(const memory_t& memory)
+{
+    return *const_resource_pool_ptr_(memory);
+}
+
+template <class memory_t>
+mvcc_resource_pool_<memory_t>& mut_resource_pool_ref_(memory_t& memory)
+{
+    return *mut_resource_pool_ptr_(memory);
+}
+
+template <class memory_t>
+const mvcc_header* const_header_ptr_(const memory_t& memory)
+{
+    return const_cast<memory_t&>(memory).template find<const mvcc_header>(HEADER_KEY).first;
+}
+
+template <class memory_t>
+mvcc_header* mut_header_ptr_(memory_t& memory)
+{
+    return memory.template find<mvcc_header>(HEADER_KEY).first;
+}
+
+template <class memory_t>
+const mvcc_header& const_header_ref_(const memory_t& memory)
+{
+    return *const_header_ptr_(memory);
+}
+
+template <class memory_t>
+mvcc_header& mut_header_ref_(memory_t& memory)
+{
+    return *mut_header_ptr_(memory);
+}
+
+template <class memory_t>
+void check_(const memory_t& memory)
+{
+    const mvcc_header* header = const_header_ptr_(memory);
+    if (UNLIKELY_EXT(!header))
+    {
+	throw malformed_db_error("Could not find header")
+		<< info_component_identity("mvcc_container")
+		<< info_data_identity(HEADER_KEY);
+    }
+    // If endianess is different the indicator will be 65280 instead of 255
+    if (UNLIKELY_EXT(header->endianess_indicator != std::numeric_limits<boost::uint8_t>::max()))
+    {
+	throw unsupported_db_error("Container requires byte swapping")
+		<< info_component_identity("mvcc_container")
+		<< info_version_found(header->container_version);
+    }
+    if (UNLIKELY_EXT(strncmp(header->file_type_tag, MVCC_FILE_TYPE_TAG, sizeof(header->file_type_tag))))
+    {
+	throw malformed_db_error("Incorrect file type tag found")
+		<< info_component_identity("mvcc_container")
+		<< info_data_identity(HEADER_KEY);
+    }
+    if (UNLIKELY_EXT(header->container_version < MVCC_MIN_SUPPORTED_VERSION ||
+	    header->container_version > MVCC_MAX_SUPPORTED_VERSION))
+    {
+	throw unsupported_db_error("Unsuported container version")
+		<< info_component_identity("mvcc_container")
+		<< info_version_found(header->container_version)
+		<< info_min_supported_version(MVCC_MIN_SUPPORTED_VERSION)
+		<< info_max_supported_version(MVCC_MAX_SUPPORTED_VERSION);
+    }
+    if (UNLIKELY_EXT(sizeof(mvcc_header) != header->header_size))
+    {
+	throw malformed_db_error("Wrong header size")
+		<< info_component_identity("mvcc_container")
+		<< info_data_identity(HEADER_KEY);
+    }
+}
 
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
 
 boost::uint64_t get_last_read_revision_(const mvcc_container& container, const mvcc_reader_handle& handle)
 {
-    const mvcc_resource_pool& pool = const_resource_pool_(container.memory);
+    const mvcc_resource_pool& pool = const_resource_pool_ref_(container.memory);
     if (pool.reader_token_pool[handle.token_id].last_read_revision)
     {
 	return pool.reader_token_pool[handle.token_id].last_read_revision.get();
@@ -433,6 +510,12 @@ mvcc_reader_handle<memory_t>::~mvcc_reader_handle()
 }
 
 template <class memory_t>
+void mvcc_reader_handle<memory_t>::check()
+{
+    check_(memory);
+}
+
+template <class memory_t>
 template <class value_t>
 const value_t* mvcc_reader_handle<memory_t>::find_const(const char* key) const
 {
@@ -461,9 +544,9 @@ const boost::optional<const value_t&> mvcc_reader_handle<memory_t>::read(const c
 	const mvcc_value<value_t>& value = record->ringbuf.front();
 	result = value.value;
 	// the mvcc_reader_token will ensure the returned reference remains valid
-	mut_resource_pool_(memory).reader_token_pool[token_id].
+	mut_resource_pool_ref_(memory).reader_token_pool[token_id].
 		last_read_timestamp.reset(value.timestamp);
-	mut_resource_pool_(memory).reader_token_pool[token_id].
+	mut_resource_pool_ref_(memory).reader_token_pool[token_id].
 		last_read_revision.reset(value.revision);
     }
     return result;
@@ -473,7 +556,7 @@ template <class memory_t>
 reader_token_id mvcc_reader_handle<memory_t>::acquire_reader_token(memory_t& memory)
 {
     reader_token_id reservation;
-    if (UNLIKELY_EXT(!mut_resource_pool_(memory).reader_free_list.pop(reservation)))
+    if (UNLIKELY_EXT(!mut_resource_pool_ref_(memory).reader_free_list.pop(reservation)))
     {
 	throw busy_condition("No reader token available")
 		<< info_component_identity("mvcc_container");
@@ -486,7 +569,7 @@ void mvcc_reader_handle<memory_t>::release_reader_token(memory_t& memory, const 
 {
     bra::mt19937 seed;
     bra::uniform_int_distribution<> generator(100, 200);
-    while (UNLIKELY_EXT(!mut_resource_pool_(memory).reader_free_list.push(id)))
+    while (UNLIKELY_EXT(!mut_resource_pool_ref_(memory).reader_free_list.push(id)))
     {
 	boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
     }
@@ -508,6 +591,12 @@ mvcc_writer_handle<memory_t>::~mvcc_writer_handle()
     {
 	// do nothing
     }
+}
+
+template <class memory_t>
+void mvcc_writer_handle<memory_t>::check()
+{
+    check_(memory);
 }
 
 template <class memory_t>
@@ -538,7 +627,7 @@ void mvcc_writer_handle<memory_t>::write(const char* key, const value_t& value)
 	bra::mt19937 seed;
 	bra::uniform_int_distribution<> generator(100, 200);
 	mvcc_deleter_<memory_t> deleter(mkey, &delete_oldest<value_t>);
-	while (UNLIKELY_EXT(!mut_resource_pool_(memory).deleter_list.push(deleter)))
+	while (UNLIKELY_EXT(!mut_resource_pool_ref_(memory).deleter_list.push(deleter)))
 	{
 	    boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
 	}
@@ -550,14 +639,14 @@ void mvcc_writer_handle<memory_t>::write(const char* key, const value_t& value)
 	// TODO: need a smarter growth algorithm
 	record->ringbuf.grow(record->ringbuf.capacity() * 1.5);
     }
-    mvcc_value<value_t> tmp(value, mut_resource_pool_(memory).global_revision.fetch_add(
+    mvcc_value<value_t> tmp(value, mut_resource_pool_ref_(memory).global_revision.fetch_add(
 	    1, boost::memory_order_relaxed),
 	    bpt::microsec_clock::local_time());
     record->ringbuf.push_front(tmp);
     record->want_removed = false;
-    mut_resource_pool_(memory).writer_token_pool[token_id].
+    mut_resource_pool_ref_(memory).writer_token_pool[token_id].
 	    last_write_timestamp.reset(tmp.timestamp);
-    mut_resource_pool_(memory).writer_token_pool[token_id].
+    mut_resource_pool_ref_(memory).writer_token_pool[token_id].
 	    last_write_revision.reset(tmp.revision);
 }
 
@@ -576,7 +665,7 @@ template <class memory_t>
 writer_token_id mvcc_writer_handle<memory_t>::acquire_writer_token(memory_t& memory)
 {
     writer_token_id reservation;
-    if (UNLIKELY_EXT(!mut_resource_pool_(memory).writer_free_list.pop(reservation)))
+    if (UNLIKELY_EXT(!mut_resource_pool_ref_(memory).writer_free_list.pop(reservation)))
     {
 	throw busy_condition("No writer token available")
 		<< info_component_identity("mvcc_container");
@@ -589,7 +678,7 @@ void mvcc_writer_handle<memory_t>::release_writer_token(memory_t& memory, const 
 {
     bra::mt19937 seed;
     bra::uniform_int_distribution<> generator(100, 200);
-    while (!UNLIKELY_EXT(mut_resource_pool_(memory).writer_free_list.push(id)))
+    while (!UNLIKELY_EXT(mut_resource_pool_ref_(memory).writer_free_list.push(id)))
     {
 	boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
     }
@@ -603,6 +692,12 @@ mvcc_owner_handle<memory_t>::mvcc_owner_handle(memory_t& memory) :
 template <class memory_t>
 mvcc_owner_handle<memory_t>::~mvcc_owner_handle()
 { }
+
+template <class memory_t>
+void mvcc_owner_handle<memory_t>::check()
+{
+    check_(memory);
+}
 
 template <class memory_t>
 template <class value_t>
@@ -628,7 +723,7 @@ void mvcc_owner_handle<memory_t>::process_read_metadata(reader_token_id from, re
     {
 	return;
     }
-    mvcc_resource_pool& pool = mut_resource_pool_(memory);
+    mvcc_resource_pool& pool = mut_resource_pool_ref_(memory);
     if (pool.owner_token.oldest_reader_id_found && pool.owner_token.oldest_revision_found)
     {
 	reader_token_id token_id = pool.owner_token.oldest_reader_id_found.get();
@@ -657,7 +752,7 @@ template <class memory_t>
 void mvcc_owner_handle<memory_t>::process_write_metadata(std::size_t max_attempts)
 {
     mvcc_deleter deleter;
-    mvcc_resource_pool& pool = mut_resource_pool_(memory);
+    mvcc_resource_pool& pool = mut_resource_pool_ref_(memory);
     for (std::size_t attempts = 0; !pool.deleter_list.empty() && (max_attempts == 0 || attempts < max_attempts); ++attempts)
     {
 	if (pool.deleter_list.pop(deleter))
@@ -677,7 +772,7 @@ std::string mvcc_owner_handle<memory_t>::collect_garbage(std::size_t max_attempt
 template <class memory_t>
 std::string mvcc_owner_handle<memory_t>::collect_garbage(const std::string& from, std::size_t max_attempts)
 {
-    mvcc_resource_pool& pool = mut_resource_pool_(memory);
+    mvcc_resource_pool& pool = mut_resource_pool_ref_(memory);
     if (pool.owner_token.registry.empty())
     {
 	return "";
@@ -790,9 +885,9 @@ boost::uint64_t mvcc_owner::get_newest_revision(const char* key) const
 
 boost::uint64_t mvcc_owner::get_global_oldest_revision_read() const
 {
-    if (const_resource_pool_(container_.memory).owner_token.oldest_revision_found)
+    if (const_resource_pool_ref_(container_.memory).owner_token.oldest_revision_found)
     {
-	return const_resource_pool_(container_.memory).owner_token.oldest_revision_found.get();
+	return const_resource_pool_ref_(container_.memory).owner_token.oldest_revision_found.get();
     }
     else
     {
@@ -802,7 +897,7 @@ boost::uint64_t mvcc_owner::get_global_oldest_revision_read() const
 
 std::vector<std::string> mvcc_owner::get_registered_keys() const
 {
-    const mvcc_resource_pool& pool = const_resource_pool_(container_.memory);
+    const mvcc_resource_pool& pool = const_resource_pool_ref_(container_.memory);
     std::vector<std::string> result;
     for (registry_map::const_iterator iter = pool.owner_token.registry.begin(); iter != pool.owner_token.registry.end(); ++iter)
     {
