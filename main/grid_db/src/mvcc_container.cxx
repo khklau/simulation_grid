@@ -6,7 +6,6 @@
 #include <boost/function.hpp>
 #include <boost/interprocess/creation_tags.hpp>
 #include <boost/optional.hpp>
-#include <boost/ref.hpp>
 #include <boost/thread/thread.hpp>
 #include <simulation_grid/core/compiler_extensions.hpp>
 #include <simulation_grid/grid_db/exception.hpp>

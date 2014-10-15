@@ -81,6 +81,7 @@ public:
     mvcc_owner_handle(memory_t& memory);
     ~mvcc_owner_handle();
     void check();
+    void init();
     template <class value_t> const value_t* find_const(const char* key) const;
     template <class value_t> value_t* find_mut(const char* key);
     void process_read_metadata(reader_token_id from = 0, reader_token_id to = MVCC_READER_LIMIT);

@@ -700,6 +700,20 @@ void mvcc_owner_handle<memory_t>::check()
 }
 
 template <class memory_t>
+void init_(memory_t& memory)
+{
+    memory.template construct<mvcc_header>(HEADER_KEY)();
+    memory.template construct< mvcc_resource_pool_<memory_t> >(RESOURCE_POOL_KEY)(&memory);
+}
+
+template <class memory_t>
+void mvcc_owner_handle<memory_t>::init()
+{
+    boost::function<void ()> init_func(boost::bind(&init_, boost::ref(memory)));
+    memory.get_segment_manager()->atomic_func(init_func);
+}
+
+template <class memory_t>
 template <class value_t>
 const value_t* mvcc_owner_handle<memory_t>::find_const(const char* key) const
 {
