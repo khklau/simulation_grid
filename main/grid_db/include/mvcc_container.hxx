@@ -299,7 +299,7 @@ void delete_oldest(mvcc_container& container, const char* key, mvcc_revision thr
 }
 
 template <class memory_t>
-const mvcc_resource_pool& const_resource_pool(const memory_t& memory)
+const mvcc_resource_pool& const_resource_pool_(const memory_t& memory)
 {
     return *(const_cast<memory_t&>(memory).template find<const mvcc_resource_pool>(RESOURCE_POOL_KEY).first);
 }
@@ -315,7 +315,7 @@ mvcc_resource_pool_<memory_t>& mut_resource_pool_(memory_t& memory)
 
 boost::uint64_t get_last_read_revision_(const mvcc_container& container, const mvcc_reader_handle& handle)
 {
-    const mvcc_resource_pool& pool = const_resource_pool(container);
+    const mvcc_resource_pool& pool = const_resource_pool_(container.memory);
     if (pool.reader_token_pool[handle.token_id].last_read_revision)
     {
 	return pool.reader_token_pool[handle.token_id].last_read_revision.get();
@@ -790,9 +790,9 @@ boost::uint64_t mvcc_owner::get_newest_revision(const char* key) const
 
 boost::uint64_t mvcc_owner::get_global_oldest_revision_read() const
 {
-    if (const_resource_pool(container_).owner_token.oldest_revision_found)
+    if (const_resource_pool_(container_.memory).owner_token.oldest_revision_found)
     {
-	return const_resource_pool(container_).owner_token.oldest_revision_found.get();
+	return const_resource_pool_(container_.memory).owner_token.oldest_revision_found.get();
     }
     else
     {
@@ -802,7 +802,7 @@ boost::uint64_t mvcc_owner::get_global_oldest_revision_read() const
 
 std::vector<std::string> mvcc_owner::get_registered_keys() const
 {
-    const mvcc_resource_pool& pool = const_resource_pool(container_);
+    const mvcc_resource_pool& pool = const_resource_pool_(container_.memory);
     std::vector<std::string> result;
     for (registry_map::const_iterator iter = pool.owner_token.registry.begin(); iter != pool.owner_token.registry.end(); ++iter)
     {
