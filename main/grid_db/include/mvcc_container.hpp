@@ -49,6 +49,13 @@ public:
     template <class value_t> const value_t* find_const(const char* key) const;
     template <class value_t> bool exists(const char* key) const;
     template <class value_t> const boost::optional<const value_t&> read(const char* key) const;
+#ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
+    reader_token_id get_reader_token_id() const;
+    boost::uint64_t get_last_read_revision() const;
+    template <class value_t> boost::uint64_t get_oldest_revision(const char* key) const;
+    template <class value_t> boost::uint64_t get_newest_revision(const char* key) const;
+    template <class value_t> std::size_t get_history_depth(const char* key) const;
+#endif
 private:
     static reader_token_id acquire_reader_token(memory_t& memory);
     static void release_reader_token(memory_t& memory, const reader_token_id& id);
@@ -67,6 +74,10 @@ public:
     template <class value_t> value_t* find_mut(const char* key);
     template <class value_t> void write(const char* key, const value_t& value);
     template <class value_t> void remove(const char* key);
+#ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
+    writer_token_id get_writer_token_id() const;
+    boost::uint64_t get_last_write_revision() const;
+#endif
 private:
     static writer_token_id acquire_writer_token(memory_t& memory);
     static void release_writer_token(memory_t& memory, const writer_token_id& id);
@@ -88,6 +99,10 @@ public:
     void process_write_metadata(std::size_t max_attempts = 0);
     std::string collect_garbage(std::size_t max_attempts = 0);
     std::string collect_garbage(const std::string& from, std::size_t max_attempts = 0);
+#ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
+    std::vector<std::string> get_registered_keys() const;
+    template <class value_t> std::size_t get_history_depth(const char* key) const;
+#endif
 private:
     memory_t& memory;
 };

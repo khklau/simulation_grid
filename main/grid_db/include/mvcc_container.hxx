@@ -575,6 +575,75 @@ void mvcc_reader_handle<memory_t>::release_reader_token(memory_t& memory, const 
     }
 }
 
+#ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
+
+template <class memory_t>
+reader_token_id mvcc_reader_handle<memory_t>::get_reader_token_id() const
+{
+    return token_id;
+}
+
+template <class memory_t>
+boost::uint64_t mvcc_reader_handle<memory_t>::get_last_read_revision() const
+{
+    const mvcc_resource_pool& pool = const_resource_pool_ref_(memory);
+    if (pool.reader_token_pool[token_id].last_read_revision)
+    {
+	return pool.reader_token_pool[token_id].last_read_revision.get();
+    }
+    else
+    {
+	return 0U;
+    }
+}
+
+template <class memory_t>
+template <class value_t>
+boost::uint64_t mvcc_reader_handle<memory_t>::get_oldest_revision(const char* key) const
+{
+    const mvcc_record<value_t>* record = find_const< mvcc_record<value_t> >(key);
+    if (UNLIKELY_EXT(!record || record->ringbuf.empty()))
+    {
+	return 0U;
+    }
+    else
+    {
+	return record->ringbuf.back().revision;
+    }
+}
+
+template <class memory_t>
+template <class value_t>
+boost::uint64_t mvcc_reader_handle<memory_t>::get_newest_revision(const char* key) const
+{
+    const mvcc_record<value_t>* record = find_const< mvcc_record<value_t> >(key);
+    if (UNLIKELY_EXT(!record || record->ringbuf.empty()))
+    {
+	return 0U;
+    }
+    else
+    {
+	return record->ringbuf.front().revision;
+    }
+}
+
+template <class memory_t>
+template <class value_t> 
+std::size_t mvcc_reader_handle<memory_t>::get_history_depth(const char* key) const
+{
+    const mvcc_record<value_t>* record = find_const< mvcc_record<value_t> >(key);
+    if (!record || record->ringbuf.empty())
+    {
+	return 0U;
+    }
+    else
+    {
+	return record->ringbuf.element_count();
+    }
+}
+
+#endif
+
 template <class memory_t>
 mvcc_writer_handle<memory_t>::mvcc_writer_handle(memory_t& memory) :
     memory(memory), token_id(acquire_writer_token(memory))
@@ -683,6 +752,30 @@ void mvcc_writer_handle<memory_t>::release_writer_token(memory_t& memory, const 
 	boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
     }
 }
+
+#ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
+
+template <class memory_t>
+writer_token_id mvcc_writer_handle<memory_t>::get_writer_token_id() const
+{
+    return token_id;
+}
+
+template <class memory_t>
+boost::uint64_t mvcc_writer_handle<memory_t>::get_last_write_revision() const
+{
+    const mvcc_resource_pool& pool = const_resource_pool_ref_(memory);
+    if (pool.writer_token_pool[token_id].last_write_revision)
+    {
+	return pool.writer_token_pool[token_id].last_write_revision.get();
+    }
+    else
+    {
+	return 0U;
+    }
+}
+
+#endif
 
 template <class memory_t>
 mvcc_owner_handle<memory_t>::mvcc_owner_handle(memory_t& memory) :
@@ -810,6 +903,35 @@ std::string mvcc_owner_handle<memory_t>::collect_garbage(const std::string& from
     }
     return iter->first.c_str;
 }
+
+#ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
+
+template <class memory_t>
+boost::uint64_t mvcc_owner_handle<memory_t>::get_global_oldest_revision_read() const
+{
+    if (const_resource_pool_ref_(memory).owner_token.oldest_revision_found)
+    {
+	return const_resource_pool_ref_(container_.memory).owner_token.oldest_revision_found.get();
+    }
+    else
+    {
+	return 0U;
+    }
+}
+
+template <class memory_t>
+std::vector<std::string> mvcc_owner_handle<memory_t>::get_registered_keys() const
+{
+    const mvcc_resource_pool& pool = const_resource_pool_ref_(memory);
+    std::vector<std::string> result;
+    for (registry_map::const_iterator iter = pool.owner_token.registry.begin(); iter != pool.owner_token.registry.end(); ++iter)
+    {
+	result.push_back(iter->first.c_str);
+    }
+    return result;
+}
+
+#endif
 
 template <class value_t>
 bool mvcc_reader::exists(const char* key) const
