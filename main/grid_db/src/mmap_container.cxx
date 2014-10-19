@@ -21,8 +21,6 @@ namespace {
 
 using namespace simulation_grid::grid_db;
 
-static const char* HEADER_KEY = "@@HEADER@@";
-static const char* RESOURCE_POOL_KEY = "@@RESOURCE_POOL@@";
 static const char* MVCC_MMAP_FILE_TYPE_TAG = "simulation_grid::grid_db::mvcc_mmap_container";
 
 size_t get_size(const mvcc_mmap_container& container)
@@ -248,24 +246,23 @@ mvcc_mmap_resource_pool::mvcc_mmap_resource_pool(bip::managed_mapped_file* file)
 
 mvcc_mmap_container::mvcc_mmap_container(const owner_t, const bfs::path& path, size_t size) :
     exists(bfs::exists(path)), path(path), file(bip::open_or_create, path.string().c_str(), size)
-{
-    if (exists)
-    {
-	check(*this);
-    }
-    else
-    {
-	boost::function<void ()> init_func(boost::bind(&init, boost::ref(*this)));
-	file.get_segment_manager()->atomic_func(init_func);
-    }
-}
+{ }
 
 mvcc_mmap_container::mvcc_mmap_container(const reader_t, const bfs::path& path) :
     exists(bfs::exists(path)), path(path), file(bip::open_only, path.string().c_str())
+{ }
+
+std::size_t mvcc_mmap_container::available_space() const
 {
-    if (exists)
+    return file.get_free_memory();
+}
+
+mvcc_mmap_reader::mvcc_mmap_reader(const bfs::path& path) :
+    container_(reader, path), reader_handle_(container_.file)
+{
+    if (bfs::exists(path))
     {
-	check(*this);
+	reader_handle_.check();
     }
     else
     {
@@ -274,54 +271,15 @@ mvcc_mmap_container::mvcc_mmap_container(const reader_t, const bfs::path& path) 
     }
 }
 
-std::size_t mvcc_mmap_container::available_space() const
-{
-    return file.get_free_memory();
-}
-
-mvcc_mmap_reader_handle::mvcc_mmap_reader_handle(mvcc_mmap_container& container) :
-    container(container), token_id(acquire_reader_token(container))
-{ }
-
-mvcc_mmap_reader_handle::~mvcc_mmap_reader_handle()
-{
-    try
-    {
-	release_reader_token(container, token_id);
-    }
-    catch(...)
-    {
-	// do nothing
-    }
-}
-
-mvcc_mmap_writer_handle::mvcc_mmap_writer_handle(mvcc_mmap_container& container) :
-    container(container), token_id(acquire_writer_token(container))
-{ }
-
-mvcc_mmap_writer_handle::~mvcc_mmap_writer_handle()
-{
-    try
-    {
-	release_writer_token(container, token_id);
-    }
-    catch(...)
-    {
-	// do nothing
-    }
-}
-
-mvcc_mmap_reader::mvcc_mmap_reader(const bfs::path& path) :
-    container_(reader, path), reader_handle_(container_)
-{ }
-
 mvcc_mmap_reader::~mvcc_mmap_reader()
 { }
 
 mvcc_mmap_owner::mvcc_mmap_owner(const bfs::path& path, std::size_t size) :
+    exists_(bfs::exists(path)),
     container_(owner, path, size),
-    writer_handle_(container_),
-    reader_handle_(container_),
+    owner_handle_(exists_ ? open_existing : open_new, container_.file),
+    writer_handle_(container_.file),
+    reader_handle_(container_.file),
     file_lock_(path.string().c_str())
 {
     flush();
@@ -342,79 +300,22 @@ mvcc_mmap_owner::~mvcc_mmap_owner()
 
 void mvcc_mmap_owner::process_read_metadata(reader_token_id from, reader_token_id to)
 {
-    if (from >= MVCC_READER_LIMIT)
-    {
-	return;
-    }
-    mvcc_mmap_resource_pool& pool = mut_resource_pool(container_);
-    if (pool.owner_token.oldest_reader_id_found && pool.owner_token.oldest_revision_found)
-    {
-	reader_token_id token_id = pool.owner_token.oldest_reader_id_found.get();
-	if (pool.reader_token_pool[token_id].last_read_revision &&
-	    pool.owner_token.oldest_revision_found.get() != pool.reader_token_pool[token_id].last_read_revision.get())
-	{
-	    pool.owner_token.oldest_reader_id_found.reset();
-	    pool.owner_token.oldest_revision_found.reset();
-	    pool.owner_token.oldest_timestamp_found.reset();
-	}
-    }
-    for (reader_token_id iter = from; iter < MVCC_READER_LIMIT && iter < to; ++iter)
-    {
-	if ((!pool.owner_token.oldest_revision_found && pool.reader_token_pool[iter].last_read_revision) || 
-	    (pool.owner_token.oldest_revision_found && pool.reader_token_pool[iter].last_read_revision &&
-	    pool.reader_token_pool[iter].last_read_revision.get() < pool.owner_token.oldest_revision_found.get()))
-	{
-	    pool.owner_token.oldest_reader_id_found.reset(iter);
-	    pool.owner_token.oldest_revision_found.reset(pool.reader_token_pool[iter].last_read_revision.get());
-	    pool.owner_token.oldest_timestamp_found.reset(pool.reader_token_pool[iter].last_read_timestamp.get());
-	}
-    }
+    return owner_handle_.process_read_metadata(from, to);
 }
 
 void mvcc_mmap_owner::process_write_metadata(std::size_t max_attempts)
 {
-    mmap_deleter deleter;
-    mvcc_mmap_resource_pool& pool = mut_resource_pool(container_);
-    for (std::size_t attempts = 0; !pool.deleter_list.empty() && (max_attempts == 0 || attempts < max_attempts); ++attempts)
-    {
-	if (pool.deleter_list.pop(deleter))
-	{
-	    pool.owner_token.registry.insert(std::make_pair(deleter.key, deleter));
-	}
-    }
+    return owner_handle_.process_write_metadata(max_attempts);
 }
 
 std::string mvcc_mmap_owner::collect_garbage(std::size_t max_attempts)
 {
-    std::string from;
-    return collect_garbage(from, max_attempts);
+    return owner_handle_.collect_garbage(max_attempts);
 }
 
 std::string mvcc_mmap_owner::collect_garbage(const std::string& from, std::size_t max_attempts)
 {
-    mvcc_mmap_resource_pool& pool = mut_resource_pool(container_);
-    if (pool.owner_token.registry.empty())
-    {
-	return "";
-    }
-    mmap_key key(from.c_str());
-    registry_map::const_iterator iter = from.empty() ?
-	    pool.owner_token.registry.begin() :
-	    pool.owner_token.registry.find(key);
-    if (pool.owner_token.oldest_revision_found)
-    {
-	mvcc_revision oldest = pool.owner_token.oldest_revision_found.get();
-	for (std::size_t attempts = 0; iter != pool.owner_token.registry.end() && (max_attempts == 0 || attempts < max_attempts); ++attempts, ++iter)
-	{
-	    iter->second.function(container_, iter->first.c_str, oldest);
-	}
-    }
-    if (iter == pool.owner_token.registry.end())
-    {
-	// Next collect attempt should start again from beginning
-	iter = pool.owner_token.registry.begin();
-    }
-    return iter->first.c_str;
+    return owner_handle_.collect_garbage(from, max_attempts);
 }
 
 void mvcc_mmap_owner::flush()

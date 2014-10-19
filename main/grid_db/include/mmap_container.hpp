@@ -14,16 +14,10 @@
 #include <boost/optional.hpp>
 #include <simulation_grid/grid_db/about.hpp>
 #include "role.hpp"
+#include "mvcc_container.hpp"
 
 namespace simulation_grid {
 namespace grid_db {
-
-typedef boost::uint16_t reader_token_id;
-typedef boost::uint16_t writer_token_id;
-
-static const size_t MVCC_READER_LIMIT = (1 << std::numeric_limits<reader_token_id>::digits) - 4; // due to boost::lockfree limit
-static const size_t MVCC_WRITER_LIMIT = 1;
-static const size_t MVCC_MAX_KEY_LENGTH = 31;
 
 struct mvcc_mmap_container
 {
@@ -35,22 +29,6 @@ struct mvcc_mmap_container
     bool exists;
     const boost::filesystem::path path;
     boost::interprocess::managed_mapped_file file;
-};
-
-struct mvcc_mmap_reader_handle : private boost::noncopyable
-{
-    mvcc_mmap_reader_handle(mvcc_mmap_container& container);
-    ~mvcc_mmap_reader_handle();
-    mvcc_mmap_container& container;
-    const reader_token_id token_id;
-};
-
-struct mvcc_mmap_writer_handle : private boost::noncopyable
-{
-    mvcc_mmap_writer_handle(mvcc_mmap_container& container);
-    ~mvcc_mmap_writer_handle();
-    mvcc_mmap_container& container;
-    const writer_token_id token_id;
 };
 
 class mvcc_mmap_reader : private boost::noncopyable
@@ -68,7 +46,7 @@ public:
 #endif
 private:
     mvcc_mmap_container container_;
-    mvcc_mmap_reader_handle reader_handle_;
+    mvcc_reader_handle<boost::interprocess::managed_mapped_file> reader_handle_;
 };
 
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
@@ -100,9 +78,11 @@ public:
 #endif
 private:
     void flush_impl();
+    bool exists_;
     mvcc_mmap_container container_;
-    mvcc_mmap_writer_handle writer_handle_;
-    mvcc_mmap_reader_handle reader_handle_;
+    mvcc_owner_handle<boost::interprocess::managed_mapped_file> owner_handle_;
+    mvcc_writer_handle<boost::interprocess::managed_mapped_file> writer_handle_;
+    mvcc_reader_handle<boost::interprocess::managed_mapped_file> reader_handle_;
     boost::interprocess::file_lock file_lock_;
 };
 
