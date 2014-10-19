@@ -16,7 +16,7 @@ def configure(confCtx):
     solution = Solution.fromContext(confCtx)
     confCtx.env.solution = solution
     confCtx.scan()
-    confCtx.env.append_value('CXXFLAGS', ['-Wall', '-Wextra', '-O2', '-g',
+    confCtx.env.append_value('CXXFLAGS', ['-Wall', '-Wextra', '-O2', '-ggdb',
 	    '-fno-builtin-malloc', '-fno-builtin-calloc', '-fno-builtin-realloc', 
 	    '-fno-builtin-free', '-pthread', '-Wl,-z,origin'])
 
