@@ -49,7 +49,7 @@ struct mvcc_key
 template <class memory_t>
 struct mvcc_deleter_
 {
-    typedef boost::function<void(mvcc_owner_handle<memory_t>&, const char*, mvcc_revision)> delete_function;
+    typedef boost::function<void(memory_t&, const char*, mvcc_revision)> delete_function;
     mvcc_deleter_();
     mvcc_deleter_(const mvcc_key& k, const delete_function& fn);
     mvcc_deleter_(const mvcc_deleter_<memory_t>& other);
@@ -218,9 +218,9 @@ struct mvcc_record
 #endif
 
 template <class memory_t, class value_t>
-void delete_oldest(mvcc_owner_handle<memory_t>& handle, const char* key, mvcc_revision threshold)
+void delete_oldest(memory_t& memory, const char* key, mvcc_revision threshold)
 {
-    mvcc_record<value_t>* record = handle.template find_mut< mvcc_record<value_t> >(key);
+    mvcc_record<value_t>* record = memory.template find< mvcc_record<value_t> >(key).first;
     if (record)
     {
 	const mvcc_value<value_t>& value = record->ringbuf.back();
@@ -788,7 +788,7 @@ std::string mvcc_owner_handle<memory_t>::collect_garbage(const std::string& from
 	mvcc_revision oldest = pool.owner_token.oldest_revision_found.get();
 	for (std::size_t attempts = 0; iter != pool.owner_token.registry.end() && (max_attempts == 0 || attempts < max_attempts); ++attempts, ++iter)
 	{
-	    iter->second.function(*this, iter->first.c_str, oldest);
+	    iter->second.function(memory, iter->first.c_str, oldest);
 	}
     }
     if (iter == pool.owner_token.registry.end())

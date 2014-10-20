@@ -90,8 +90,6 @@ class mvcc_owner_handle : private boost::noncopyable
 public:
     mvcc_owner_handle(open_mode mode, memory_t& memory);
     ~mvcc_owner_handle();
-    template <class value_t> const value_t* find_const(const char* key) const;
-    template <class value_t> value_t* find_mut(const char* key);
     void process_read_metadata(reader_token_id from = 0, reader_token_id to = MVCC_READER_LIMIT);
     void process_write_metadata(std::size_t max_attempts = 0);
     std::string collect_garbage(std::size_t max_attempts = 0);
@@ -103,6 +101,8 @@ public:
 private:
     void check();
     void init();
+    template <class value_t> const value_t* find_const(const char* key) const;
+    template <class value_t> value_t* find_mut(const char* key);
     memory_t& memory;
 };
 
