@@ -27,7 +27,6 @@ class mvcc_reader_handle : private boost::noncopyable
 public:
     mvcc_reader_handle(memory_t& memory);
     ~mvcc_reader_handle();
-    void check();
     template <class value_t> bool exists(const char* key) const;
     template <class value_t> const boost::optional<const value_t&> read(const char* key) const;
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
@@ -51,7 +50,6 @@ class mvcc_writer_handle : private boost::noncopyable
 public:
     mvcc_writer_handle(memory_t& memory);
     ~mvcc_writer_handle();
-    void check();
     template <class value_t> void write(const char* key, const value_t& value);
     template <class value_t> void remove(const char* key);
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
@@ -92,8 +90,6 @@ public:
     std::vector<std::string> get_registered_keys() const;
 #endif
 private:
-    void check();
-    void init();
     template <class value_t> const value_t* find_const(const char* key) const;
     template <class value_t> value_t* find_mut(const char* key);
     memory_t& memory;

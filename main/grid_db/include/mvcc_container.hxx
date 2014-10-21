@@ -279,7 +279,7 @@ mvcc_header& mut_header_ref_(memory_t& memory)
 }
 
 template <class memory_t>
-void check_(const memory_t& memory)
+void check(const memory_t& memory)
 {
     const mvcc_header* header = const_header_ptr_(memory);
     if (UNLIKELY_EXT(!header))
@@ -379,7 +379,9 @@ mvcc_resource_pool_<memory_t>::mvcc_resource_pool_(memory_t* memory) :
 template <class memory_t>
 mvcc_reader_handle<memory_t>::mvcc_reader_handle(memory_t& memory) :
     memory(memory), token_id(acquire_reader_token(memory))
-{ }
+{
+    check(memory);
+}
 
 template <class memory_t>
 mvcc_reader_handle<memory_t>::~mvcc_reader_handle()
@@ -392,12 +394,6 @@ mvcc_reader_handle<memory_t>::~mvcc_reader_handle()
     {
 	// do nothing
     }
-}
-
-template <class memory_t>
-void mvcc_reader_handle<memory_t>::check()
-{
-    check_(memory);
 }
 
 template <class memory_t>
@@ -532,7 +528,9 @@ std::size_t mvcc_reader_handle<memory_t>::get_history_depth(const char* key) con
 template <class memory_t>
 mvcc_writer_handle<memory_t>::mvcc_writer_handle(memory_t& memory) :
     memory(memory), token_id(acquire_writer_token(memory))
-{ }
+{
+    check(memory);
+}
 
 template <class memory_t>
 mvcc_writer_handle<memory_t>::~mvcc_writer_handle()
@@ -545,12 +543,6 @@ mvcc_writer_handle<memory_t>::~mvcc_writer_handle()
     {
 	// do nothing
     }
-}
-
-template <class memory_t>
-void mvcc_writer_handle<memory_t>::check()
-{
-    check_(memory);
 }
 
 template <class memory_t>
@@ -663,42 +655,30 @@ boost::uint64_t mvcc_writer_handle<memory_t>::get_last_write_revision() const
 #endif
 
 template <class memory_t>
-mvcc_owner_handle<memory_t>::mvcc_owner_handle(open_mode mode, memory_t& memory) :
-    memory(memory)
-{
-    if (mode == open_new)
-    {
-	init();
-    }
-    else
-    {
-	check();
-    }
-}
-
-template <class memory_t>
-mvcc_owner_handle<memory_t>::~mvcc_owner_handle()
-{ }
-
-template <class memory_t>
-void mvcc_owner_handle<memory_t>::check()
-{
-    check_(memory);
-}
-
-template <class memory_t>
-void init_(memory_t& memory)
+void init(memory_t& memory)
 {
     memory.template construct<mvcc_header>(HEADER_KEY)();
     memory.template construct< mvcc_resource_pool_<memory_t> >(RESOURCE_POOL_KEY)(&memory);
 }
 
 template <class memory_t>
-void mvcc_owner_handle<memory_t>::init()
+mvcc_owner_handle<memory_t>::mvcc_owner_handle(open_mode mode, memory_t& memory) :
+    memory(memory)
 {
-    boost::function<void ()> init_func(boost::bind(&init_<memory_t>, boost::ref(memory)));
-    memory.get_segment_manager()->atomic_func(init_func);
+    if (mode == open_new)
+    {
+	boost::function<void ()> init_func(boost::bind(&init<memory_t>, boost::ref(memory)));
+	memory.get_segment_manager()->atomic_func(init_func);
+    }
+    else
+    {
+	check(memory);
+    }
 }
+
+template <class memory_t>
+mvcc_owner_handle<memory_t>::~mvcc_owner_handle()
+{ }
 
 template <class memory_t>
 template <class value_t>

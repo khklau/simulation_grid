@@ -48,15 +48,6 @@ mvcc_mmap_reader::mvcc_mmap_reader(const bfs::path& path)
 try :
     container_(reader, path), reader_handle_(container_.file)
 {
-    if (bfs::exists(path))
-    {
-	reader_handle_.check();
-    }
-    else
-    {
-	throw grid_db_error("Given container does not exist")
-		<< info_db_identity(path.string());
-    }
 }
 catch (grid_db_condition& cond)
 {
