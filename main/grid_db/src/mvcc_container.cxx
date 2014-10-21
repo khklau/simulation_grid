@@ -1,3 +1,4 @@
+#include "mvcc_container.hpp"
 #include <cstring>
 #include <exception>
 #include <iostream>
@@ -9,7 +10,6 @@
 #include <boost/thread/thread.hpp>
 #include <simulation_grid/core/compiler_extensions.hpp>
 #include <simulation_grid/grid_db/exception.hpp>
-#include "mvcc_container.hpp"
 #include "mvcc_container.hxx"
 
 namespace bfs = boost::filesystem;
