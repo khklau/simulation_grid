@@ -278,9 +278,33 @@ mvcc_header& mut_header_ref(memory_t& memory)
 }
 
 template <class memory_t, class value_t>
+const mvcc_record<value_t>* const_record_ptr(const memory_t& memory, const char* key)
+{
+    return const_cast<memory_t&>(memory).template find< const mvcc_record<value_t> >(key).first;
+}
+
+template <class memory_t, class value_t>
+mvcc_record<value_t>* mut_record_ptr(memory_t& memory, const char* key)
+{
+    return memory.template find< mvcc_record<value_t> >(key).first;
+}
+
+template <class memory_t, class value_t>
+const mvcc_record<value_t>& const_record_ref(const memory_t& memory, const char* key)
+{
+    return *const_record_ptr(memory);
+}
+
+template <class memory_t, class value_t>
+mvcc_record<value_t>& mut_record_ref(memory_t& memory, const char* key)
+{
+    return *mut_record_ptr(memory);
+}
+
+template <class memory_t, class value_t>
 void delete_oldest(memory_t& memory, const char* key, mvcc_revision threshold)
 {
-    mvcc_record<value_t>* record = memory.template find< mvcc_record<value_t> >(key).first;
+    mvcc_record<value_t>* record = mut_record_ptr<memory_t, value_t>(memory, key);
     if (record)
     {
 	const mvcc_value<value_t>& value = record->ringbuf.back();
@@ -360,19 +384,9 @@ mvcc_reader_handle<memory_t>::~mvcc_reader_handle()
 
 template <class memory_t>
 template <class value_t>
-const value_t* mvcc_reader_handle<memory_t>::find_const(const char* key) const
-{
-    // Unfortunately boost::interprocess::managed_mapped_file::find is not a const function
-    // due to use of internal locks which were not declared as mutable, so this function
-    // has been provided to fake constness
-    return const_cast<mvcc_reader_handle<memory_t>*>(this)->memory.template find<value_t>(key).first;
-}
-
-template <class memory_t>
-template <class value_t>
 bool mvcc_reader_handle<memory_t>::exists(const char* key) const
 {
-    const mvcc_record<value_t>* record = find_const< mvcc_record<value_t> >(key);
+    const mvcc_record<value_t>* record = const_record_ptr<memory_t, value_t>(memory, key);
     return record && !record->ringbuf.empty() && !record->want_removed;
 }
 
@@ -380,7 +394,7 @@ template <class memory_t>
 template <class value_t>
 const boost::optional<const value_t&> mvcc_reader_handle<memory_t>::read(const char* key) const
 {
-    const mvcc_record<value_t>* record = find_const< mvcc_record<value_t> >(key);
+    const mvcc_record<value_t>* record = const_record_ptr<memory_t, value_t>(memory, key);
     boost::optional<const value_t&> result;
     if (record && !record->ringbuf.empty() && !record->want_removed)
     {
@@ -444,7 +458,7 @@ template <class memory_t>
 template <class value_t>
 boost::uint64_t mvcc_reader_handle<memory_t>::get_oldest_revision(const char* key) const
 {
-    const mvcc_record<value_t>* record = find_const< mvcc_record<value_t> >(key);
+    const mvcc_record<value_t>* record = const_record_ptr<memory_t, value_t>(memory, key);
     if (UNLIKELY_EXT(!record || record->ringbuf.empty()))
     {
 	return 0U;
@@ -459,7 +473,7 @@ template <class memory_t>
 template <class value_t>
 boost::uint64_t mvcc_reader_handle<memory_t>::get_newest_revision(const char* key) const
 {
-    const mvcc_record<value_t>* record = find_const< mvcc_record<value_t> >(key);
+    const mvcc_record<value_t>* record = const_record_ptr<memory_t, value_t>(memory, key);
     if (UNLIKELY_EXT(!record || record->ringbuf.empty()))
     {
 	return 0U;
@@ -474,7 +488,7 @@ template <class memory_t>
 template <class value_t> 
 std::size_t mvcc_reader_handle<memory_t>::get_history_depth(const char* key) const
 {
-    const mvcc_record<value_t>* record = find_const< mvcc_record<value_t> >(key);
+    const mvcc_record<value_t>* record = const_record_ptr<memory_t, value_t>(memory, key);
     if (!record || record->ringbuf.empty())
     {
 	return 0U;
@@ -507,30 +521,13 @@ mvcc_writer_handle<memory_t>::~mvcc_writer_handle()
     }
 }
 
-template <class memory_t>
-template <class value_t>
-const value_t* mvcc_writer_handle<memory_t>::find_const(const char* key) const
-{
-    // Unfortunately boost::interprocess::managed_mapped_file::find is not a const function
-    // due to use of internal locks which were not declared as mutable, so this function
-    // has been provided to fake constness
-    return const_cast<mvcc_writer_handle<memory_t>*>(this)->memory.template find<value_t>(key).first;
-}
-
-template <class memory_t>
-template <class value_t>
-value_t* mvcc_writer_handle<memory_t>::find_mut(const char* key)
-{
-    return memory.template find<value_t>(key).first;
-}
-
 // TODO: provide strong exception guarantee
 template <class memory_t>
 template <class value_t>
 void mvcc_writer_handle<memory_t>::write(const char* key, const value_t& value)
 {
     mvcc_key mkey(key);
-    if (!find_const< mvcc_record<value_t> >(mkey.c_str))
+    if (!const_record_ptr<memory_t, value_t>(memory, mkey.c_str))
     {
 	bra::mt19937 seed;
 	bra::uniform_int_distribution<> generator(100, 200);
@@ -562,7 +559,7 @@ template <class memory_t>
 template <class value_t>
 void mvcc_writer_handle<memory_t>::remove(const char* key)
 {
-    mvcc_record<value_t>* record = find_mut< mvcc_record<value_t> >(key);
+    mvcc_record<value_t>* record = mut_record_ptr<memory_t, value_t>(memory, key);
     if (record)
     {
 	record->want_removed = true;
@@ -634,23 +631,6 @@ mvcc_owner_handle<memory_t>::mvcc_owner_handle(open_mode mode, memory_t& memory)
 template <class memory_t>
 mvcc_owner_handle<memory_t>::~mvcc_owner_handle()
 { }
-
-template <class memory_t>
-template <class value_t>
-const value_t* mvcc_owner_handle<memory_t>::find_const(const char* key) const
-{
-    // Unfortunately boost::interprocess::managed_mapped_file::find is not a const function
-    // due to use of internal locks which were not declared as mutable, so this function
-    // has been provided to fake constness
-    return const_cast<mvcc_owner_handle<memory_t>*>(this)->memory.template find<value_t>(key).first;
-}
-
-template <class memory_t>
-template <class value_t>
-value_t* mvcc_owner_handle<memory_t>::find_mut(const char* key)
-{
-    return memory.template find<value_t>(key).first;
-}
 
 template <class memory_t>
 void mvcc_owner_handle<memory_t>::process_read_metadata(reader_token_id from, reader_token_id to)

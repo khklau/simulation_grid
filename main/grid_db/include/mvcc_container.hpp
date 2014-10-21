@@ -39,7 +39,6 @@ public:
 private:
     static reader_token_id acquire_reader_token(memory_t& memory);
     static void release_reader_token(memory_t& memory, const reader_token_id& id);
-    template <class value_t> const value_t* find_const(const char* key) const;
     memory_t& memory;
     const reader_token_id token_id;
 };
@@ -59,8 +58,6 @@ public:
 private:
     static writer_token_id acquire_writer_token(memory_t& memory);
     static void release_writer_token(memory_t& memory, const writer_token_id& id);
-    template <class value_t> const value_t* find_const(const char* key) const;
-    template <class value_t> value_t* find_mut(const char* key);
     memory_t& memory;
     const writer_token_id token_id;
 };
@@ -90,8 +87,6 @@ public:
     std::vector<std::string> get_registered_keys() const;
 #endif
 private:
-    template <class value_t> const value_t* find_const(const char* key) const;
-    template <class value_t> value_t* find_mut(const char* key);
     memory_t& memory;
 };
 
