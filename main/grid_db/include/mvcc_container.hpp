@@ -5,16 +5,9 @@
 #include <limits>
 #include <boost/cstdint.hpp>
 #include <boost/filesystem/path.hpp>
-#include <boost/interprocess/managed_mapped_file.hpp>
-#include <boost/interprocess/managed_shared_memory.hpp>
-#include <boost/interprocess/segment_manager.hpp>
-#include <boost/interprocess/sync/file_lock.hpp>
-#include <boost/lockfree/policies.hpp>
-#include <boost/lockfree/queue.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
 #include <simulation_grid/grid_db/about.hpp>
-#include "role.hpp"
 
 namespace simulation_grid {
 namespace grid_db {

@@ -11,8 +11,9 @@
 #include <boost/interprocess/allocators/allocator.hpp>
 #include <boost/interprocess/creation_tags.hpp>
 #include <boost/interprocess/containers/map.hpp>
-#include <boost/interprocess/managed_mapped_file.hpp>
-#include <boost/interprocess/managed_shared_memory.hpp>
+#include <boost/interprocess/segment_manager.hpp>
+#include <boost/lockfree/policies.hpp>
+#include <boost/lockfree/queue.hpp>
 #include <boost/optional.hpp>
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int_distribution.hpp>
@@ -151,8 +152,6 @@ struct mvcc_owner_token_
 {
     typedef typename mvcc_map<mvcc_key, mvcc_deleter_<memory_t>, memory_t>::type registry_map_;
     mvcc_owner_token_(memory_t* file);
-    boost::optional<mvcc_revision> last_flush_revision;
-    boost::optional<bpt::ptime> last_flush_timestamp;
     boost::optional<reader_token_id> oldest_reader_id_found;
     boost::optional<mvcc_revision> oldest_revision_found;
     boost::optional<bpt::ptime> oldest_timestamp_found;

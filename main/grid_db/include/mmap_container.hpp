@@ -4,6 +4,7 @@
 #include <string>
 #include <limits>
 #include <boost/cstdint.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/interprocess/managed_mapped_file.hpp>
 #include <boost/interprocess/segment_manager.hpp>
@@ -84,6 +85,7 @@ private:
     mvcc_writer_handle<boost::interprocess::managed_mapped_file> writer_handle_;
     mvcc_reader_handle<boost::interprocess::managed_mapped_file> reader_handle_;
     boost::interprocess::file_lock file_lock_;
+    boost::optional<boost::posix_time::ptime> last_flush_timestamp_;
 };
 
 } // namespace grid_db
