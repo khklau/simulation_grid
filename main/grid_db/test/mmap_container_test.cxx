@@ -115,8 +115,8 @@ public:
     ~service_client();
     sgd::result_msg send(sgd::instruction_msg& msg);
     void send_terminate(boost::uint32_t sequence);
-    void send_write_string(boost::uint32_t sequence, const char* key, const string_value& value);
-    void send_write_struct(boost::uint32_t sequence, const char* key, const struct_value& value);
+    void send_write_string(boost::uint32_t sequence, const char* key, const sgd::string_value& value);
+    void send_write_struct(boost::uint32_t sequence, const char* key, const sgd::struct_value& value);
     void send_remove_string(boost::uint32_t sequence, const char* key);
     void send_remove_struct(boost::uint32_t sequence, const char* key);
     void send_process_read_metadata(boost::uint32_t sequence, sgd::reader_token_id from = 0, sgd::reader_token_id to = sgd::MVCC_READER_LIMIT);
@@ -213,7 +213,7 @@ void service_client::send_terminate(boost::uint32_t sequence)
     terminate_sent_ = true;
 }
 
-void service_client::send_write_string(boost::uint32_t sequence, const char* key, const string_value& value)
+void service_client::send_write_string(boost::uint32_t sequence, const char* key, const sgd::string_value& value)
 {
     sgd::instruction_msg inmsg;
     sgd::write_string_instr instr;
@@ -226,7 +226,7 @@ void service_client::send_write_string(boost::uint32_t sequence, const char* key
     EXPECT_EQ(inmsg.get_write_string().sequence(), outmsg.get_confirmation().sequence()) << "sequence number mismatch";
 }
 
-void service_client::send_write_struct(boost::uint32_t sequence, const char* key, const struct_value& value)
+void service_client::send_write_struct(boost::uint32_t sequence, const char* key, const sgd::struct_value& value)
 {
     sgd::instruction_msg inmsg;
     sgd::write_struct_instr instr;
@@ -479,20 +479,20 @@ TEST(mmap_container_test, access_historical)
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
     service_client client(conf);
-    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
     const char* key = "access_historical";
 
-    string_value expected1("11");
+    sgd::string_value expected1("11");
     client.send_write_string(1U, key, expected1);
-    ASSERT_TRUE(readerA.exists<string_value>(key)) << "write failed";
-    const boost::optional<const string_value&> actual1 = readerA.read<string_value>(key);
+    ASSERT_TRUE(readerA.exists<sgd::string_value>(key)) << "write failed";
+    const boost::optional<const sgd::string_value&> actual1 = readerA.read<sgd::string_value>(key);
     EXPECT_TRUE(actual1) << "read failed";
     EXPECT_EQ(expected1, actual1.get()) << "read value is not the value just written";
 
-    string_value expected2("22");
+    sgd::string_value expected2("22");
     client.send_write_string(2U, key, expected2);
-    ASSERT_TRUE(readerA.exists<string_value>(key)) << "write failed";
-    const boost::optional<const string_value&> actual2 = readerA.read<string_value>(key);
+    ASSERT_TRUE(readerA.exists<sgd::string_value>(key)) << "write failed";
+    const boost::optional<const sgd::string_value&> actual2 = readerA.read<sgd::string_value>(key);
     EXPECT_TRUE(actual2) << "read failed";
     EXPECT_EQ(expected2, actual2.get()) << "read value is not the value just written";
     EXPECT_EQ(expected1, actual1.get()) << "incorrect historical value";
@@ -502,7 +502,7 @@ TEST(mmap_container_test, access_historical)
 
 TEST(mmap_container_test, atomic_global_revision)
 {
-    boost::atomic<mvcc_revision> tmp;
+    boost::atomic<sgd::mvcc_revision> tmp;
     ASSERT_TRUE(tmp.is_lock_free()) << "mvcc_revision is not atomic";
 }
 
@@ -511,14 +511,14 @@ TEST(mmap_container_test, process_read_metadata_single_key)
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
     service_client client(conf);
-    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
-    mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
     const char* key = "process_read_metadata_single";
 
-    string_value expected1("abc1");
+    sgd::string_value expected1("abc1");
     client.send_write_string(10U, key, expected1);
-    const boost::optional<const string_value&> readerA_actual1 = readerA.read<string_value>(key);
-    const boost::optional<const string_value&> readerB_actual1 = readerB.read<string_value>(key);
+    const boost::optional<const sgd::string_value&> readerA_actual1 = readerA.read<sgd::string_value>(key);
+    const boost::optional<const sgd::string_value&> readerB_actual1 = readerB.read<sgd::string_value>(key);
     EXPECT_TRUE(readerA_actual1) << "read failed";
     EXPECT_TRUE(readerB_actual1) << "read failed";
     EXPECT_EQ(readerA_actual1.get(), expected1) << "value read is not the value just written";
@@ -531,10 +531,10 @@ TEST(mmap_container_test, process_read_metadata_single_key)
     EXPECT_EQ(readerA_rev1, oldest_rev1) << "oldest global read revision is not correct";
     EXPECT_EQ(readerB_rev1, oldest_rev1) << "oldest global read revision is not correct";
 
-    string_value expected2("abc2");
+    sgd::string_value expected2("abc2");
     client.send_write_string(20U, key, expected2);
-    const boost::optional<const string_value&> readerA_actual2 = readerA.read<string_value>(key);
-    const boost::optional<const string_value&> readerB_actual2 = readerB.read<string_value>(key);
+    const boost::optional<const sgd::string_value&> readerA_actual2 = readerA.read<sgd::string_value>(key);
+    const boost::optional<const sgd::string_value&> readerB_actual2 = readerB.read<sgd::string_value>(key);
     EXPECT_TRUE(readerA_actual2) << "read failed";
     EXPECT_TRUE(readerB_actual2) << "read failed";
     EXPECT_EQ(readerA_actual2.get(), expected2) << "value read is not the value just written";
@@ -547,9 +547,9 @@ TEST(mmap_container_test, process_read_metadata_single_key)
     EXPECT_EQ(readerA_rev2, oldest_rev2) << "oldest global read revision is not correct";
     EXPECT_EQ(readerB_rev2, oldest_rev2) << "oldest global read revision is not correct";
 
-    string_value expected3("abc3");
+    sgd::string_value expected3("abc3");
     client.send_write_string(30U, key, expected3);
-    const boost::optional<const string_value&> readerA_actual3 = readerA.read<string_value>(key);
+    const boost::optional<const sgd::string_value&> readerA_actual3 = readerA.read<sgd::string_value>(key);
     EXPECT_TRUE(readerA_actual3) << "read failed";
     EXPECT_EQ(readerA_actual3.get(), expected3) << "value read is not the value just written";
     client.send_process_read_metadata(31U);
@@ -560,7 +560,7 @@ TEST(mmap_container_test, process_read_metadata_single_key)
     EXPECT_EQ(readerB_rev3, oldest_rev3) << "oldest global read revision is not correct";
     EXPECT_EQ(readerB_rev2, readerB_rev3) << "last read revision is not correct";
 
-    const boost::optional<const string_value&> readerB_actual3 = readerA.read<string_value>("foobar");
+    const boost::optional<const sgd::string_value&> readerB_actual3 = readerA.read<sgd::string_value>("foobar");
     EXPECT_FALSE(readerB_actual3) << "read succeeded";
 
     client.send_terminate(40U);
@@ -571,16 +571,16 @@ TEST(mmap_container_test, process_read_metadata_multi_key)
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
     service_client client(conf);
-    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
-    mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
     const char* keyA = "process_read_metadata_multi_A";
     const char* keyB = "process_read_metadata_multi_B";
     const char* keyC = "process_read_metadata_multi_C";
 
-    string_value expectedA1("abc1");
+    sgd::string_value expectedA1("abc1");
     client.send_write_string(10U, keyA, expectedA1);
-    const boost::optional<const string_value&> readerA_actual1 = readerA.read<string_value>(keyA);
-    const boost::optional<const string_value&> readerB_actual1 = readerB.read<string_value>(keyA);
+    const boost::optional<const sgd::string_value&> readerA_actual1 = readerA.read<sgd::string_value>(keyA);
+    const boost::optional<const sgd::string_value&> readerB_actual1 = readerB.read<sgd::string_value>(keyA);
     EXPECT_TRUE(readerA_actual1) << "read failed";
     EXPECT_TRUE(readerB_actual1) << "read failed";
     EXPECT_EQ(readerA_actual1.get(), expectedA1) << "value read is not the value just written";
@@ -593,10 +593,10 @@ TEST(mmap_container_test, process_read_metadata_multi_key)
     EXPECT_EQ(readerA_rev1, oldest_rev1) << "oldest global read revision is not correct";
     EXPECT_EQ(readerB_rev1, oldest_rev1) << "oldest global read revision is not correct";
 
-    string_value expectedB1("xyz1");
+    sgd::string_value expectedB1("xyz1");
     client.send_write_string(20U, keyB, expectedB1);
-    const boost::optional<const string_value&> readerA_actual2 = readerA.read<string_value>(keyB);
-    const boost::optional<const string_value&> readerB_actual2 = readerB.read<string_value>(keyB);
+    const boost::optional<const sgd::string_value&> readerA_actual2 = readerA.read<sgd::string_value>(keyB);
+    const boost::optional<const sgd::string_value&> readerB_actual2 = readerB.read<sgd::string_value>(keyB);
     EXPECT_TRUE(readerA_actual2) << "read failed";
     EXPECT_TRUE(readerB_actual2) << "read failed";
     EXPECT_EQ(readerA_actual2.get(), expectedB1) << "value read is not the value just written";
@@ -610,9 +610,9 @@ TEST(mmap_container_test, process_read_metadata_multi_key)
     EXPECT_EQ(readerA_rev2, oldest_rev2) << "oldest global read revision is not correct";
     EXPECT_EQ(readerB_rev2, oldest_rev2) << "oldest global read revision is not correct";
 
-    string_value expectedC1("!@#1");
+    sgd::string_value expectedC1("!@#1");
     client.send_write_string(30U, keyC, expectedC1);
-    const boost::optional<const string_value&> readerB_actual3 = readerB.read<string_value>(keyC);
+    const boost::optional<const sgd::string_value&> readerB_actual3 = readerB.read<sgd::string_value>(keyC);
     EXPECT_TRUE(readerB_actual3) << "read failed";
     EXPECT_EQ(readerB_actual3.get(), expectedC1) << "value read is not the value just written";
     client.send_process_read_metadata(31U);
@@ -624,7 +624,7 @@ TEST(mmap_container_test, process_read_metadata_multi_key)
     EXPECT_TRUE(oldest_rev3 < readerB_rev3) << "oldest global read revision is not correct";
     EXPECT_EQ(readerA_rev3,  oldest_rev3) << "oldest global read revision is not correct";
 
-    const boost::optional<const string_value&> readerA_actual3 = readerA.read<string_value>("foobar");
+    const boost::optional<const sgd::string_value&> readerA_actual3 = readerA.read<sgd::string_value>("foobar");
     EXPECT_FALSE(readerA_actual3) << "read succeeded";
 
     client.send_terminate(40U);
@@ -635,26 +635,26 @@ TEST(mmap_container_test, process_read_metadata_subset)
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
     service_client client(conf);
-    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
-    mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
-    mvcc_mmap_reader readerC(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerC(bfs::path(conf.name.c_str()));
     const char* keyA = "process_read_metadata_multi_A";
     const char* keyB = "process_read_metadata_multi_B";
 
-    string_value expectedA1("abc123");
+    sgd::string_value expectedA1("abc123");
     client.send_write_string(10U, keyA, expectedA1);
-    readerA.read<string_value>(keyA);
-    readerB.read<string_value>(keyA);
-    readerC.read<string_value>(keyA);
+    readerA.read<sgd::string_value>(keyA);
+    readerB.read<sgd::string_value>(keyA);
+    readerC.read<sgd::string_value>(keyA);
 
-    string_value expectedB1("def456");
+    sgd::string_value expectedB1("def456");
     client.send_write_string(20U, keyB, expectedB1);
-    readerA.read<string_value>(keyB);
-    readerB.read<string_value>(keyB);
+    readerA.read<sgd::string_value>(keyB);
+    readerB.read<sgd::string_value>(keyB);
 
-    string_value expectedA2("xyz123");
+    sgd::string_value expectedA2("xyz123");
     client.send_write_string(30U, keyA, expectedA2);
-    readerA.read<string_value>(keyA);
+    readerA.read<sgd::string_value>(keyA);
 
     client.send_process_read_metadata(40U, readerA.get_reader_token_id(), readerC.get_reader_token_id());
     boost::uint64_t readerA_rev = readerA.get_last_read_revision();
@@ -675,14 +675,14 @@ TEST(mmap_container_test, process_write_metadata_single_key)
     service_client client(conf);
     std::string key("process_write_metadata_single");
 
-    string_value value1("abc123");
+    sgd::string_value value1("abc123");
     client.send_write_string(10U, key.c_str(), value1);
     client.send_process_write_metadata(11U);
     std::vector<std::string> registered1(client.send_get_registered_keys(12U));
     EXPECT_EQ(registered1.size(), 1U) << "incorrect number of registered values";
     EXPECT_EQ(registered1.at(0), key) << "unexpected registered key";
 
-    string_value value2("abc456");
+    sgd::string_value value2("abc456");
     client.send_write_string(20U, key.c_str(), value2);
     client.send_process_write_metadata(21U);
     std::vector<std::string> registered2(client.send_get_registered_keys(22U));
@@ -701,9 +701,9 @@ TEST(mmap_container_test, process_write_metadata_multi_key)
     std::string keyB("process_write_metadata_B");
     std::string keyC("process_write_metadata_C");
 
-    string_value valueC1("abc123");
+    sgd::string_value valueC1("abc123");
     client.send_write_string(10U, keyC.c_str(), valueC1);
-    string_value valueB1("def123");
+    sgd::string_value valueB1("def123");
     client.send_write_string(11U, keyB.c_str(), valueB1);
     client.send_process_write_metadata(12U);
     std::vector<std::string> registered1(client.send_get_registered_keys(13U));
@@ -711,9 +711,9 @@ TEST(mmap_container_test, process_write_metadata_multi_key)
     EXPECT_EQ(registered1.at(0), keyB) << "unexpected registered key";
     EXPECT_EQ(registered1.at(1), keyC) << "unexpected registered key";
 
-    string_value valueC2("abc456");
+    sgd::string_value valueC2("abc456");
     client.send_write_string(20U, keyC.c_str(), valueC2);
-    string_value valueA1("ghi123");
+    sgd::string_value valueA1("ghi123");
     client.send_write_string(21U, keyA.c_str(), valueA1);
     client.send_process_write_metadata(22U);
     std::vector<std::string> registered2(client.send_get_registered_keys(23U));
@@ -734,18 +734,18 @@ TEST(mmap_container_test, process_write_metadata_subset)
     std::string keyB("process_write_metadata_B");
     std::string keyC("process_write_metadata_C");
 
-    string_value valueC1("abc123");
+    sgd::string_value valueC1("abc123");
     client.send_write_string(10U, keyC.c_str(), valueC1);
-    string_value valueB1("def123");
+    sgd::string_value valueB1("def123");
     client.send_write_string(11U, keyB.c_str(), valueB1);
     client.send_process_write_metadata(12U, 1U);
     std::vector<std::string> registered1(client.send_get_registered_keys(13U));
     EXPECT_EQ(registered1.size(), 1U) << "incorrect number of registered values";
     EXPECT_EQ(registered1.at(0), keyC) << "unexpected registered key";
 
-    string_value valueC2("abc456");
+    sgd::string_value valueC2("abc456");
     client.send_write_string(20U, keyC.c_str(), valueC2);
-    string_value valueA1("ghi123");
+    sgd::string_value valueA1("ghi123");
     client.send_write_string(21U, keyA.c_str(), valueA1);
     client.send_process_write_metadata(22U, 1U);
     std::vector<std::string> registered2(client.send_get_registered_keys(23U));
@@ -768,42 +768,42 @@ TEST(mmap_container_test, collect_garbage_single_key_single_type)
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
     service_client client(conf);
-    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
-    mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
     std::string keyA("collect_garbage_A");
 
     std::size_t depth1 = 0;
-    string_value valueA1("abc123");
+    sgd::string_value valueA1("abc123");
     client.send_write_string(10U, keyA.c_str(), valueA1);
     ++depth1;
-    readerA.read<string_value>(keyA.c_str());
-    readerB.read<string_value>(keyA.c_str());
-    boost::uint64_t oldestrevA1 = readerA.get_oldest_revision<string_value>(keyA.c_str());
-    boost::uint64_t oldestrevB1 = readerB.get_oldest_revision<string_value>(keyA.c_str());
+    readerA.read<sgd::string_value>(keyA.c_str());
+    readerB.read<sgd::string_value>(keyA.c_str());
+    boost::uint64_t oldestrevA1 = readerA.get_oldest_revision<sgd::string_value>(keyA.c_str());
+    boost::uint64_t oldestrevB1 = readerB.get_oldest_revision<sgd::string_value>(keyA.c_str());
     EXPECT_EQ(oldestrevA1, oldestrevB1) << "oldest revision of same value is inconsistent";
-    string_value valueA2("def123");
+    sgd::string_value valueA2("def123");
     client.send_write_string(11U, keyA.c_str(), valueA2);
     ++depth1;
     EXPECT_EQ(depth1, client.send_get_string_history_depth(12U, keyA.c_str())) << "unexpected history depth";
-    readerA.read<string_value>(keyA.c_str());
-    boost::uint64_t oldestrevA2 = readerA.get_oldest_revision<string_value>(keyA.c_str());
-    boost::uint64_t oldestrevB2 = readerB.get_oldest_revision<string_value>(keyA.c_str());
+    readerA.read<sgd::string_value>(keyA.c_str());
+    boost::uint64_t oldestrevA2 = readerA.get_oldest_revision<sgd::string_value>(keyA.c_str());
+    boost::uint64_t oldestrevB2 = readerB.get_oldest_revision<sgd::string_value>(keyA.c_str());
     EXPECT_EQ(oldestrevA2, oldestrevB2) << "oldest revision of same value is inconsistent";
     client.send_process_read_metadata(13U);
     client.send_process_write_metadata(14U);
     boost::uint64_t oldestrev1 = client.send_get_global_oldest_revision_read(12U);
     EXPECT_EQ(oldestrev1, oldestrevA1) << "global oldest revision read is wrong";
     client.send_collect_garbage(15U);
-    readerB.read<string_value>(keyA.c_str());
+    readerB.read<sgd::string_value>(keyA.c_str());
     EXPECT_EQ(depth1, client.send_get_string_history_depth(16U, keyA.c_str())) << "read value was collected";
 
     std::size_t depth2 = depth1;
-    string_value valueA3("ghi23");
+    sgd::string_value valueA3("ghi23");
     client.send_write_string(20U, keyA.c_str(), valueA3);
     ++depth2;
-    readerA.read<string_value>(keyA.c_str());
-    boost::uint64_t oldestrevA3 = readerA.get_oldest_revision<string_value>(keyA.c_str());
-    boost::uint64_t oldestrevB3 = readerB.get_oldest_revision<string_value>(keyA.c_str());
+    readerA.read<sgd::string_value>(keyA.c_str());
+    boost::uint64_t oldestrevA3 = readerA.get_oldest_revision<sgd::string_value>(keyA.c_str());
+    boost::uint64_t oldestrevB3 = readerB.get_oldest_revision<sgd::string_value>(keyA.c_str());
     EXPECT_EQ(oldestrevA3, oldestrevB3) << "oldest revision of same value is inconsistent";
     client.send_process_read_metadata(21U);
     client.send_process_write_metadata(22U);
@@ -811,8 +811,8 @@ TEST(mmap_container_test, collect_garbage_single_key_single_type)
     EXPECT_NE(oldestrev2, oldestrevA1) << "global oldest revision read not updated after newer reads";
     client.send_collect_garbage(23U);
     --depth2;
-    boost::uint64_t oldestrevA4 = readerA.get_oldest_revision<string_value>(keyA.c_str());
-    boost::uint64_t oldestrevB4 = readerB.get_oldest_revision<string_value>(keyA.c_str());
+    boost::uint64_t oldestrevA4 = readerA.get_oldest_revision<sgd::string_value>(keyA.c_str());
+    boost::uint64_t oldestrevB4 = readerB.get_oldest_revision<sgd::string_value>(keyA.c_str());
     EXPECT_EQ(oldestrevA4, oldestrevB4) << "oldest revision of same value is inconsistent";
     EXPECT_NE(oldestrevA3, oldestrevA4) << "oldest revision not updated after garbage collection";
     EXPECT_EQ(depth2, client.send_get_string_history_depth(24U, keyA.c_str())) << "unused value was not collected";
@@ -825,25 +825,25 @@ TEST(mmap_container_test, collect_garbage_single_key_multi_type)
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
     service_client client(conf);
-    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
-    mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
     std::string keyA("collect_garbage_A");
     std::string keyB("collect_garbage_B");
     std::size_t depthA1 = 0;
     std::size_t depthB1 = 0;
 
-    string_value valueA1("abc123");
-    struct_value valueB1(true, 5, 12.5);
+    sgd::string_value valueA1("abc123");
+    sgd::struct_value valueB1(true, 5, 12.5);
     client.send_write_string(10U, keyA.c_str(), valueA1);
     client.send_write_struct(11U, keyB.c_str(), valueB1);
     ++depthA1;
     ++depthB1;
-    readerA.read<string_value>(keyA.c_str());
-    readerB.read<string_value>(keyA.c_str());
+    readerA.read<sgd::string_value>(keyA.c_str());
+    readerB.read<sgd::string_value>(keyA.c_str());
     boost::uint64_t readerArev1 = readerA.get_last_read_revision();
     boost::uint64_t readerBrev1 = readerB.get_last_read_revision();
-    readerA.read<struct_value>(keyB.c_str());
-    readerB.read<struct_value>(keyB.c_str());
+    readerA.read<sgd::struct_value>(keyB.c_str());
+    readerB.read<sgd::struct_value>(keyB.c_str());
     boost::uint64_t readerArev2 = readerA.get_last_read_revision();
     boost::uint64_t readerBrev2 = readerB.get_last_read_revision();
     client.send_process_read_metadata(12U);
@@ -857,10 +857,10 @@ TEST(mmap_container_test, collect_garbage_single_key_multi_type)
     EXPECT_EQ(depthA1, client.send_get_string_history_depth(16U, keyA.c_str())) << "read value was not collected";
     EXPECT_EQ(depthB1, client.send_get_struct_history_depth(17U, keyB.c_str())) << "value in use was collected";
 
-    string_value valueA2("def456");
+    sgd::string_value valueA2("def456");
     client.send_write_string(20U, keyA.c_str(), valueA2);
     ++depthA1;
-    readerA.read<string_value>(keyA.c_str());
+    readerA.read<sgd::string_value>(keyA.c_str());
     boost::uint64_t readerArev3 = readerA.get_last_read_revision();
     EXPECT_NE(readerArev2, readerArev3) << "revision of newer read is not greater than old read";
     client.send_process_read_metadata(21U);
@@ -872,7 +872,7 @@ TEST(mmap_container_test, collect_garbage_single_key_multi_type)
     EXPECT_EQ(depthA1, client.send_get_string_history_depth(25U, keyA.c_str())) << "value in use was collected";
     EXPECT_EQ(depthB1, client.send_get_struct_history_depth(26U, keyB.c_str())) << "value in use was collected";
 
-    readerB.read<string_value>(keyA.c_str());
+    readerB.read<sgd::string_value>(keyA.c_str());
     boost::uint64_t readerBrev3 = readerB.get_last_read_revision();
     EXPECT_NE(readerBrev2, readerBrev3) << "revision of newer read is not greater than old read";
     client.send_process_read_metadata(30U);
@@ -891,8 +891,8 @@ TEST(mmap_container_test, collect_garbage_multi_key_multi_type)
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
     service_client client(conf);
-    mvcc_mmap_reader reader1(bfs::path(conf.name.c_str()));
-    mvcc_mmap_reader reader2(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader reader1(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader reader2(bfs::path(conf.name.c_str()));
     std::string stringKeyA("collect_string_A");
     std::string stringKeyB("collect_string_B");
     std::string structKeyA("collect_struct_A");
@@ -902,75 +902,75 @@ TEST(mmap_container_test, collect_garbage_multi_key_multi_type)
     std::size_t structAdepth = 0;
     std::size_t structBdepth = 0;
 
-    string_value stringA1("abc123");
+    sgd::string_value stringA1("abc123");
     client.send_write_string(10U, stringKeyA.c_str(), stringA1);
     ++stringAdepth;
-    boost::uint64_t stringA1Rev = reader1.get_oldest_revision<string_value>(stringKeyA.c_str());
-    reader1.read<string_value>(stringKeyA.c_str());
-    string_value stringB1("def123");
+    boost::uint64_t stringA1Rev = reader1.get_oldest_revision<sgd::string_value>(stringKeyA.c_str());
+    reader1.read<sgd::string_value>(stringKeyA.c_str());
+    sgd::string_value stringB1("def123");
     client.send_write_string(11U, stringKeyB.c_str(), stringB1);
     ++stringBdepth;
-    boost::uint64_t stringB1Rev = reader2.get_oldest_revision<string_value>(stringKeyB.c_str());
-    reader2.read<string_value>(stringKeyB.c_str());
-    string_value stringB2("def456");
+    boost::uint64_t stringB1Rev = reader2.get_oldest_revision<sgd::string_value>(stringKeyB.c_str());
+    reader2.read<sgd::string_value>(stringKeyB.c_str());
+    sgd::string_value stringB2("def456");
     client.send_write_string(12U, stringKeyB.c_str(), stringB2);
     ++stringBdepth;
-    reader1.read<string_value>(stringKeyB.c_str());
+    reader1.read<sgd::string_value>(stringKeyB.c_str());
     boost::uint64_t stringB2Rev = reader1.get_last_read_revision();
     client.send_process_read_metadata(13U);
     client.send_process_write_metadata(14U);
     client.send_collect_garbage(15U);
     EXPECT_EQ(stringAdepth, client.send_get_string_history_depth(16U, stringKeyA.c_str())) << "read value was collected";
-    EXPECT_EQ(stringA1Rev, reader1.get_oldest_revision<string_value>(stringKeyA.c_str())) << "revision 1 of stringKeyA was collected";
+    EXPECT_EQ(stringA1Rev, reader1.get_oldest_revision<sgd::string_value>(stringKeyA.c_str())) << "revision 1 of stringKeyA was collected";
 
-    struct_value structA1(true, 5, 12.5);
+    sgd::struct_value structA1(true, 5, 12.5);
     client.send_write_struct(20U, structKeyA.c_str(), structA1);
     ++structAdepth;
-    boost::uint64_t structA1Rev = reader2.get_oldest_revision<struct_value>(structKeyA.c_str());
-    reader2.read<struct_value>(structKeyA.c_str());
+    boost::uint64_t structA1Rev = reader2.get_oldest_revision<sgd::struct_value>(structKeyA.c_str());
+    reader2.read<sgd::struct_value>(structKeyA.c_str());
     client.send_process_read_metadata(21U);
     client.send_process_write_metadata(22U);
     client.send_collect_garbage(23U);
     --stringBdepth;
     EXPECT_EQ(stringBdepth, client.send_get_string_history_depth(24U, stringKeyB.c_str())) << "read value was not collected";
-    EXPECT_NE(stringB1Rev, reader2.get_oldest_revision<struct_value>(stringKeyB.c_str())) << "revision 1 of stringKeyA was not collected";
+    EXPECT_NE(stringB1Rev, reader2.get_oldest_revision<sgd::struct_value>(stringKeyB.c_str())) << "revision 1 of stringKeyA was not collected";
 
-    struct_value structB1(false, 9, 23.8);
+    sgd::struct_value structB1(false, 9, 23.8);
     client.send_write_struct(30U, structKeyB.c_str(), structB1);
     ++structBdepth;
-    boost::uint64_t structB1Rev = reader1.get_oldest_revision<struct_value>(structKeyB.c_str());
-    reader1.read<struct_value>(structKeyB.c_str());
+    boost::uint64_t structB1Rev = reader1.get_oldest_revision<sgd::struct_value>(structKeyB.c_str());
+    reader1.read<sgd::struct_value>(structKeyB.c_str());
     client.send_process_read_metadata(31U);
     client.send_process_write_metadata(32U);
     client.send_collect_garbage(33U);
     EXPECT_EQ(stringBdepth, client.send_get_string_history_depth(34U, stringKeyB.c_str())) << "read value was collected";
-    EXPECT_EQ(stringB2Rev, reader1.get_oldest_revision<struct_value>(stringKeyB.c_str())) << "revision 2 of stringKeyA was collected";
+    EXPECT_EQ(stringB2Rev, reader1.get_oldest_revision<sgd::struct_value>(stringKeyB.c_str())) << "revision 2 of stringKeyA was collected";
 
-    struct_value structB2(false, 40, 378.99);
+    sgd::struct_value structB2(false, 40, 378.99);
     client.send_write_struct(40U, structKeyB.c_str(), structB2);
     ++structBdepth;
-    reader2.read<struct_value>(structKeyB.c_str());
+    reader2.read<sgd::struct_value>(structKeyB.c_str());
     boost::uint64_t structB2Rev = reader2.get_last_read_revision();
     client.send_process_read_metadata(41U);
     client.send_process_write_metadata(42U);
     client.send_collect_garbage(43U);
     EXPECT_EQ(structAdepth, client.send_get_struct_history_depth(44U, structKeyA.c_str())) << "read value was collected";
-    EXPECT_EQ(structA1Rev, reader2.get_oldest_revision<struct_value>(structKeyA.c_str())) << "revision 1 of structKeyA was collected";
+    EXPECT_EQ(structA1Rev, reader2.get_oldest_revision<sgd::struct_value>(structKeyA.c_str())) << "revision 1 of structKeyA was collected";
 
-    string_value stringA2("abc456");
+    sgd::string_value stringA2("abc456");
     client.send_write_string(50U, stringKeyA.c_str(), stringA2);
     ++stringAdepth;
-    reader1.read<string_value>(stringKeyA.c_str());
-    reader2.read<string_value>(stringKeyA.c_str());
+    reader1.read<sgd::string_value>(stringKeyA.c_str());
+    reader2.read<sgd::string_value>(stringKeyA.c_str());
     client.send_process_read_metadata(51U);
     client.send_process_write_metadata(52U);
     client.send_collect_garbage(53U);
     --structBdepth;
     EXPECT_EQ(structBdepth, client.send_get_struct_history_depth(54U, structKeyB.c_str())) << "revision 1 of structKeyB was not collected";
-    EXPECT_NE(structB1Rev, reader1.get_oldest_revision<struct_value>(structKeyB.c_str())) << "revision 1 of structKeyB was not collected";
+    EXPECT_NE(structB1Rev, reader1.get_oldest_revision<sgd::struct_value>(structKeyB.c_str())) << "revision 1 of structKeyB was not collected";
     client.send_collect_garbage(55U);
     EXPECT_EQ(structBdepth, client.send_get_struct_history_depth(56U, structKeyB.c_str())) << "last remaining value of structKeyB was collected";
-    EXPECT_EQ(structB2Rev, reader2.get_oldest_revision<struct_value>(structKeyB.c_str())) << "last remaining value of structKeyB was collected";
+    EXPECT_EQ(structB2Rev, reader2.get_oldest_revision<sgd::struct_value>(structKeyB.c_str())) << "last remaining value of structKeyB was collected";
 
     client.send_terminate(60U);
 }
@@ -980,8 +980,8 @@ TEST(mmap_container_test, collect_garbage_subset)
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
     service_client client(conf);
-    mvcc_mmap_reader reader1(bfs::path(conf.name.c_str()));
-    mvcc_mmap_reader reader2(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader reader1(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader reader2(bfs::path(conf.name.c_str()));
     std::string stringKeyA("collect_string_A");
     std::string stringKeyB("collect_string_B");
     std::string structKeyA("collect_struct_A");
@@ -991,94 +991,94 @@ TEST(mmap_container_test, collect_garbage_subset)
     std::size_t structAdepth = 0;
     std::size_t structBdepth = 0;
 
-    string_value stringA1("abc123");
+    sgd::string_value stringA1("abc123");
     client.send_write_string(10U, stringKeyA.c_str(), stringA1);
     ++stringAdepth;
-    boost::uint64_t stringA1Rev = reader1.get_oldest_revision<string_value>(stringKeyA.c_str());
-    string_value stringA2("abc456");
+    boost::uint64_t stringA1Rev = reader1.get_oldest_revision<sgd::string_value>(stringKeyA.c_str());
+    sgd::string_value stringA2("abc456");
     client.send_write_string(11U, stringKeyA.c_str(), stringA2);
     ++stringAdepth;
-    boost::uint64_t stringA2Rev = reader1.get_newest_revision<string_value>(stringKeyA.c_str());
-    string_value stringB1("def123");
+    boost::uint64_t stringA2Rev = reader1.get_newest_revision<sgd::string_value>(stringKeyA.c_str());
+    sgd::string_value stringB1("def123");
     client.send_write_string(12U, stringKeyB.c_str(), stringB1);
     ++stringBdepth;
-    boost::uint64_t stringB1Rev = reader2.get_oldest_revision<string_value>(stringKeyB.c_str());
-    string_value stringB2("def456");
+    boost::uint64_t stringB1Rev = reader2.get_oldest_revision<sgd::string_value>(stringKeyB.c_str());
+    sgd::string_value stringB2("def456");
     client.send_write_string(13U, stringKeyB.c_str(), stringB1);
     ++stringBdepth;
-    boost::uint64_t stringB2Rev = reader2.get_newest_revision<string_value>(stringKeyB.c_str());
-    struct_value structA1(true, 5, 12.5);
+    boost::uint64_t stringB2Rev = reader2.get_newest_revision<sgd::string_value>(stringKeyB.c_str());
+    sgd::struct_value structA1(true, 5, 12.5);
     client.send_write_struct(14U, structKeyA.c_str(), structA1);
     ++structAdepth;
-    boost::uint64_t structA1Rev = reader1.get_oldest_revision<struct_value>(structKeyA.c_str());
-    struct_value structA2(true, 7, 41.3);
+    boost::uint64_t structA1Rev = reader1.get_oldest_revision<sgd::struct_value>(structKeyA.c_str());
+    sgd::struct_value structA2(true, 7, 41.3);
     client.send_write_struct(15U, structKeyA.c_str(), structA1);
     ++structAdepth;
-    boost::uint64_t structA2Rev = reader1.get_newest_revision<struct_value>(structKeyA.c_str());
-    struct_value structB1(false, 9, 23.8);
+    boost::uint64_t structA2Rev = reader1.get_newest_revision<sgd::struct_value>(structKeyA.c_str());
+    sgd::struct_value structB1(false, 9, 23.8);
     client.send_write_struct(16U, structKeyB.c_str(), structB1);
     ++structBdepth;
-    boost::uint64_t structB1Rev = reader1.get_oldest_revision<struct_value>(structKeyB.c_str());
-    reader1.read<struct_value>(structKeyB.c_str());
-    reader2.read<struct_value>(structKeyB.c_str());
+    boost::uint64_t structB1Rev = reader1.get_oldest_revision<sgd::struct_value>(structKeyB.c_str());
+    reader1.read<sgd::struct_value>(structKeyB.c_str());
+    reader2.read<sgd::struct_value>(structKeyB.c_str());
     client.send_process_read_metadata(17U);
     client.send_process_write_metadata(18U);
     std::string nextKey1(client.send_collect_garbage(19U, 2U));
     --stringAdepth;
     --stringBdepth;
     EXPECT_EQ(stringAdepth, client.send_get_string_history_depth(20U, stringKeyA.c_str())) << "unused value was not collected";
-    EXPECT_NE(stringA1Rev, reader1.get_oldest_revision<string_value>(stringKeyA.c_str())) << "unused value was not collected";
-    EXPECT_EQ(stringA2Rev, reader1.get_oldest_revision<string_value>(stringKeyA.c_str())) << "last remaining value was collected";
+    EXPECT_NE(stringA1Rev, reader1.get_oldest_revision<sgd::string_value>(stringKeyA.c_str())) << "unused value was not collected";
+    EXPECT_EQ(stringA2Rev, reader1.get_oldest_revision<sgd::string_value>(stringKeyA.c_str())) << "last remaining value was collected";
     EXPECT_EQ(stringBdepth, client.send_get_string_history_depth(21U, stringKeyB.c_str())) << "unused value was not collected";
-    EXPECT_NE(stringB1Rev, reader2.get_oldest_revision<string_value>(stringKeyB.c_str())) << "unused value was not collected";
-    EXPECT_EQ(stringB2Rev, reader2.get_oldest_revision<string_value>(stringKeyB.c_str())) << "last remaining value was collected";
-    EXPECT_EQ(structA1Rev, reader1.get_oldest_revision<struct_value>(structKeyA.c_str())) << "collection exceeded maximum attempts";
-    EXPECT_EQ(structB1Rev, reader2.get_oldest_revision<struct_value>(structKeyB.c_str())) << "collection exceeded maximum attempts";
+    EXPECT_NE(stringB1Rev, reader2.get_oldest_revision<sgd::string_value>(stringKeyB.c_str())) << "unused value was not collected";
+    EXPECT_EQ(stringB2Rev, reader2.get_oldest_revision<sgd::string_value>(stringKeyB.c_str())) << "last remaining value was collected";
+    EXPECT_EQ(structA1Rev, reader1.get_oldest_revision<sgd::struct_value>(structKeyA.c_str())) << "collection exceeded maximum attempts";
+    EXPECT_EQ(structB1Rev, reader2.get_oldest_revision<sgd::struct_value>(structKeyB.c_str())) << "collection exceeded maximum attempts";
     EXPECT_NE(stringKeyA, nextKey1) << "next key to collect is a key just collected";
     EXPECT_NE(stringKeyB, nextKey1) << "next key to collect is a key just collected";
     EXPECT_TRUE(nextKey1 == structKeyA || nextKey1 == structKeyB) << "next key to collect is not one of the keys available for collection";
 
-    struct_value structB2(false, 11, 56.23);
+    sgd::struct_value structB2(false, 11, 56.23);
     client.send_write_struct(30U, structKeyB.c_str(), structB1);
     ++structBdepth;
-    boost::uint64_t structB2Rev = reader1.get_newest_revision<struct_value>(structKeyB.c_str());
-    reader1.read<struct_value>(structKeyB.c_str());
-    reader2.read<struct_value>(structKeyB.c_str());
+    boost::uint64_t structB2Rev = reader1.get_newest_revision<sgd::struct_value>(structKeyB.c_str());
+    reader1.read<sgd::struct_value>(structKeyB.c_str());
+    reader2.read<sgd::struct_value>(structKeyB.c_str());
     client.send_process_read_metadata(32U);
     client.send_process_write_metadata(33U);
     std::string nextKey2(client.send_collect_garbage(34U, nextKey1, 2U));
     --structAdepth;
     --structBdepth;
     EXPECT_EQ(structAdepth, client.send_get_struct_history_depth(35U, structKeyA.c_str())) << "unused value was not collected";
-    EXPECT_NE(structA1Rev, reader1.get_oldest_revision<struct_value>(structKeyA.c_str())) << "unused value was not collected";
-    EXPECT_EQ(structA2Rev, reader1.get_oldest_revision<struct_value>(structKeyA.c_str())) << "last remaining value was collected";
+    EXPECT_NE(structA1Rev, reader1.get_oldest_revision<sgd::struct_value>(structKeyA.c_str())) << "unused value was not collected";
+    EXPECT_EQ(structA2Rev, reader1.get_oldest_revision<sgd::struct_value>(structKeyA.c_str())) << "last remaining value was collected";
     EXPECT_EQ(structBdepth, client.send_get_struct_history_depth(36U, structKeyB.c_str())) << "unused value was not collected";
-    EXPECT_NE(structB1Rev, reader2.get_oldest_revision<struct_value>(structKeyB.c_str())) << "unused value was not collected";
-    EXPECT_EQ(structB2Rev, reader2.get_oldest_revision<struct_value>(structKeyB.c_str())) << "last remaining value was collected";
-    EXPECT_EQ(stringA2Rev, reader1.get_oldest_revision<string_value>(stringKeyA.c_str())) << "collection exceeded maximum attempts";
-    EXPECT_EQ(stringB2Rev, reader2.get_oldest_revision<string_value>(stringKeyB.c_str())) << "collection exceeded maximum attempts";
+    EXPECT_NE(structB1Rev, reader2.get_oldest_revision<sgd::struct_value>(structKeyB.c_str())) << "unused value was not collected";
+    EXPECT_EQ(structB2Rev, reader2.get_oldest_revision<sgd::struct_value>(structKeyB.c_str())) << "last remaining value was collected";
+    EXPECT_EQ(stringA2Rev, reader1.get_oldest_revision<sgd::string_value>(stringKeyA.c_str())) << "collection exceeded maximum attempts";
+    EXPECT_EQ(stringB2Rev, reader2.get_oldest_revision<sgd::string_value>(stringKeyB.c_str())) << "collection exceeded maximum attempts";
     EXPECT_NE(structKeyA, nextKey2) << "next key to collect is a key just collected";
     EXPECT_NE(structKeyB, nextKey2) << "next key to collect is a key just collected";
     EXPECT_TRUE(nextKey2 == stringKeyA || nextKey2 == stringKeyB) << "next key to collect is not one of the keys available for collection";
 
-    string_value stringA3("abc789");
+    sgd::string_value stringA3("abc789");
     client.send_write_string(40U, stringKeyA.c_str(), stringA3);
     ++stringAdepth;
-    boost::uint64_t stringA3Rev = reader1.get_newest_revision<string_value>(stringKeyA.c_str());
-    reader1.read<string_value>(stringKeyA.c_str());
-    reader2.read<string_value>(stringKeyA.c_str());
+    boost::uint64_t stringA3Rev = reader1.get_newest_revision<sgd::string_value>(stringKeyA.c_str());
+    reader1.read<sgd::string_value>(stringKeyA.c_str());
+    reader2.read<sgd::string_value>(stringKeyA.c_str());
     client.send_process_read_metadata(41U);
     client.send_process_write_metadata(42U);
     std::string nextKey3(client.send_collect_garbage(43U, nextKey2, 2U));
     --stringAdepth;
     EXPECT_EQ(stringAdepth, client.send_get_string_history_depth(44U, stringKeyA.c_str())) << "unused value was not collected";
-    EXPECT_EQ(stringA3Rev, reader1.get_oldest_revision<string_value>(stringKeyA.c_str())) << "unused value was not collected";
+    EXPECT_EQ(stringA3Rev, reader1.get_oldest_revision<sgd::string_value>(stringKeyA.c_str())) << "unused value was not collected";
     EXPECT_EQ(stringBdepth, client.send_get_string_history_depth(45U, stringKeyB.c_str())) << "last remaining value was collected";
-    EXPECT_EQ(stringB2Rev, reader2.get_oldest_revision<string_value>(stringKeyB.c_str())) << "last remaining value was collected";
+    EXPECT_EQ(stringB2Rev, reader2.get_oldest_revision<sgd::string_value>(stringKeyB.c_str())) << "last remaining value was collected";
     EXPECT_NE(stringKeyA, nextKey3) << "next key to collect is a key just collected";
     EXPECT_NE(stringKeyB, nextKey3) << "next key to collect is a key just collected";
-    EXPECT_EQ(structA2Rev, reader1.get_oldest_revision<struct_value>(structKeyA.c_str())) << "collection exceeded maximum attempts";
-    EXPECT_EQ(structB2Rev, reader2.get_oldest_revision<struct_value>(structKeyB.c_str())) << "collection exceeded maximum attempts";
+    EXPECT_EQ(structA2Rev, reader1.get_oldest_revision<sgd::struct_value>(structKeyA.c_str())) << "collection exceeded maximum attempts";
+    EXPECT_EQ(structB2Rev, reader2.get_oldest_revision<sgd::struct_value>(structKeyB.c_str())) << "collection exceeded maximum attempts";
     EXPECT_TRUE(nextKey3 == structKeyA || nextKey3 == structKeyB) << "next key to collect is not one of the keys available for collection";
 
     client.send_terminate(60U);
@@ -1089,26 +1089,26 @@ TEST(mmap_container_test, exists_after_removed)
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
     service_client client(conf);
-    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
-    mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
     std::string stringKey("string_@@@");
     std::string structKey("struct_@@@");
     std::size_t stringDepth = 0;
     std::size_t structDepth = 0;
 
-    string_value stringValue1("abc123");
+    sgd::string_value stringValue1("abc123");
     client.send_write_string(10U, stringKey.c_str(), stringValue1);
     ++stringDepth;
-    EXPECT_TRUE(readerA.exists<string_value>(stringKey.c_str())) << "write failed";
+    EXPECT_TRUE(readerA.exists<sgd::string_value>(stringKey.c_str())) << "write failed";
     client.send_remove_string(11U, stringKey.c_str());
-    EXPECT_FALSE(readerB.exists<string_value>(stringKey.c_str())) << "remove failed";
+    EXPECT_FALSE(readerB.exists<sgd::string_value>(stringKey.c_str())) << "remove failed";
 
-    struct_value structValue1(true, 5, 12.5);
+    sgd::struct_value structValue1(true, 5, 12.5);
     client.send_write_struct(20U, structKey.c_str(), structValue1);
     ++structDepth;
-    EXPECT_TRUE(readerB.exists<struct_value>(structKey.c_str())) << "write failed";
+    EXPECT_TRUE(readerB.exists<sgd::struct_value>(structKey.c_str())) << "write failed";
     client.send_remove_struct(21U, structKey.c_str());
-    EXPECT_FALSE(readerA.exists<struct_value>(structKey.c_str())) << "remove failed";
+    EXPECT_FALSE(readerA.exists<sgd::struct_value>(structKey.c_str())) << "remove failed";
 
     client.send_terminate(30U);
 }
@@ -1118,32 +1118,32 @@ TEST(mmap_container_test, write_after_remove)
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
     service_client client(conf);
-    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
-    mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
     std::string stringKey("string_@@@");
     std::string structKey("struct_@@@");
     std::size_t stringDepth = 0;
     std::size_t structDepth = 0;
 
-    string_value stringValue1("abc123");
+    sgd::string_value stringValue1("abc123");
     client.send_write_string(10U, stringKey.c_str(), stringValue1);
     ++stringDepth;
     client.send_remove_string(11U, stringKey.c_str());
-    EXPECT_FALSE(readerB.exists<string_value>(stringKey.c_str())) << "remove failed";
-    string_value stringValue2("abc456");
+    EXPECT_FALSE(readerB.exists<sgd::string_value>(stringKey.c_str())) << "remove failed";
+    sgd::string_value stringValue2("abc456");
     client.send_write_string(12U, stringKey.c_str(), stringValue2);
     ++stringDepth;
-    EXPECT_TRUE(readerA.exists<string_value>(stringKey.c_str())) << "write failed";
+    EXPECT_TRUE(readerA.exists<sgd::string_value>(stringKey.c_str())) << "write failed";
 
-    struct_value structValue1(true, 5, 12.5);
+    sgd::struct_value structValue1(true, 5, 12.5);
     client.send_write_struct(20U, structKey.c_str(), structValue1);
     ++structDepth;
     client.send_remove_struct(21U, structKey.c_str());
-    EXPECT_FALSE(readerA.exists<struct_value>(structKey.c_str())) << "remove failed";
-    struct_value structValue2(true, 90, 37.2);
+    EXPECT_FALSE(readerA.exists<sgd::struct_value>(structKey.c_str())) << "remove failed";
+    sgd::struct_value structValue2(true, 90, 37.2);
     client.send_write_struct(22U, structKey.c_str(), structValue2);
     ++structDepth;
-    EXPECT_TRUE(readerB.exists<struct_value>(structKey.c_str())) << "write failed";
+    EXPECT_TRUE(readerB.exists<sgd::struct_value>(structKey.c_str())) << "write failed";
 
     client.send_terminate(30U);
 }
@@ -1153,18 +1153,18 @@ TEST(mmap_container_test, collect_garbage_after_remove)
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
     service_client client(conf);
-    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
-    mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
     std::string stringKey("string_@@@");
     std::string structKey("struct_@@@");
     std::size_t stringDepth = 0;
     std::size_t structDepth = 0;
 
-    string_value stringValue1("abc123");
+    sgd::string_value stringValue1("abc123");
     client.send_write_string(10U, stringKey.c_str(), stringValue1);
     ++stringDepth;
-    readerA.read<string_value>(stringKey.c_str());
-    readerB.read<string_value>(stringKey.c_str());
+    readerA.read<sgd::string_value>(stringKey.c_str());
+    readerB.read<sgd::string_value>(stringKey.c_str());
     client.send_process_read_metadata(11U);
     client.send_process_write_metadata(12U);
     client.send_collect_garbage(13U);
@@ -1174,11 +1174,11 @@ TEST(mmap_container_test, collect_garbage_after_remove)
     --stringDepth;
     EXPECT_EQ(stringDepth, client.send_get_string_history_depth(17U, stringKey.c_str())) << "value we want removed was not collected";
 
-    struct_value structValue1(true, 5, 12.5);
+    sgd::struct_value structValue1(true, 5, 12.5);
     client.send_write_struct(20U, structKey.c_str(), structValue1);
     ++structDepth;
-    readerA.read<struct_value>(structKey.c_str());
-    readerB.read<struct_value>(structKey.c_str());
+    readerA.read<sgd::struct_value>(structKey.c_str());
+    readerB.read<sgd::struct_value>(structKey.c_str());
     client.send_process_read_metadata(21U);
     client.send_process_write_metadata(22U);
     client.send_collect_garbage(23U);
@@ -1196,31 +1196,31 @@ TEST(mmap_container_test, read_after_remove)
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
     service_client client(conf);
-    mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
-    mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
-    mvcc_mmap_reader readerC(bfs::path(conf.name.c_str()));
-    mvcc_mmap_reader readerD(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerA(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerB(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerC(bfs::path(conf.name.c_str()));
+    sgd::mvcc_mmap_reader readerD(bfs::path(conf.name.c_str()));
     std::string stringKey("string_@@@");
     std::string structKey("struct_@@@");
 
-    string_value stringValue1("abc123");
+    sgd::string_value stringValue1("abc123");
     client.send_write_string(10U, stringKey.c_str(), stringValue1);
-    const boost::optional<const string_value&> readString1 = readerA.read<string_value>(stringKey.c_str());
+    const boost::optional<const sgd::string_value&> readString1 = readerA.read<sgd::string_value>(stringKey.c_str());
     EXPECT_TRUE(readString1) << "read failed";
     client.send_remove_string(11U, stringKey.c_str());
-    const boost::optional<const string_value&> readString2 = readerB.read<string_value>(stringKey.c_str());
+    const boost::optional<const sgd::string_value&> readString2 = readerB.read<sgd::string_value>(stringKey.c_str());
     EXPECT_FALSE(readString2) << "remove failed";
     boost::uint64_t readerA_rev1 = readerA.get_last_read_revision();
     boost::uint64_t readerB_rev1 = readerB.get_last_read_revision();
     EXPECT_NE(readerA_rev1, 0U) << "last read revision was not updated for successful read";
     EXPECT_EQ(readerB_rev1, 0U) << "last read revision was updated for unsuccessful read";
 
-    struct_value structValue1(true, 5, 12.5);
+    sgd::struct_value structValue1(true, 5, 12.5);
     client.send_write_struct(20U, structKey.c_str(), structValue1);
-    const boost::optional<const struct_value&> readStruct1 = readerC.read<struct_value>(structKey.c_str());
+    const boost::optional<const sgd::struct_value&> readStruct1 = readerC.read<sgd::struct_value>(structKey.c_str());
     EXPECT_TRUE(readStruct1) << "read failed";
     client.send_remove_struct(21U, structKey.c_str());
-    const boost::optional<const struct_value&> readStruct2 = readerD.read<struct_value>(structKey.c_str());
+    const boost::optional<const sgd::struct_value&> readStruct2 = readerD.read<sgd::struct_value>(structKey.c_str());
     EXPECT_FALSE(readStruct2) << "remove failed";
     boost::uint64_t readerC_rev1 = readerC.get_last_read_revision();
     boost::uint64_t readerD_rev1 = readerD.get_last_read_revision();

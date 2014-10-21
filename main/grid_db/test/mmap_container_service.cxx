@@ -493,7 +493,7 @@ void container_service::exec_exists_string(const sgd::exists_string_instr& input
 {
     sgd::predicate_result tmp;
     tmp.set_sequence(input.sequence());
-    bool result(owner_.exists<string_value>(input.key().c_str()));
+    bool result(owner_.exists<sgd::string_value>(input.key().c_str()));
     tmp.set_predicate(result);
     output.set_predicate(tmp);
 }
@@ -502,7 +502,7 @@ void container_service::exec_exists_struct(const sgd::exists_struct_instr& input
 {
     sgd::predicate_result tmp;
     tmp.set_sequence(input.sequence());
-    bool result(owner_.exists<struct_value>(input.key().c_str()));
+    bool result(owner_.exists<sgd::struct_value>(input.key().c_str()));
     tmp.set_predicate(result);
     output.set_predicate(tmp);
 }
@@ -513,7 +513,7 @@ void container_service::exec_read_string(const sgd::read_string_instr& input, sg
     sgd::invalid_argument_result failed;
     tmp.set_sequence(input.sequence());
     failed.set_sequence(input.sequence());
-    const boost::optional<const string_value&> result = owner_.read<string_value>(input.key().c_str());
+    const boost::optional<const sgd::string_value&> result = owner_.read<sgd::string_value>(input.key().c_str());
     if (result)
     {
 	std::string tmpString(result.get().c_str);
@@ -532,7 +532,7 @@ void container_service::exec_read_struct(const sgd::read_struct_instr& input, sg
     sgd::invalid_argument_result failed;
     tmp.set_sequence(input.sequence());
     failed.set_sequence(input.sequence());
-    const boost::optional<const struct_value&> result = owner_.read<struct_value>(input.key().c_str());
+    const boost::optional<const sgd::struct_value&> result = owner_.read<sgd::struct_value>(input.key().c_str());
     if (result)
     {
 	tmp.set_value1(result.get().value1);
@@ -550,8 +550,8 @@ void container_service::exec_write_string(const sgd::write_string_instr& input, 
 {
     sgd::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
-    string_value value(input.value().c_str());
-    owner_.write<string_value>(input.key().c_str(), value);
+    sgd::string_value value(input.value().c_str());
+    owner_.write<sgd::string_value>(input.key().c_str(), value);
     output.set_confirmation(tmp);
 }
 
@@ -559,8 +559,8 @@ void container_service::exec_write_struct(const sgd::write_struct_instr& input, 
 {
     sgd::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
-    struct_value value(input.value1(), input.value2(), input.value3());
-    owner_.write<struct_value>(input.key().c_str(), value);
+    sgd::struct_value value(input.value1(), input.value2(), input.value3());
+    owner_.write<sgd::struct_value>(input.key().c_str(), value);
     output.set_confirmation(tmp);
 }
 
@@ -568,7 +568,7 @@ void container_service::exec_remove_string(const sgd::remove_string_instr& input
 {
     sgd::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
-    owner_.remove<string_value>(input.key().c_str());
+    owner_.remove<sgd::string_value>(input.key().c_str());
     output.set_confirmation(tmp);
 }
 
@@ -576,7 +576,7 @@ void container_service::exec_remove_struct(const sgd::remove_struct_instr& input
 {
     sgd::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
-    owner_.remove<struct_value>(input.key().c_str());
+    owner_.remove<sgd::struct_value>(input.key().c_str());
     output.set_confirmation(tmp);
 }
 
@@ -618,7 +618,7 @@ void container_service::exec_get_reader_token_id(const sgd::get_reader_token_id_
 {
     sgd::token_id_result tmp;
     tmp.set_sequence(input.sequence());
-    reader_token_id result(owner_.get_reader_token_id());
+    sgd::reader_token_id result(owner_.get_reader_token_id());
     tmp.set_token_id(result);
     output.set_token_id(tmp);
 }
@@ -636,7 +636,7 @@ void container_service::exec_get_oldest_string_revision(const sgd::get_oldest_st
 {
     sgd::revision_result tmp;
     tmp.set_sequence(input.sequence());
-    boost::uint64_t result = owner_.get_oldest_revision<string_value>(input.key().c_str());
+    boost::uint64_t result = owner_.get_oldest_revision<sgd::string_value>(input.key().c_str());
     tmp.set_revision(result);
     output.set_revision(tmp);
 }
@@ -645,7 +645,7 @@ void container_service::exec_get_oldest_struct_revision(const sgd::get_oldest_st
 {
     sgd::revision_result tmp;
     tmp.set_sequence(input.sequence());
-    boost::uint64_t result = owner_.get_oldest_revision<struct_value>(input.key().c_str());
+    boost::uint64_t result = owner_.get_oldest_revision<sgd::struct_value>(input.key().c_str());
     tmp.set_revision(result);
     output.set_revision(tmp);
 }
@@ -675,7 +675,7 @@ void container_service::exec_get_string_history_depth(const sgd::get_string_hist
 {
     sgd::size_result tmp;
     tmp.set_sequence(input.sequence());
-    boost::uint64_t result = owner_.get_history_depth<string_value>(input.key().c_str());
+    boost::uint64_t result = owner_.get_history_depth<sgd::string_value>(input.key().c_str());
     tmp.set_size(result);
     output.set_size(tmp);
 }
@@ -684,7 +684,7 @@ void container_service::exec_get_struct_history_depth(const sgd::get_struct_hist
 {
     sgd::size_result tmp;
     tmp.set_sequence(input.sequence());
-    boost::uint64_t result = owner_.get_history_depth<struct_value>(input.key().c_str());
+    boost::uint64_t result = owner_.get_history_depth<sgd::struct_value>(input.key().c_str());
     tmp.set_size(result);
     output.set_size(tmp);
 }
