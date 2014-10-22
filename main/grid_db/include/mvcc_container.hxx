@@ -114,12 +114,12 @@ struct mvcc_writer_token
 template <class memory_t>
 struct mvcc_owner_token
 {
-    typedef typename mvcc_map<mvcc_key, mvcc_deleter<memory_t>, memory_t>::type registry_map_;
+    typedef typename mvcc_map<mvcc_key, mvcc_deleter<memory_t>, memory_t>::type registry_map;
     mvcc_owner_token(memory_t* file);
     boost::optional<reader_token_id> oldest_reader_id_found;
     boost::optional<mvcc_revision> oldest_revision_found;
     boost::optional<bpt::ptime> oldest_timestamp_found;
-    registry_map_ registry;
+    registry_map registry;
 };
 
 template <class memory_t>
@@ -197,7 +197,7 @@ mvcc_deleter<memory_t>& mvcc_deleter<memory_t>::operator=(const mvcc_deleter<mem
 
 template <class memory_t>
 mvcc_owner_token<memory_t>::mvcc_owner_token(memory_t* memory) :
-    registry(std::less<typename registry_map_::key_type>(), memory->get_segment_manager())
+    registry(std::less<typename registry_map::key_type>(), memory->get_segment_manager())
 { }
 
 template <class memory_t>
@@ -694,7 +694,7 @@ std::string mvcc_owner_handle<memory_t>::collect_garbage(const std::string& from
 	return "";
     }
     mvcc_key key(from.c_str());
-    typename mvcc_owner_token<memory_t>::registry_map_::const_iterator iter = from.empty() ?
+    typename mvcc_owner_token<memory_t>::registry_map::const_iterator iter = from.empty() ?
 	    pool.owner_token.registry.begin() :
 	    pool.owner_token.registry.find(key);
     if (pool.owner_token.oldest_revision_found)
@@ -733,7 +733,7 @@ std::vector<std::string> mvcc_owner_handle<memory_t>::get_registered_keys() cons
 {
     const mvcc_resource_pool<memory_t>& pool = const_resource_pool_ref(memory_);
     std::vector<std::string> result;
-    for (typename mvcc_owner_token<memory_t>::registry_map_::const_iterator iter = pool.owner_token.registry.begin(); iter != pool.owner_token.registry.end(); ++iter)
+    for (typename mvcc_owner_token<memory_t>::registry_map::const_iterator iter = pool.owner_token.registry.begin(); iter != pool.owner_token.registry.end(); ++iter)
     {
 	result.push_back(iter->first.c_str);
     }
