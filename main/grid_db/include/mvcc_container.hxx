@@ -18,6 +18,7 @@
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int_distribution.hpp>
 #include <boost/ref.hpp>
+#include <boost/thread/thread.hpp>
 #include <boost/thread/thread_time.hpp>
 #include <simulation_grid/core/compiler_extensions.hpp>
 #include <simulation_grid/grid_db/exception.hpp>
