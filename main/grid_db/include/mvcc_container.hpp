@@ -39,8 +39,8 @@ public:
 private:
     static reader_token_id acquire_reader_token(memory_t& memory);
     static void release_reader_token(memory_t& memory, const reader_token_id& id);
-    memory_t& memory;
-    const reader_token_id token_id;
+    memory_t& memory_;
+    const reader_token_id token_id_;
 };
 
 template <class memory_t>
@@ -58,8 +58,8 @@ public:
 private:
     static writer_token_id acquire_writer_token(memory_t& memory);
     static void release_writer_token(memory_t& memory, const writer_token_id& id);
-    memory_t& memory;
-    const writer_token_id token_id;
+    memory_t& memory_;
+    const writer_token_id token_id_;
 };
 
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
@@ -87,7 +87,7 @@ public:
     std::vector<std::string> get_registered_keys() const;
 #endif
 private:
-    memory_t& memory;
+    memory_t& memory_;
 };
 
 } // namespace grid_db

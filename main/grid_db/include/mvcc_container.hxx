@@ -364,7 +364,7 @@ void init(memory_t& memory)
 
 template <class memory_t>
 mvcc_reader_handle<memory_t>::mvcc_reader_handle(memory_t& memory) :
-    memory(memory), token_id(acquire_reader_token(memory))
+    memory_(memory), token_id_(acquire_reader_token(memory))
 {
     check(memory);
 }
@@ -374,7 +374,7 @@ mvcc_reader_handle<memory_t>::~mvcc_reader_handle()
 {
     try
     {
-	release_reader_token(memory, token_id);
+	release_reader_token(memory_, token_id_);
     }
     catch(...)
     {
@@ -386,7 +386,7 @@ template <class memory_t>
 template <class value_t>
 bool mvcc_reader_handle<memory_t>::exists(const char* key) const
 {
-    const mvcc_record<value_t>* record = const_record_ptr<memory_t, value_t>(memory, key);
+    const mvcc_record<value_t>* record = const_record_ptr<memory_t, value_t>(memory_, key);
     return record && !record->ringbuf.empty() && !record->want_removed;
 }
 
@@ -394,16 +394,16 @@ template <class memory_t>
 template <class value_t>
 const boost::optional<const value_t&> mvcc_reader_handle<memory_t>::read(const char* key) const
 {
-    const mvcc_record<value_t>* record = const_record_ptr<memory_t, value_t>(memory, key);
+    const mvcc_record<value_t>* record = const_record_ptr<memory_t, value_t>(memory_, key);
     boost::optional<const value_t&> result;
     if (record && !record->ringbuf.empty() && !record->want_removed)
     {
 	const mvcc_value<value_t>& value = record->ringbuf.front();
 	result = value.value;
 	// the mvcc_reader_token will ensure the returned reference remains valid
-	mut_resource_pool_ref(memory).reader_token_pool[token_id].
+	mut_resource_pool_ref(memory_).reader_token_pool[token_id_].
 		last_read_timestamp.reset(value.timestamp);
-	mut_resource_pool_ref(memory).reader_token_pool[token_id].
+	mut_resource_pool_ref(memory_).reader_token_pool[token_id_].
 		last_read_revision.reset(value.revision);
     }
     return result;
@@ -437,16 +437,16 @@ void mvcc_reader_handle<memory_t>::release_reader_token(memory_t& memory, const 
 template <class memory_t>
 reader_token_id mvcc_reader_handle<memory_t>::get_reader_token_id() const
 {
-    return token_id;
+    return token_id_;
 }
 
 template <class memory_t>
 boost::uint64_t mvcc_reader_handle<memory_t>::get_last_read_revision() const
 {
-    const mvcc_resource_pool<memory_t>& pool = const_resource_pool_ref(memory);
-    if (pool.reader_token_pool[token_id].last_read_revision)
+    const mvcc_resource_pool<memory_t>& pool = const_resource_pool_ref(memory_);
+    if (pool.reader_token_pool[token_id_].last_read_revision)
     {
-	return pool.reader_token_pool[token_id].last_read_revision.get();
+	return pool.reader_token_pool[token_id_].last_read_revision.get();
     }
     else
     {
@@ -458,7 +458,7 @@ template <class memory_t>
 template <class value_t>
 boost::uint64_t mvcc_reader_handle<memory_t>::get_oldest_revision(const char* key) const
 {
-    const mvcc_record<value_t>* record = const_record_ptr<memory_t, value_t>(memory, key);
+    const mvcc_record<value_t>* record = const_record_ptr<memory_t, value_t>(memory_, key);
     if (UNLIKELY_EXT(!record || record->ringbuf.empty()))
     {
 	return 0U;
@@ -473,7 +473,7 @@ template <class memory_t>
 template <class value_t>
 boost::uint64_t mvcc_reader_handle<memory_t>::get_newest_revision(const char* key) const
 {
-    const mvcc_record<value_t>* record = const_record_ptr<memory_t, value_t>(memory, key);
+    const mvcc_record<value_t>* record = const_record_ptr<memory_t, value_t>(memory_, key);
     if (UNLIKELY_EXT(!record || record->ringbuf.empty()))
     {
 	return 0U;
@@ -488,7 +488,7 @@ template <class memory_t>
 template <class value_t> 
 std::size_t mvcc_reader_handle<memory_t>::get_history_depth(const char* key) const
 {
-    const mvcc_record<value_t>* record = const_record_ptr<memory_t, value_t>(memory, key);
+    const mvcc_record<value_t>* record = const_record_ptr<memory_t, value_t>(memory_, key);
     if (!record || record->ringbuf.empty())
     {
 	return 0U;
@@ -503,7 +503,7 @@ std::size_t mvcc_reader_handle<memory_t>::get_history_depth(const char* key) con
 
 template <class memory_t>
 mvcc_writer_handle<memory_t>::mvcc_writer_handle(memory_t& memory) :
-    memory(memory), token_id(acquire_writer_token(memory))
+    memory_(memory), token_id_(acquire_writer_token(memory))
 {
     check(memory);
 }
@@ -513,7 +513,7 @@ mvcc_writer_handle<memory_t>::~mvcc_writer_handle()
 {
     try
     {
-	release_writer_token(memory, token_id);
+	release_writer_token(memory_, token_id_);
     }
     catch(...)
     {
@@ -527,31 +527,31 @@ template <class value_t>
 void mvcc_writer_handle<memory_t>::write(const char* key, const value_t& value)
 {
     mvcc_key mkey(key);
-    if (!const_record_ptr<memory_t, value_t>(memory, mkey.c_str))
+    if (!const_record_ptr<memory_t, value_t>(memory_, mkey.c_str))
     {
 	bra::mt19937 seed;
 	bra::uniform_int_distribution<> generator(100, 200);
 	mvcc_deleter<memory_t> deleter(mkey, &delete_oldest<memory_t, value_t>);
-	while (UNLIKELY_EXT(!mut_resource_pool_ref(memory).deleter_list.push(deleter)))
+	while (UNLIKELY_EXT(!mut_resource_pool_ref(memory_).deleter_list.push(deleter)))
 	{
 	    boost::this_thread::sleep_for(boost::chrono::nanoseconds(generator(seed)));
 	}
     }
-    mvcc_record<value_t>* record = memory.template find_or_construct< mvcc_record<value_t> >(mkey.c_str)(
-	    memory.get_segment_manager());
+    mvcc_record<value_t>* record = memory_.template find_or_construct< mvcc_record<value_t> >(mkey.c_str)(
+	    memory_.get_segment_manager());
     if (UNLIKELY_EXT(record->ringbuf.full()))
     {
 	// TODO: need a smarter growth algorithm
 	record->ringbuf.grow(record->ringbuf.capacity() * 1.5);
     }
-    mvcc_value<value_t> tmp(value, mut_resource_pool_ref(memory).global_revision.fetch_add(
+    mvcc_value<value_t> tmp(value, mut_resource_pool_ref(memory_).global_revision.fetch_add(
 	    1, boost::memory_order_relaxed),
 	    bpt::microsec_clock::local_time());
     record->ringbuf.push_front(tmp);
     record->want_removed = false;
-    mut_resource_pool_ref(memory).writer_token_pool[token_id].
+    mut_resource_pool_ref(memory_).writer_token_pool[token_id_].
 	    last_write_timestamp.reset(tmp.timestamp);
-    mut_resource_pool_ref(memory).writer_token_pool[token_id].
+    mut_resource_pool_ref(memory_).writer_token_pool[token_id_].
 	    last_write_revision.reset(tmp.revision);
 }
 
@@ -559,7 +559,7 @@ template <class memory_t>
 template <class value_t>
 void mvcc_writer_handle<memory_t>::remove(const char* key)
 {
-    mvcc_record<value_t>* record = mut_record_ptr<memory_t, value_t>(memory, key);
+    mvcc_record<value_t>* record = mut_record_ptr<memory_t, value_t>(memory_, key);
     if (record)
     {
 	record->want_removed = true;
@@ -594,16 +594,16 @@ void mvcc_writer_handle<memory_t>::release_writer_token(memory_t& memory, const 
 template <class memory_t>
 writer_token_id mvcc_writer_handle<memory_t>::get_writer_token_id() const
 {
-    return token_id;
+    return token_id_;
 }
 
 template <class memory_t>
 boost::uint64_t mvcc_writer_handle<memory_t>::get_last_write_revision() const
 {
-    const mvcc_resource_pool<memory_t>& pool = const_resource_pool_ref(memory);
-    if (pool.writer_token_pool[token_id].last_write_revision)
+    const mvcc_resource_pool<memory_t>& pool = const_resource_pool_ref(memory_);
+    if (pool.writer_token_pool[token_id_].last_write_revision)
     {
-	return pool.writer_token_pool[token_id].last_write_revision.get();
+	return pool.writer_token_pool[token_id_].last_write_revision.get();
     }
     else
     {
@@ -615,16 +615,16 @@ boost::uint64_t mvcc_writer_handle<memory_t>::get_last_write_revision() const
 
 template <class memory_t>
 mvcc_owner_handle<memory_t>::mvcc_owner_handle(open_mode mode, memory_t& memory) :
-    memory(memory)
+    memory_(memory)
 {
     if (mode == open_new)
     {
-	boost::function<void ()> init_func(boost::bind(&init<memory_t>, boost::ref(memory)));
-	memory.get_segment_manager()->atomic_func(init_func);
+	boost::function<void ()> init_func(boost::bind(&init<memory_t>, boost::ref(memory_)));
+	memory_.get_segment_manager()->atomic_func(init_func);
     }
     else
     {
-	check(memory);
+	check(memory_);
     }
 }
 
@@ -639,7 +639,7 @@ void mvcc_owner_handle<memory_t>::process_read_metadata(reader_token_id from, re
     {
 	return;
     }
-    mvcc_resource_pool<memory_t>& pool = mut_resource_pool_ref(memory);
+    mvcc_resource_pool<memory_t>& pool = mut_resource_pool_ref(memory_);
     if (pool.owner_token.oldest_reader_id_found && pool.owner_token.oldest_revision_found)
     {
 	reader_token_id token_id = pool.owner_token.oldest_reader_id_found.get();
@@ -668,7 +668,7 @@ template <class memory_t>
 void mvcc_owner_handle<memory_t>::process_write_metadata(std::size_t max_attempts)
 {
     mvcc_deleter<memory_t> deleter;
-    mvcc_resource_pool<memory_t>& pool = mut_resource_pool_ref(memory);
+    mvcc_resource_pool<memory_t>& pool = mut_resource_pool_ref(memory_);
     for (std::size_t attempts = 0; !pool.deleter_list.empty() && (max_attempts == 0 || attempts < max_attempts); ++attempts)
     {
 	if (pool.deleter_list.pop(deleter))
@@ -688,7 +688,7 @@ std::string mvcc_owner_handle<memory_t>::collect_garbage(std::size_t max_attempt
 template <class memory_t>
 std::string mvcc_owner_handle<memory_t>::collect_garbage(const std::string& from, std::size_t max_attempts)
 {
-    mvcc_resource_pool<memory_t>& pool = mut_resource_pool_ref(memory);
+    mvcc_resource_pool<memory_t>& pool = mut_resource_pool_ref(memory_);
     if (pool.owner_token.registry.empty())
     {
 	return "";
@@ -702,7 +702,7 @@ std::string mvcc_owner_handle<memory_t>::collect_garbage(const std::string& from
 	mvcc_revision oldest = pool.owner_token.oldest_revision_found.get();
 	for (std::size_t attempts = 0; iter != pool.owner_token.registry.end() && (max_attempts == 0 || attempts < max_attempts); ++attempts, ++iter)
 	{
-	    iter->second.function(memory, iter->first.c_str, oldest);
+	    iter->second.function(memory_, iter->first.c_str, oldest);
 	}
     }
     if (iter == pool.owner_token.registry.end())
@@ -718,9 +718,9 @@ std::string mvcc_owner_handle<memory_t>::collect_garbage(const std::string& from
 template <class memory_t>
 boost::uint64_t mvcc_owner_handle<memory_t>::get_global_oldest_revision_read() const
 {
-    if (const_resource_pool_ref(memory).owner_token.oldest_revision_found)
+    if (const_resource_pool_ref(memory_).owner_token.oldest_revision_found)
     {
-	return const_resource_pool_ref(memory).owner_token.oldest_revision_found.get();
+	return const_resource_pool_ref(memory_).owner_token.oldest_revision_found.get();
     }
     else
     {
@@ -731,7 +731,7 @@ boost::uint64_t mvcc_owner_handle<memory_t>::get_global_oldest_revision_read() c
 template <class memory_t>
 std::vector<std::string> mvcc_owner_handle<memory_t>::get_registered_keys() const
 {
-    const mvcc_resource_pool<memory_t>& pool = const_resource_pool_ref(memory);
+    const mvcc_resource_pool<memory_t>& pool = const_resource_pool_ref(memory_);
     std::vector<std::string> result;
     for (typename mvcc_owner_token<memory_t>::registry_map_::const_iterator iter = pool.owner_token.registry.begin(); iter != pool.owner_token.registry.end(); ++iter)
     {
