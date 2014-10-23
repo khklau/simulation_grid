@@ -57,6 +57,32 @@ def build(buildCtx):
 	    rpath=buildCtx.env.component.rpath_list,
 	    install_path=buildCtx.env.component.install_tree.test,
 	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'])
+    buildCtx.program(
+	    name='program_mvcc_shm_service',
+	    source=mvcc_serviceCcNodeList + [buildCtx.path.find_node('mvcc_shm_service.cxx')],
+	    target=join(buildCtx.env.component.build_tree.testPathFromBuild(buildCtx), 'mvcc_shm_service'),
+	    defines=['GTEST_HAS_PTHREAD=1', 'BOOST_CB_DISABLE_DEBUG=1', 'SIMGRID_GRIDDB_MVCCMEMORY_DEBUG=1'],
+	    includes=['.'] + buildCtx.env.component.include_path_list,
+	    cxxflags=buildCtx.env.CXXFLAGS + ['-DBOOST_CB_DISABLE_DEBUG'],
+	    linkflags=buildCtx.env.LDFLAGS,
+	    use=['BOOST', 'PROTOBUF', 'ZEROMQ', 'shlib_simgrid_core', 'shlib_simgrid_grid_db', 'stlib_mvcc_service_msg'],
+	    libpath=['.'] + buildCtx.env.component.lib_path_list,
+	    rpath=buildCtx.env.component.rpath_list,
+	    install_path=buildCtx.env.component.install_tree.test,
+	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'])
+    buildCtx.program(
+	    name='program_mvcc_shm_test',
+	    source='mvcc_shm_test.cxx',
+	    target=join(buildCtx.env.component.build_tree.testPathFromBuild(buildCtx), 'mvcc_shm_test'),
+	    defines=['GTEST_HAS_PTHREAD=1', 'BOOST_CB_DISABLE_DEBUG=1', 'SIMGRID_GRIDDB_MVCCMEMORY_DEBUG=1'],
+	    includes=['.'] + buildCtx.env.component.include_path_list,
+	    cxxflags=buildCtx.env.CXXFLAGS + ['-DBOOST_CB_DISABLE_DEBUG'],
+	    linkflags=buildCtx.env.LDFLAGS,
+	    use=['BOOST', 'PROTOBUF', 'GTEST', 'ZEROMQ', 'shlib_simgrid_core', 'shlib_simgrid_grid_db', 'stlib_mvcc_service_msg'],
+	    libpath=buildCtx.env.component.lib_path_list,
+	    rpath=buildCtx.env.component.rpath_list,
+	    install_path=buildCtx.env.component.install_tree.test,
+	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'])
     ringbufCcNodeList=[]
     ringbufProtoTaskList=[]
     for proto in ringbuf_proto_files:
