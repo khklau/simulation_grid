@@ -2,7 +2,7 @@
 #define SIMULATION_GRID_GRID_DB_MMAP_CONTAINER_HXX
 
 #include "mmap_container.hpp"
-#include "mvcc_container.hxx"
+#include "mvcc_memory.hxx"
 
 namespace simulation_grid {
 namespace grid_db {
@@ -19,7 +19,7 @@ const boost::optional<const element_t&> mvcc_mmap_reader::read(const char* key) 
     return reader_handle_.template read<element_t>(key);
 }
 
-#ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
+#ifdef SIMGRID_GRIDDB_MVCCMEMORY_DEBUG
 
 reader_token_id mvcc_mmap_reader::get_reader_token_id() const
 {
@@ -69,7 +69,7 @@ void mvcc_mmap_owner::remove(const char* key)
     writer_handle_.template remove<element_t>(key);
 }
 
-#ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
+#ifdef SIMGRID_GRIDDB_MVCCMEMORY_DEBUG
 
 reader_token_id mvcc_mmap_owner::get_reader_token_id() const
 {

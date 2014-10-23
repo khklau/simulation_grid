@@ -1,4 +1,4 @@
-#include "mvcc_container.hpp"
+#include "mvcc_memory.hpp"
 #include <cstring>
 #include <exception>
 #include <iostream>
@@ -10,7 +10,7 @@
 #include <boost/thread/thread.hpp>
 #include <simulation_grid/core/compiler_extensions.hpp>
 #include <simulation_grid/grid_db/exception.hpp>
-#include "mvcc_container.hxx"
+#include "mvcc_memory.hxx"
 
 namespace bfs = boost::filesystem;
 namespace bip = boost::interprocess;
@@ -59,7 +59,7 @@ bool mvcc_key::operator<(const mvcc_key& other) const
 
 mvcc_header::mvcc_header() :
     endianess_indicator(std::numeric_limits<boost::uint8_t>::max()),
-    container_version(MVCC_MAX_SUPPORTED_VERSION), 
+    memory_version(MVCC_MAX_SUPPORTED_VERSION), 
     header_size(sizeof(mvcc_header))
 {
     strncpy(file_type_tag, MVCC_FILE_TYPE_TAG, sizeof(file_type_tag));

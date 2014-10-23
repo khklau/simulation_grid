@@ -1,7 +1,7 @@
-#ifndef SIMULATION_GRID_GRID_DB_MVCC_CONTAINER_HXX
-#define SIMULATION_GRID_GRID_DB_MVCC_CONTAINER_HXX
+#ifndef SIMULATION_GRID_GRID_DB_MVCC_MEMORY_HXX
+#define SIMULATION_GRID_GRID_DB_MVCC_MEMORY_HXX
 
-#include "mvcc_container.hpp"
+#include "mvcc_memory.hpp"
 #include <cstring>
 #include <utility>
 #include <boost/atomic.hpp>
@@ -37,7 +37,7 @@ typedef boost::uint8_t history_depth;
 static const size_t DEFAULT_HISTORY_DEPTH = 1 <<  std::numeric_limits<history_depth>::digits;
 static const char* RESOURCE_POOL_KEY = "@@RESOURCE_POOL@@";
 static const char* HEADER_KEY = "@@HEADER@@";
-static const char* MVCC_FILE_TYPE_TAG = "simulation_grid::grid_db::mvcc_container";
+static const char* MVCC_FILE_TYPE_TAG = "simulation_grid::grid_db::mvcc_memory";
 
 struct mvcc_key
 {
@@ -91,7 +91,7 @@ struct mvcc_header
 {
     boost::uint16_t endianess_indicator;
     char file_type_tag[48];
-    version container_version;
+    version memory_version;
     boost::uint16_t header_size;
     mvcc_header();
 };
@@ -323,35 +323,35 @@ void check(const memory_t& memory)
     if (UNLIKELY_EXT(!header))
     {
 	throw malformed_db_error("Could not find header")
-		<< info_component_identity("mvcc_container")
+		<< info_component_identity("mvcc_memory")
 		<< info_data_identity(HEADER_KEY);
     }
     // If endianess is different the indicator will be 65280 instead of 255
     if (UNLIKELY_EXT(header->endianess_indicator != std::numeric_limits<boost::uint8_t>::max()))
     {
 	throw unsupported_db_error("Container requires byte swapping")
-		<< info_component_identity("mvcc_container")
-		<< info_version_found(header->container_version);
+		<< info_component_identity("mvcc_memory")
+		<< info_version_found(header->memory_version);
     }
     if (UNLIKELY_EXT(strncmp(header->file_type_tag, MVCC_FILE_TYPE_TAG, sizeof(header->file_type_tag))))
     {
 	throw malformed_db_error("Incorrect file type tag found")
-		<< info_component_identity("mvcc_container")
+		<< info_component_identity("mvcc_memory")
 		<< info_data_identity(HEADER_KEY);
     }
-    if (UNLIKELY_EXT(header->container_version < MVCC_MIN_SUPPORTED_VERSION ||
-	    header->container_version > MVCC_MAX_SUPPORTED_VERSION))
+    if (UNLIKELY_EXT(header->memory_version < MVCC_MIN_SUPPORTED_VERSION ||
+	    header->memory_version > MVCC_MAX_SUPPORTED_VERSION))
     {
-	throw unsupported_db_error("Unsuported container version")
-		<< info_component_identity("mvcc_container")
-		<< info_version_found(header->container_version)
+	throw unsupported_db_error("Unsuported memory version")
+		<< info_component_identity("mvcc_memory")
+		<< info_version_found(header->memory_version)
 		<< info_min_supported_version(MVCC_MIN_SUPPORTED_VERSION)
 		<< info_max_supported_version(MVCC_MAX_SUPPORTED_VERSION);
     }
     if (UNLIKELY_EXT(sizeof(mvcc_header) != header->header_size))
     {
 	throw malformed_db_error("Wrong header size")
-		<< info_component_identity("mvcc_container")
+		<< info_component_identity("mvcc_memory")
 		<< info_data_identity(HEADER_KEY);
     }
 }
@@ -429,7 +429,7 @@ reader_token_id mvcc_reader_handle<memory_t>::acquire_reader_token(memory_t& mem
     if (UNLIKELY_EXT(!mut_resource_pool_ref(memory).reader_free_list.pop(reservation)))
     {
 	throw busy_condition("No reader token available")
-		<< info_component_identity("mvcc_container");
+		<< info_component_identity("mvcc_memory");
     }
     return reservation;
 }
@@ -445,7 +445,7 @@ void mvcc_reader_handle<memory_t>::release_reader_token(memory_t& memory, const 
     }
 }
 
-#ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
+#ifdef SIMGRID_GRIDDB_MVCCMEMORY_DEBUG
 
 template <class memory_t>
 reader_token_id mvcc_reader_handle<memory_t>::get_reader_token_id() const
@@ -586,7 +586,7 @@ writer_token_id mvcc_writer_handle<memory_t>::acquire_writer_token(memory_t& mem
     if (UNLIKELY_EXT(!mut_resource_pool_ref(memory).writer_free_list.pop(reservation)))
     {
 	throw busy_condition("No writer token available")
-		<< info_component_identity("mvcc_container");
+		<< info_component_identity("mvcc_memory");
     }
     return reservation;
 }
@@ -602,7 +602,7 @@ void mvcc_writer_handle<memory_t>::release_writer_token(memory_t& memory, const 
     }
 }
 
-#ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
+#ifdef SIMGRID_GRIDDB_MVCCMEMORY_DEBUG
 
 template <class memory_t>
 writer_token_id mvcc_writer_handle<memory_t>::get_writer_token_id() const
@@ -726,7 +726,7 @@ std::string mvcc_owner_handle<memory_t>::collect_garbage(const std::string& from
     return iter->first.c_str;
 }
 
-#ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
+#ifdef SIMGRID_GRIDDB_MVCCMEMORY_DEBUG
 
 template <class memory_t>
 boost::uint64_t mvcc_owner_handle<memory_t>::get_global_oldest_revision_read() const
