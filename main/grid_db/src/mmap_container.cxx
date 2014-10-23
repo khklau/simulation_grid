@@ -1,52 +1,23 @@
-#include <cstring>
-#include <exception>
-#include <iostream>
+#include "mmap_container.hpp"
 #include <boost/bind.hpp>
 #include <boost/filesystem/operations.hpp>
-#include <boost/function.hpp>
 #include <boost/interprocess/creation_tags.hpp>
-#include <boost/optional.hpp>
 #include <boost/ref.hpp>
-#include <boost/thread/thread.hpp>
-#include <simulation_grid/core/compiler_extensions.hpp>
 #include <simulation_grid/grid_db/exception.hpp>
-#include "mmap_container.hpp"
 #include "mmap_container.hxx"
 
 namespace bfs = boost::filesystem;
 namespace bip = boost::interprocess;
 namespace bpt = boost::posix_time;
 
-namespace {
-
-using namespace simulation_grid::grid_db;
-
-size_t get_size(const mvcc_mmap_container& container)
-{
-    return container.file.get_size();
-}
-
-} // anonymous namespace
-
 namespace simulation_grid {
 namespace grid_db {
 
-mvcc_mmap_container::mvcc_mmap_container(const owner_t, const bfs::path& path, size_t size) :
-    exists(bfs::exists(path)), path(path), file(bip::open_or_create, path.string().c_str(), size)
-{ }
-
-mvcc_mmap_container::mvcc_mmap_container(const reader_t, const bfs::path& path) :
-    exists(bfs::exists(path)), path(path), file(bip::open_only, path.string().c_str())
-{ }
-
-std::size_t mvcc_mmap_container::available_space() const
-{
-    return file.get_free_memory();
-}
-
 mvcc_mmap_reader::mvcc_mmap_reader(const bfs::path& path)
 try :
-    container_(reader, path), reader_handle_(container_.file)
+    path_(path),
+    file_(bip::open_only, path.string().c_str()),
+    reader_handle_(file_)
 {
 }
 catch (grid_db_condition& cond)
@@ -63,13 +34,24 @@ catch (grid_db_error& err)
 mvcc_mmap_reader::~mvcc_mmap_reader()
 { }
 
+std::size_t mvcc_mmap_reader::get_available_space() const
+{
+    return reader_handle_.get_available_space();
+}
+
+std::size_t mvcc_mmap_reader::get_size() const
+{
+    return reader_handle_.get_size();
+}
+
 mvcc_mmap_owner::mvcc_mmap_owner(const bfs::path& path, std::size_t size)
 try :
     exists_(bfs::exists(path)),
-    container_(owner, path, size),
-    owner_handle_(exists_ ? open_existing : open_new, container_.file),
-    writer_handle_(container_.file),
-    reader_handle_(container_.file),
+    path_(path),
+    file_(bip::open_or_create, path.string().c_str(), size),
+    owner_handle_(exists_ ? open_existing : open_new, file_),
+    writer_handle_(file_),
+    reader_handle_(file_),
     file_lock_(path.string().c_str())
 {
     flush();
@@ -121,13 +103,23 @@ std::string mvcc_mmap_owner::collect_garbage(const std::string& from, std::size_
 void mvcc_mmap_owner::flush()
 {
     boost::function<void ()> flush_func(boost::bind(&mvcc_mmap_owner::flush_impl, boost::ref(*this)));
-    container_.file.get_segment_manager()->atomic_func(flush_func);
+    file_.get_segment_manager()->atomic_func(flush_func);
 }
 
 void mvcc_mmap_owner::flush_impl()
 {
+    file_.flush();
     last_flush_timestamp_ = bpt::microsec_clock::local_time();
-    container_.file.flush();
+}
+
+std::size_t mvcc_mmap_owner::get_available_space() const
+{
+    return reader_handle_.get_available_space();
+}
+
+std::size_t mvcc_mmap_owner::get_size() const
+{
+    return reader_handle_.get_size();
 }
 
 } // namespace grid_db

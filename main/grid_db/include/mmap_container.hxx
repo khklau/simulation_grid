@@ -1,32 +1,8 @@
 #ifndef SIMULATION_GRID_GRID_DB_MMAP_CONTAINER_HXX
 #define SIMULATION_GRID_GRID_DB_MMAP_CONTAINER_HXX
 
-#include <cstring>
-#include <utility>
-#include <boost/atomic.hpp>
-#include <boost/bind.hpp>
-#include <boost/chrono/chrono.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/function.hpp>
-#include <boost/interprocess/allocators/allocator.hpp>
-#include <boost/interprocess/creation_tags.hpp>
-#include <boost/interprocess/containers/map.hpp>
-#include <boost/interprocess/managed_mapped_file.hpp>
-#include <boost/optional.hpp>
-#include <boost/random/mersenne_twister.hpp>
-#include <boost/random/uniform_int_distribution.hpp>
-#include <boost/ref.hpp>
-#include <boost/thread/thread_time.hpp>
-#include <simulation_grid/core/compiler_extensions.hpp>
-#include <simulation_grid/grid_db/exception.hpp>
-#include "multi_reader_ring_buffer.hpp"
-#include "multi_reader_ring_buffer.hxx"
-#include "mvcc_container.hxx"
 #include "mmap_container.hpp"
-
-namespace bip = boost::interprocess;
-namespace bpt = boost::posix_time;
-namespace bra = boost::random;
+#include "mvcc_container.hxx"
 
 namespace simulation_grid {
 namespace grid_db {
