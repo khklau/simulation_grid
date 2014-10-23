@@ -32,9 +32,9 @@ def build(buildCtx):
 	    install_path=buildCtx.env.component.install_tree.test,
 	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'] + containerProtoTaskList)
     buildCtx.program(
-	    name='program_mmap_container_service',
-	    source=containerCcNodeList + [buildCtx.path.find_node('mmap_container_service.cxx')],
-	    target=join(buildCtx.env.component.build_tree.testPathFromBuild(buildCtx), 'mmap_container_service'),
+	    name='program_mvcc_mmap_service',
+	    source=containerCcNodeList + [buildCtx.path.find_node('mvcc_mmap_service.cxx')],
+	    target=join(buildCtx.env.component.build_tree.testPathFromBuild(buildCtx), 'mvcc_mmap_service'),
 	    defines=['GTEST_HAS_PTHREAD=1', 'BOOST_CB_DISABLE_DEBUG=1', 'SIMGRID_GRIDDB_MVCCMEMORY_DEBUG=1'],
 	    includes=['.'] + buildCtx.env.component.include_path_list,
 	    cxxflags=buildCtx.env.CXXFLAGS + ['-DBOOST_CB_DISABLE_DEBUG'],
@@ -45,9 +45,9 @@ def build(buildCtx):
 	    install_path=buildCtx.env.component.install_tree.test,
 	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'])
     buildCtx.program(
-	    name='program_mmap_container_test',
-	    source='mmap_container_test.cxx',
-	    target=join(buildCtx.env.component.build_tree.testPathFromBuild(buildCtx), 'mmap_container_test'),
+	    name='program_mvcc_mmap_test',
+	    source='mvcc_mmap_test.cxx',
+	    target=join(buildCtx.env.component.build_tree.testPathFromBuild(buildCtx), 'mvcc_mmap_test'),
 	    defines=['GTEST_HAS_PTHREAD=1', 'BOOST_CB_DISABLE_DEBUG=1', 'SIMGRID_GRIDDB_MVCCMEMORY_DEBUG=1'],
 	    includes=['.'] + buildCtx.env.component.include_path_list,
 	    cxxflags=buildCtx.env.CXXFLAGS + ['-DBOOST_CB_DISABLE_DEBUG'],

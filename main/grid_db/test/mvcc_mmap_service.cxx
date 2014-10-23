@@ -32,8 +32,8 @@
 #include <zmq.hpp>
 #include <signal.h>
 #include "exception.hpp"
-#include "mmap_container.hpp"
-#include "mmap_container.hxx"
+#include "mvcc_mmap.hpp"
+#include "mvcc_mmap.hxx"
 #include "container_msg.hpp"
 
 namespace bas = boost::asio;
@@ -125,7 +125,7 @@ parse_result parse_cmd_line(const int argc, char* const argv[], std::ostringstre
 {
     parse_result result;
     config tmp;
-    bpo::options_description descr("Usage: mmap_container_service [options] ipc name");
+    bpo::options_description descr("Usage: mvcc_mmap_service [options] ipc name");
     descr.add_options()
             ("help,h", "This help text")
             ("port,p", bpo::value<port_t>(&tmp.port)->default_value(DEFAULT_PORT),

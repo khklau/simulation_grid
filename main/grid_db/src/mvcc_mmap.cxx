@@ -1,10 +1,10 @@
-#include "mmap_container.hpp"
+#include "mvcc_mmap.hpp"
 #include <boost/bind.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <boost/interprocess/creation_tags.hpp>
 #include <boost/ref.hpp>
 #include <simulation_grid/grid_db/exception.hpp>
-#include "mmap_container.hxx"
+#include "mvcc_mmap.hxx"
 
 namespace bfs = boost::filesystem;
 namespace bip = boost::interprocess;

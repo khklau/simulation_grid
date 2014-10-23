@@ -1,7 +1,7 @@
 #ifndef SIMULATION_GRID_GRID_DB_MMAP_CONTAINER_HXX
 #define SIMULATION_GRID_GRID_DB_MMAP_CONTAINER_HXX
 
-#include "mmap_container.hpp"
+#include "mvcc_mmap.hpp"
 #include "mvcc_memory.hxx"
 
 namespace simulation_grid {

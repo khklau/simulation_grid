@@ -22,8 +22,8 @@
 #include <simulation_grid/core/process_utility.hpp>
 #include <simulation_grid/core/tcpip_utility.hpp>
 #include "exception.hpp"
-#include "mmap_container.hpp"
-#include "mmap_container.hxx"
+#include "mvcc_mmap.hpp"
+#include "mvcc_mmap.hxx"
 #include "container_msg.hpp"
 
 namespace bas = boost::asio;
@@ -386,7 +386,7 @@ private:
 service_launcher::service_launcher(const config& config) :
     has_terminated(false)
 {
-    static const char SLAVE_NAME[] = "mmap_container_service";
+    static const char SLAVE_NAME[] = "mvcc_mmap_service";
     boost::array <char, sizeof(SLAVE_NAME)> launcher_name;
     strncpy(launcher_name.c_array(), SLAVE_NAME, launcher_name.max_size());
 
@@ -466,7 +466,7 @@ int service_launcher::wait()
 
 } // anonymous namespace
 
-TEST(mmap_container_test, startup_and_shutdown_benchmark)
+TEST(mvcc_mmap_test, startup_and_shutdown_benchmark)
 {
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
@@ -474,7 +474,7 @@ TEST(mmap_container_test, startup_and_shutdown_benchmark)
     client.send_terminate(1U);
 }
 
-TEST(mmap_container_test, access_historical)
+TEST(mvcc_mmap_test, access_historical)
 {
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
@@ -500,13 +500,13 @@ TEST(mmap_container_test, access_historical)
     client.send_terminate(3U);
 }
 
-TEST(mmap_container_test, atomic_global_revision)
+TEST(mvcc_mmap_test, atomic_global_revision)
 {
     boost::atomic<sgd::mvcc_revision> tmp;
     ASSERT_TRUE(tmp.is_lock_free()) << "mvcc_revision is not atomic";
 }
 
-TEST(mmap_container_test, process_read_metadata_single_key)
+TEST(mvcc_mmap_test, process_read_metadata_single_key)
 {
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
@@ -566,7 +566,7 @@ TEST(mmap_container_test, process_read_metadata_single_key)
     client.send_terminate(40U);
 }
 
-TEST(mmap_container_test, process_read_metadata_multi_key)
+TEST(mvcc_mmap_test, process_read_metadata_multi_key)
 {
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
@@ -630,7 +630,7 @@ TEST(mmap_container_test, process_read_metadata_multi_key)
     client.send_terminate(40U);
 }
 
-TEST(mmap_container_test, process_read_metadata_subset)
+TEST(mvcc_mmap_test, process_read_metadata_subset)
 {
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
@@ -668,7 +668,7 @@ TEST(mmap_container_test, process_read_metadata_subset)
     client.send_terminate(50U);
 }
 
-TEST(mmap_container_test, process_write_metadata_single_key)
+TEST(mvcc_mmap_test, process_write_metadata_single_key)
 {
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
@@ -692,7 +692,7 @@ TEST(mmap_container_test, process_write_metadata_single_key)
     client.send_terminate(30U);
 }
 
-TEST(mmap_container_test, process_write_metadata_multi_key)
+TEST(mvcc_mmap_test, process_write_metadata_multi_key)
 {
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
@@ -725,7 +725,7 @@ TEST(mmap_container_test, process_write_metadata_multi_key)
     client.send_terminate(30U);
 }
 
-TEST(mmap_container_test, process_write_metadata_subset)
+TEST(mvcc_mmap_test, process_write_metadata_subset)
 {
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
@@ -763,7 +763,7 @@ TEST(mmap_container_test, process_write_metadata_subset)
     client.send_terminate(50U);
 }
 
-TEST(mmap_container_test, collect_garbage_single_key_single_type)
+TEST(mvcc_mmap_test, collect_garbage_single_key_single_type)
 {
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
@@ -820,7 +820,7 @@ TEST(mmap_container_test, collect_garbage_single_key_single_type)
     client.send_terminate(30U);
 }
 
-TEST(mmap_container_test, collect_garbage_single_key_multi_type)
+TEST(mvcc_mmap_test, collect_garbage_single_key_multi_type)
 {
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
@@ -886,7 +886,7 @@ TEST(mmap_container_test, collect_garbage_single_key_multi_type)
     client.send_terminate(40U);
 }
 
-TEST(mmap_container_test, collect_garbage_multi_key_multi_type)
+TEST(mvcc_mmap_test, collect_garbage_multi_key_multi_type)
 {
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
@@ -975,7 +975,7 @@ TEST(mmap_container_test, collect_garbage_multi_key_multi_type)
     client.send_terminate(60U);
 }
 
-TEST(mmap_container_test, collect_garbage_subset)
+TEST(mvcc_mmap_test, collect_garbage_subset)
 {
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
@@ -1084,7 +1084,7 @@ TEST(mmap_container_test, collect_garbage_subset)
     client.send_terminate(60U);
 }
 
-TEST(mmap_container_test, exists_after_removed)
+TEST(mvcc_mmap_test, exists_after_removed)
 {
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
@@ -1113,7 +1113,7 @@ TEST(mmap_container_test, exists_after_removed)
     client.send_terminate(30U);
 }
 
-TEST(mmap_container_test, write_after_remove)
+TEST(mvcc_mmap_test, write_after_remove)
 {
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
@@ -1148,7 +1148,7 @@ TEST(mmap_container_test, write_after_remove)
     client.send_terminate(30U);
 }
 
-TEST(mmap_container_test, collect_garbage_after_remove)
+TEST(mvcc_mmap_test, collect_garbage_after_remove)
 {
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
@@ -1191,7 +1191,7 @@ TEST(mmap_container_test, collect_garbage_after_remove)
     client.send_terminate(30U);
 }
 
-TEST(mmap_container_test, read_after_remove)
+TEST(mvcc_mmap_test, read_after_remove)
 {
     config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
     service_launcher launcher(conf);
