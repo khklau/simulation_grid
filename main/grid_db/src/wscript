@@ -38,6 +38,7 @@ def build(buildCtx):
 		    buildCtx.path.find_node('about.cxx'),
 		    buildCtx.path.find_node('role.cxx'),
 		    buildCtx.path.find_node('mvcc_memory.cxx'),
+		    buildCtx.path.find_node('mvcc_shm.cxx'),
 		    buildCtx.path.find_node('mvcc_mmap.cxx')],
 	    target=join(buildCtx.env.component.build_tree.libPathFromBuild(buildCtx), 'simgrid_grid_db'),
 	    includes=buildCtx.env.component.include_path_list,
