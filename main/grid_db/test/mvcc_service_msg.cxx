@@ -1,6 +1,6 @@
 #include <simulation_grid/core/compiler_extensions.hpp>
 #include <simulation_grid/grid_db/exception.hpp>
-#include "container_msg.hpp"
+#include "mvcc_service_msg.hpp"
 
 namespace sgd = simulation_grid::grid_db;
 

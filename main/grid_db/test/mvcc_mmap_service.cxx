@@ -34,7 +34,7 @@
 #include "exception.hpp"
 #include "mvcc_mmap.hpp"
 #include "mvcc_mmap.hxx"
-#include "container_msg.hpp"
+#include "mvcc_service_msg.hpp"
 
 namespace bas = boost::asio;
 namespace bfs = boost::filesystem;
@@ -258,11 +258,11 @@ void signal_notifier::handle(const bsy::error_code& error, int signal)
     reset();
 }
 
-class container_service
+class mvcc_service
 {
 public:
-    container_service(const config& config);
-    ~container_service();
+    mvcc_service(const config& config);
+    ~mvcc_service();
     void start();
     void stop();
     bool terminated() const { return service_.stopped(); }
@@ -301,7 +301,7 @@ private:
     bas::posix::stream_descriptor stream_;
 };
 
-container_service::container_service(const config& config) :
+mvcc_service::mvcc_service(const config& config) :
     owner_(bfs::path(config.name.c_str()), config.size),
     service_(),
     notifier_(),
@@ -311,12 +311,12 @@ container_service::container_service(const config& config) :
     socket_(context_, ZMQ_REP),
     stream_(service_, init_zmq_socket(socket_, config))
 {
-    notifier_.add(SIGTERM, boost::bind(&container_service::stop, this));
-    notifier_.add(SIGINT, boost::bind(&container_service::stop, this));
+    notifier_.add(SIGTERM, boost::bind(&mvcc_service::stop, this));
+    notifier_.add(SIGINT, boost::bind(&mvcc_service::stop, this));
     notifier_.start();
 }
 
-container_service::~container_service()
+mvcc_service::~mvcc_service()
 {
     stream_.release();
     socket_.close();
@@ -325,7 +325,7 @@ container_service::~container_service()
     stop();
 }
 
-void container_service::start()
+void mvcc_service::start()
 {
     if (service_.stopped())
     {
@@ -334,12 +334,12 @@ void container_service::start()
     run();
 }
 
-void container_service::stop()
+void mvcc_service::stop()
 {
     service_.stop();
 }
 
-int container_service::init_zmq_socket(zmq::socket_t& socket, const config& config)
+int mvcc_service::init_zmq_socket(zmq::socket_t& socket, const config& config)
 {
     std::string address(str(boost::format("tcp://127.0.0.1:%d") % config.port));
     socket.bind(address.c_str());
@@ -355,18 +355,18 @@ int container_service::init_zmq_socket(zmq::socket_t& socket, const config& conf
     return fd;
 }
 
-void container_service::run()
+void mvcc_service::run()
 {
     if (!terminated())
     {
 	boost::function2<void, const bsy::error_code&, size_t> func(
-		boost::bind(&container_service::receive_instruction, this, _1, _2));
+		boost::bind(&mvcc_service::receive_instruction, this, _1, _2));
 	stream_.async_read_some(boost::asio::null_buffers(), func);
 	service_.run();
     }
 }
 
-void container_service::receive_instruction(const bsy::error_code& error, size_t)
+void mvcc_service::receive_instruction(const bsy::error_code& error, size_t)
 {
     int event = 0;
     size_t size = sizeof(event);
@@ -475,13 +475,13 @@ void container_service::receive_instruction(const bsy::error_code& error, size_t
     if (!terminated())
     {
 	boost::function2<void, const bsy::error_code&, size_t> func(
-		boost::bind(&container_service::receive_instruction, this, _1, _2));
+		boost::bind(&mvcc_service::receive_instruction, this, _1, _2));
 	stream_.async_read_some(boost::asio::null_buffers(), func);
 	service_.run_one();
     }
 }
 
-void container_service::exec_terminate(const sgd::terminate_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_terminate(const sgd::terminate_instr& input, sgd::result_msg& output)
 {
     stop();
     sgd::confirmation_result tmp;
@@ -489,7 +489,7 @@ void container_service::exec_terminate(const sgd::terminate_instr& input, sgd::r
     output.set_confirmation(tmp);
 }
 
-void container_service::exec_exists_string(const sgd::exists_string_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_exists_string(const sgd::exists_string_instr& input, sgd::result_msg& output)
 {
     sgd::predicate_result tmp;
     tmp.set_sequence(input.sequence());
@@ -498,7 +498,7 @@ void container_service::exec_exists_string(const sgd::exists_string_instr& input
     output.set_predicate(tmp);
 }
 
-void container_service::exec_exists_struct(const sgd::exists_struct_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_exists_struct(const sgd::exists_struct_instr& input, sgd::result_msg& output)
 {
     sgd::predicate_result tmp;
     tmp.set_sequence(input.sequence());
@@ -507,7 +507,7 @@ void container_service::exec_exists_struct(const sgd::exists_struct_instr& input
     output.set_predicate(tmp);
 }
 
-void container_service::exec_read_string(const sgd::read_string_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_read_string(const sgd::read_string_instr& input, sgd::result_msg& output)
 {
     sgd::string_value_result tmp;
     sgd::invalid_argument_result failed;
@@ -526,7 +526,7 @@ void container_service::exec_read_string(const sgd::read_string_instr& input, sg
     }
 }
 
-void container_service::exec_read_struct(const sgd::read_struct_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_read_struct(const sgd::read_struct_instr& input, sgd::result_msg& output)
 {
     sgd::struct_value_result tmp;
     sgd::invalid_argument_result failed;
@@ -546,7 +546,7 @@ void container_service::exec_read_struct(const sgd::read_struct_instr& input, sg
     }
 }
 
-void container_service::exec_write_string(const sgd::write_string_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_write_string(const sgd::write_string_instr& input, sgd::result_msg& output)
 {
     sgd::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
@@ -555,7 +555,7 @@ void container_service::exec_write_string(const sgd::write_string_instr& input, 
     output.set_confirmation(tmp);
 }
 
-void container_service::exec_write_struct(const sgd::write_struct_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_write_struct(const sgd::write_struct_instr& input, sgd::result_msg& output)
 {
     sgd::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
@@ -564,7 +564,7 @@ void container_service::exec_write_struct(const sgd::write_struct_instr& input, 
     output.set_confirmation(tmp);
 }
 
-void container_service::exec_remove_string(const sgd::remove_string_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_remove_string(const sgd::remove_string_instr& input, sgd::result_msg& output)
 {
     sgd::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
@@ -572,7 +572,7 @@ void container_service::exec_remove_string(const sgd::remove_string_instr& input
     output.set_confirmation(tmp);
 }
 
-void container_service::exec_remove_struct(const sgd::remove_struct_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_remove_struct(const sgd::remove_struct_instr& input, sgd::result_msg& output)
 {
     sgd::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
@@ -580,7 +580,7 @@ void container_service::exec_remove_struct(const sgd::remove_struct_instr& input
     output.set_confirmation(tmp);
 }
 
-void container_service::exec_process_read_metadata(const sgd::process_read_metadata_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_process_read_metadata(const sgd::process_read_metadata_instr& input, sgd::result_msg& output)
 {
     sgd::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
@@ -588,7 +588,7 @@ void container_service::exec_process_read_metadata(const sgd::process_read_metad
     output.set_confirmation(tmp);
 }
 
-void container_service::exec_process_write_metadata(const sgd::process_write_metadata_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_process_write_metadata(const sgd::process_write_metadata_instr& input, sgd::result_msg& output)
 {
     sgd::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
@@ -596,7 +596,7 @@ void container_service::exec_process_write_metadata(const sgd::process_write_met
     output.set_confirmation(tmp);
 }
 
-void container_service::exec_collect_garbage_1(const sgd::collect_garbage_1_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_collect_garbage_1(const sgd::collect_garbage_1_instr& input, sgd::result_msg& output)
 {
     sgd::key_result tmp;
     tmp.set_sequence(input.sequence());
@@ -605,7 +605,7 @@ void container_service::exec_collect_garbage_1(const sgd::collect_garbage_1_inst
     output.set_key(tmp);
 }
 
-void container_service::exec_collect_garbage_2(const sgd::collect_garbage_2_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_collect_garbage_2(const sgd::collect_garbage_2_instr& input, sgd::result_msg& output)
 {
     sgd::key_result tmp;
     tmp.set_sequence(input.sequence());
@@ -614,7 +614,7 @@ void container_service::exec_collect_garbage_2(const sgd::collect_garbage_2_inst
     output.set_key(tmp);
 }
 
-void container_service::exec_get_reader_token_id(const sgd::get_reader_token_id_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_get_reader_token_id(const sgd::get_reader_token_id_instr& input, sgd::result_msg& output)
 {
     sgd::token_id_result tmp;
     tmp.set_sequence(input.sequence());
@@ -623,7 +623,7 @@ void container_service::exec_get_reader_token_id(const sgd::get_reader_token_id_
     output.set_token_id(tmp);
 }
 
-void container_service::exec_get_last_read_revision(const sgd::get_last_read_revision_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_get_last_read_revision(const sgd::get_last_read_revision_instr& input, sgd::result_msg& output)
 {
     sgd::revision_result tmp;
     tmp.set_sequence(input.sequence());
@@ -632,7 +632,7 @@ void container_service::exec_get_last_read_revision(const sgd::get_last_read_rev
     output.set_revision(tmp);
 }
 
-void container_service::exec_get_oldest_string_revision(const sgd::get_oldest_string_revision_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_get_oldest_string_revision(const sgd::get_oldest_string_revision_instr& input, sgd::result_msg& output)
 {
     sgd::revision_result tmp;
     tmp.set_sequence(input.sequence());
@@ -641,7 +641,7 @@ void container_service::exec_get_oldest_string_revision(const sgd::get_oldest_st
     output.set_revision(tmp);
 }
 
-void container_service::exec_get_oldest_struct_revision(const sgd::get_oldest_struct_revision_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_get_oldest_struct_revision(const sgd::get_oldest_struct_revision_instr& input, sgd::result_msg& output)
 {
     sgd::revision_result tmp;
     tmp.set_sequence(input.sequence());
@@ -650,7 +650,7 @@ void container_service::exec_get_oldest_struct_revision(const sgd::get_oldest_st
     output.set_revision(tmp);
 }
 
-void container_service::exec_get_global_oldest_revision_read(const sgd::get_global_oldest_revision_read_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_get_global_oldest_revision_read(const sgd::get_global_oldest_revision_read_instr& input, sgd::result_msg& output)
 {
     sgd::revision_result tmp;
     tmp.set_sequence(input.sequence());
@@ -659,7 +659,7 @@ void container_service::exec_get_global_oldest_revision_read(const sgd::get_glob
     output.set_revision(tmp);
 }
 
-void container_service::exec_get_registered_keys(const sgd::get_registered_keys_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_get_registered_keys(const sgd::get_registered_keys_instr& input, sgd::result_msg& output)
 {
     sgd::key_list_result tmp;
     tmp.set_sequence(input.sequence());
@@ -671,7 +671,7 @@ void container_service::exec_get_registered_keys(const sgd::get_registered_keys_
     output.set_key_list(tmp);
 }
 
-void container_service::exec_get_string_history_depth(const sgd::get_string_history_depth_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_get_string_history_depth(const sgd::get_string_history_depth_instr& input, sgd::result_msg& output)
 {
     sgd::size_result tmp;
     tmp.set_sequence(input.sequence());
@@ -680,7 +680,7 @@ void container_service::exec_get_string_history_depth(const sgd::get_string_hist
     output.set_size(tmp);
 }
 
-void container_service::exec_get_struct_history_depth(const sgd::get_struct_history_depth_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_get_struct_history_depth(const sgd::get_struct_history_depth_instr& input, sgd::result_msg& output)
 {
     sgd::size_result tmp;
     tmp.set_sequence(input.sequence());
@@ -706,7 +706,7 @@ int main(int argc, char* argv[])
 	case ipc::shm:
 	{
 	    {
-		container_service service(config.get());
+		mvcc_service service(config.get());
 		service.start();
 	    }
 	    bip::shared_memory_object::remove(config.get().name.c_str());
@@ -715,7 +715,7 @@ int main(int argc, char* argv[])
 	case ipc::mmap:
 	{
 	    {
-		container_service service(config.get());
+		mvcc_service service(config.get());
 		service.start();
 	    }
 	    bfs::remove(config.get().name);

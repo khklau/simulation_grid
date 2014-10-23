@@ -24,7 +24,7 @@
 #include "exception.hpp"
 #include "mvcc_mmap.hpp"
 #include "mvcc_mmap.hxx"
-#include "container_msg.hpp"
+#include "mvcc_service_msg.hpp"
 
 namespace bas = boost::asio;
 namespace bfs = boost::filesystem;

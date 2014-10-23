@@ -1,16 +1,16 @@
 from os.path import join
 import waflib.extras.protobuf
 
-container_proto_files=[
-	'container_msg.proto']
+mvcc_service_proto_files=[
+	'mvcc_service_msg.proto']
 
 ringbuf_proto_files=[
 	'ringbuf_msg.proto']
 
 def build(buildCtx):
-    containerCcNodeList=[]
-    containerProtoTaskList=[]
-    for proto in container_proto_files:
+    mvcc_serviceCcNodeList=[]
+    mvcc_serviceProtoTaskList=[]
+    for proto in mvcc_service_proto_files:
 	compileTask='protoc_%s' % proto
 	protoNode=buildCtx.path.find_node(proto)
 	ccNode=protoNode.change_ext('.pb.cc')
@@ -20,26 +20,26 @@ def build(buildCtx):
 		source=[protoNode],
 		target=[ccNode, hNode],
 		includes=['.'])
-	containerCcNodeList.append(ccNode)
-	containerProtoTaskList.append(compileTask)
+	mvcc_serviceCcNodeList.append(ccNode)
+	mvcc_serviceProtoTaskList.append(compileTask)
     buildCtx.stlib(
-	    name='stlib_container_msg',
-	    source=containerCcNodeList + [buildCtx.path.find_node('container_msg.cxx')],
-	    target='container_msg',
+	    name='stlib_mvcc_service_msg',
+	    source=mvcc_serviceCcNodeList + [buildCtx.path.find_node('mvcc_service_msg.cxx')],
+	    target='mvcc_service_msg',
 	    includes=['.'] + buildCtx.env.component.include_path_list,
 	    libpath=buildCtx.env.component.lib_path_list,
 	    cxxflags=buildCtx.env.CXXFLAGS,
 	    install_path=buildCtx.env.component.install_tree.test,
-	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'] + containerProtoTaskList)
+	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'] + mvcc_serviceProtoTaskList)
     buildCtx.program(
 	    name='program_mvcc_mmap_service',
-	    source=containerCcNodeList + [buildCtx.path.find_node('mvcc_mmap_service.cxx')],
+	    source=mvcc_serviceCcNodeList + [buildCtx.path.find_node('mvcc_mmap_service.cxx')],
 	    target=join(buildCtx.env.component.build_tree.testPathFromBuild(buildCtx), 'mvcc_mmap_service'),
 	    defines=['GTEST_HAS_PTHREAD=1', 'BOOST_CB_DISABLE_DEBUG=1', 'SIMGRID_GRIDDB_MVCCMEMORY_DEBUG=1'],
 	    includes=['.'] + buildCtx.env.component.include_path_list,
 	    cxxflags=buildCtx.env.CXXFLAGS + ['-DBOOST_CB_DISABLE_DEBUG'],
 	    linkflags=buildCtx.env.LDFLAGS,
-	    use=['BOOST', 'PROTOBUF', 'ZEROMQ', 'shlib_simgrid_core', 'shlib_simgrid_grid_db', 'stlib_container_msg'],
+	    use=['BOOST', 'PROTOBUF', 'ZEROMQ', 'shlib_simgrid_core', 'shlib_simgrid_grid_db', 'stlib_mvcc_service_msg'],
 	    libpath=['.'] + buildCtx.env.component.lib_path_list,
 	    rpath=buildCtx.env.component.rpath_list,
 	    install_path=buildCtx.env.component.install_tree.test,
@@ -52,7 +52,7 @@ def build(buildCtx):
 	    includes=['.'] + buildCtx.env.component.include_path_list,
 	    cxxflags=buildCtx.env.CXXFLAGS + ['-DBOOST_CB_DISABLE_DEBUG'],
 	    linkflags=buildCtx.env.LDFLAGS,
-	    use=['BOOST', 'PROTOBUF', 'GTEST', 'ZEROMQ', 'shlib_simgrid_core', 'shlib_simgrid_grid_db', 'stlib_container_msg'],
+	    use=['BOOST', 'PROTOBUF', 'GTEST', 'ZEROMQ', 'shlib_simgrid_core', 'shlib_simgrid_grid_db', 'stlib_mvcc_service_msg'],
 	    libpath=buildCtx.env.component.lib_path_list,
 	    rpath=buildCtx.env.component.rpath_list,
 	    install_path=buildCtx.env.component.install_tree.test,

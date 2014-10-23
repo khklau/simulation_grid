@@ -3,7 +3,7 @@
 
 #include <google/protobuf/message.h>
 #include <zmq.hpp>
-#include "container_msg.pb.h"
+#include "mvcc_service_msg.pb.h"
 
 namespace simulation_grid {
 namespace grid_db {
