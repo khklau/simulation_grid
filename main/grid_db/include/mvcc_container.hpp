@@ -27,8 +27,10 @@ class mvcc_reader_handle : private boost::noncopyable
 public:
     mvcc_reader_handle(memory_t& memory);
     ~mvcc_reader_handle();
-    template <class value_t> bool exists(const char* key) const;
-    template <class value_t> const boost::optional<const value_t&> read(const char* key) const;
+    template <class value_t> inline bool exists(const char* key) const;
+    template <class value_t> inline const boost::optional<const value_t&> read(const char* key) const;
+    inline std::size_t get_available_space() const;
+    inline std::size_t get_size() const;
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
     reader_token_id get_reader_token_id() const;
     boost::uint64_t get_last_read_revision() const;
@@ -49,8 +51,8 @@ class mvcc_writer_handle : private boost::noncopyable
 public:
     mvcc_writer_handle(memory_t& memory);
     ~mvcc_writer_handle();
-    template <class value_t> void write(const char* key, const value_t& value);
-    template <class value_t> void remove(const char* key);
+    template <class value_t> inline void write(const char* key, const value_t& value);
+    template <class value_t> inline void remove(const char* key);
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
     writer_token_id get_writer_token_id() const;
     boost::uint64_t get_last_write_revision() const;
@@ -78,10 +80,10 @@ class mvcc_owner_handle : private boost::noncopyable
 public:
     mvcc_owner_handle(open_mode mode, memory_t& memory);
     ~mvcc_owner_handle();
-    void process_read_metadata(reader_token_id from = 0, reader_token_id to = MVCC_READER_LIMIT);
-    void process_write_metadata(std::size_t max_attempts = 0);
-    std::string collect_garbage(std::size_t max_attempts = 0);
-    std::string collect_garbage(const std::string& from, std::size_t max_attempts = 0);
+    inline void process_read_metadata(reader_token_id from = 0, reader_token_id to = MVCC_READER_LIMIT);
+    inline void process_write_metadata(std::size_t max_attempts = 0);
+    inline std::string collect_garbage(std::size_t max_attempts = 0);
+    inline std::string collect_garbage(const std::string& from, std::size_t max_attempts = 0);
 #ifdef SIMGRID_GRIDDB_MVCCCONTAINER_DEBUG
     boost::uint64_t get_global_oldest_revision_read() const;
     std::vector<std::string> get_registered_keys() const;

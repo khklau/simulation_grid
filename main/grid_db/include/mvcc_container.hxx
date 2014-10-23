@@ -411,6 +411,18 @@ const boost::optional<const value_t&> mvcc_reader_handle<memory_t>::read(const c
 }
 
 template <class memory_t>
+std::size_t mvcc_reader_handle<memory_t>::get_available_space() const
+{
+    return memory_.get_free_memory();
+}
+
+template <class memory_t>
+std::size_t mvcc_reader_handle<memory_t>::get_size() const
+{
+    return memory_.get_size();
+}
+
+template <class memory_t>
 reader_token_id mvcc_reader_handle<memory_t>::acquire_reader_token(memory_t& memory)
 {
     reader_token_id reservation;
