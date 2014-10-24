@@ -329,7 +329,7 @@ void check(const memory_t& memory)
     // If endianess is different the indicator will be 65280 instead of 255
     if (UNLIKELY_EXT(header->endianess_indicator != std::numeric_limits<boost::uint8_t>::max()))
     {
-	throw unsupported_db_error("Container requires byte swapping")
+	throw unsupported_db_error("Memory requires byte swapping")
 		<< info_component_identity("mvcc_memory")
 		<< info_version_found(header->memory_version);
     }
