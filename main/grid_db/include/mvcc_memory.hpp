@@ -4,7 +4,6 @@
 #include <string>
 #include <limits>
 #include <boost/cstdint.hpp>
-#include <boost/filesystem/path.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
 #include <simulation_grid/grid_db/about.hpp>
