@@ -1,0 +1,79 @@
+package simulation_grid.grid_db;
+
+message struct_A_msg
+{
+    required string key = 1;
+    required string value = 2;
+}
+
+message struct_B_msg
+{
+    required string key = 1;
+    required bool value1 = 2;
+    required sfixed32 value2 = 3;
+    required double value3 = 4;
+}
+
+message union_AB
+{
+    enum tag_t
+    {
+	STRUCT_A = 0;
+	STRUCT_B = 1;
+    }
+    required tag_t tag = 1;
+    optional struct_A_msg a = 2;
+    optional struct_B_msg b = 3;
+}
+
+message terminate_msg
+{
+    required fixed32 sequence = 1;
+}
+
+message append_msg
+{
+    required fixed32 sequence = 1;
+    required union_AB entry = 2;
+}
+
+message instruction_msg
+{
+    enum opcode_t
+    {
+	TERMINATE = 0;
+	APPEND = 1;
+    }
+    required opcode_t opcode = 1;
+    optional terminate_msg terminate_msg = 2;
+    optional append_msg append_msg = 8;
+}
+
+message malformed_message_msg
+{
+    optional fixed32 sequence = 1;
+}
+
+message invalid_argument_msg
+{
+    optional fixed32 sequence = 1;
+}
+
+message confirmation_msg
+{
+    required fixed32 sequence = 1;
+}
+
+message result_msg
+{
+    enum opcode_t
+    {
+	MALFORMED_MESSAGE = 0;
+	INVALID_ARGUMENT = 1;
+	CONFIRMATION = 2;
+    }
+    required opcode_t opcode = 1;
+    optional malformed_message_msg malformed_message_msg = 2;
+    optional invalid_argument_msg invalid_argument_msg = 3;
+    optional confirmation_msg confirmation_msg = 4;
+}
