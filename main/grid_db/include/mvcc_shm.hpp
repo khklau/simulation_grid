@@ -65,6 +65,7 @@ public:
     template <class element_t> std::size_t get_history_depth(const char* key) const;
 #endif
 private:
+    static bool does_shm_exist(const std::string& name);
     bool exists_;
     const std::string name_;
     boost::interprocess::managed_shared_memory share_;

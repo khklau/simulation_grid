@@ -46,7 +46,7 @@ std::size_t mvcc_shm_reader::get_size() const
 
 mvcc_shm_owner::mvcc_shm_owner(const std::string& name, std::size_t size)
 try :
-    exists_(false),
+    exists_(does_shm_exist(name)),
     name_(name),
     share_(bip::open_or_create, name.c_str(), size),
     owner_handle_(exists_ ? open_existing : open_new, share_),
@@ -96,6 +96,20 @@ std::size_t mvcc_shm_owner::get_available_space() const
 std::size_t mvcc_shm_owner::get_size() const
 {
     return reader_handle_.get_size();
+}
+
+bool mvcc_shm_owner::does_shm_exist(const std::string& name)
+{
+    bool result = true;
+    try
+    {
+	bip::managed_shared_memory(bip::open_only, name.c_str());
+    }
+    catch (...)
+    {
+	result = false;
+    }
+    return result;
 }
 
 } // namespace grid_db
