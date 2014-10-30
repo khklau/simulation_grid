@@ -1,13 +1,65 @@
 from os.path import join
 import waflib.extras.protobuf
 
-mvcc_service_proto_files=[
-	'mvcc_service_msg.proto']
-
 ringbuf_proto_files=[
 	'ringbuf_msg.proto']
 
+mvcc_service_proto_files=[
+	'mvcc_service_msg.proto']
+
+log_service_proto_files=[
+	'log_service_msg.proto']
+
 def build(buildCtx):
+    ringbufCcNodeList=[]
+    ringbufProtoTaskList=[]
+    for proto in ringbuf_proto_files:
+	compileTask='protoc_%s' % proto
+	protoNode=buildCtx.path.find_node(proto)
+	ccNode=protoNode.change_ext('.pb.cc')
+	hNode=protoNode.change_ext('.pb.h')
+	waflib.extras.protobuf.define_task_gen(buildCtx,
+		name=compileTask,
+		source=[protoNode],
+		target=[ccNode, hNode],
+		includes=['.'])
+	ringbufCcNodeList.append(ccNode)
+	ringbufProtoTaskList.append(compileTask)
+    buildCtx.stlib(
+	    name='stlib_ringbuf_msg',
+	    source=ringbufCcNodeList + [buildCtx.path.find_node('ringbuf_msg.cxx')],
+	    target='ringbuf_msg',
+	    includes=['.'] + buildCtx.env.component.include_path_list,
+	    libpath=buildCtx.env.component.lib_path_list,
+	    cxxflags=buildCtx.env.CXXFLAGS,
+	    install_path=buildCtx.env.component.install_tree.test,
+	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'] + ringbufProtoTaskList)
+    buildCtx.program(
+	    name='program_multi_reader_ring_buffer_service',
+	    source=ringbufCcNodeList + [buildCtx.path.find_node('multi_reader_ring_buffer_service.cxx')],
+	    target=join(buildCtx.env.component.build_tree.testPathFromBuild(buildCtx), 'multi_reader_ring_buffer_service'),
+	    defines=['GTEST_HAS_PTHREAD=1', 'BOOST_CB_DISABLE_DEBUG=1'],
+	    includes=['.'] + buildCtx.env.component.include_path_list,
+	    cxxflags=buildCtx.env.CXXFLAGS + ['-DBOOST_CB_DISABLE_DEBUG'],
+	    linkflags=buildCtx.env.LDFLAGS,
+	    use=['BOOST', 'PROTOBUF', 'ZEROMQ', 'shlib_simgrid_core', 'shlib_simgrid_grid_db', 'stlib_ringbuf_msg'],
+	    libpath=['.'] + buildCtx.env.component.lib_path_list,
+	    rpath=buildCtx.env.component.rpath_list,
+	    install_path=buildCtx.env.component.install_tree.test,
+	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'])
+    buildCtx.program(
+	    name='program_multi_reader_ring_buffer_test',
+	    source='multi_reader_ring_buffer_test.cxx',
+	    target=join(buildCtx.env.component.build_tree.testPathFromBuild(buildCtx), 'multi_reader_ring_buffer_test'),
+	    defines=['GTEST_HAS_PTHREAD=1', 'BOOST_CB_DISABLE_DEBUG=1'],
+	    includes=['.'] + buildCtx.env.component.include_path_list,
+	    cxxflags=buildCtx.env.CXXFLAGS + ['-DBOOST_CB_DISABLE_DEBUG'],
+	    linkflags=buildCtx.env.LDFLAGS,
+	    use=['BOOST', 'PROTOBUF', 'GTEST', 'ZEROMQ', 'shlib_simgrid_core', 'shlib_simgrid_grid_db', 'stlib_ringbuf_msg'],
+	    libpath=['.'] + buildCtx.env.component.lib_path_list,
+	    rpath=buildCtx.env.component.rpath_list,
+	    install_path=buildCtx.env.component.install_tree.test,
+	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'])
     mvcc_serviceCcNodeList=[]
     mvcc_serviceProtoTaskList=[]
     for proto in mvcc_service_proto_files:
@@ -83,9 +135,9 @@ def build(buildCtx):
 	    rpath=buildCtx.env.component.rpath_list,
 	    install_path=buildCtx.env.component.install_tree.test,
 	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'])
-    ringbufCcNodeList=[]
-    ringbufProtoTaskList=[]
-    for proto in ringbuf_proto_files:
+    log_serviceCcNodeList=[]
+    log_serviceProtoTaskList=[]
+    for proto in log_service_proto_files:
 	compileTask='protoc_%s' % proto
 	protoNode=buildCtx.path.find_node(proto)
 	ccNode=protoNode.change_ext('.pb.cc')
@@ -95,40 +147,40 @@ def build(buildCtx):
 		source=[protoNode],
 		target=[ccNode, hNode],
 		includes=['.'])
-	ringbufCcNodeList.append(ccNode)
-	ringbufProtoTaskList.append(compileTask)
+	log_serviceCcNodeList.append(ccNode)
+	log_serviceProtoTaskList.append(compileTask)
     buildCtx.stlib(
-	    name='stlib_ringbuf_msg',
-	    source=ringbufCcNodeList + [buildCtx.path.find_node('ringbuf_msg.cxx')],
-	    target='ringbuf_msg',
+	    name='stlib_log_service_msg',
+	    source=log_serviceCcNodeList + [buildCtx.path.find_node('log_service_msg.cxx')],
+	    target='log_service_msg',
 	    includes=['.'] + buildCtx.env.component.include_path_list,
 	    libpath=buildCtx.env.component.lib_path_list,
 	    cxxflags=buildCtx.env.CXXFLAGS,
 	    install_path=buildCtx.env.component.install_tree.test,
-	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'] + ringbufProtoTaskList)
+	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'] + log_serviceProtoTaskList)
     buildCtx.program(
-	    name='program_multi_reader_ring_buffer_service',
-	    source=ringbufCcNodeList + [buildCtx.path.find_node('multi_reader_ring_buffer_service.cxx')],
-	    target=join(buildCtx.env.component.build_tree.testPathFromBuild(buildCtx), 'multi_reader_ring_buffer_service'),
-	    defines=['GTEST_HAS_PTHREAD=1', 'BOOST_CB_DISABLE_DEBUG=1'],
+	    name='program_log_mmap_service',
+	    source=log_serviceCcNodeList + [buildCtx.path.find_node('log_mmap_service.cxx')],
+	    target=join(buildCtx.env.component.build_tree.testPathFromBuild(buildCtx), 'log_mmap_service'),
+	    defines=['GTEST_HAS_PTHREAD=1', 'BOOST_CB_DISABLE_DEBUG=1', 'SIMGRID_GRIDDB_MVCCMEMORY_DEBUG=1'],
 	    includes=['.'] + buildCtx.env.component.include_path_list,
 	    cxxflags=buildCtx.env.CXXFLAGS + ['-DBOOST_CB_DISABLE_DEBUG'],
 	    linkflags=buildCtx.env.LDFLAGS,
-	    use=['BOOST', 'PROTOBUF', 'ZEROMQ', 'shlib_simgrid_core', 'shlib_simgrid_grid_db', 'stlib_ringbuf_msg'],
+	    use=['BOOST', 'PROTOBUF', 'ZEROMQ', 'shlib_simgrid_core', 'shlib_simgrid_grid_db', 'stlib_log_service_msg'],
 	    libpath=['.'] + buildCtx.env.component.lib_path_list,
 	    rpath=buildCtx.env.component.rpath_list,
 	    install_path=buildCtx.env.component.install_tree.test,
 	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'])
     buildCtx.program(
-	    name='program_multi_reader_ring_buffer_test',
-	    source='multi_reader_ring_buffer_test.cxx',
-	    target=join(buildCtx.env.component.build_tree.testPathFromBuild(buildCtx), 'multi_reader_ring_buffer_test'),
-	    defines=['GTEST_HAS_PTHREAD=1', 'BOOST_CB_DISABLE_DEBUG=1'],
+	    name='program_log_mmap_test',
+	    source='log_mmap_test.cxx',
+	    target=join(buildCtx.env.component.build_tree.testPathFromBuild(buildCtx), 'log_mmap_test'),
+	    defines=['GTEST_HAS_PTHREAD=1', 'BOOST_CB_DISABLE_DEBUG=1', 'SIMGRID_GRIDDB_MVCCMEMORY_DEBUG=1'],
 	    includes=['.'] + buildCtx.env.component.include_path_list,
 	    cxxflags=buildCtx.env.CXXFLAGS + ['-DBOOST_CB_DISABLE_DEBUG'],
 	    linkflags=buildCtx.env.LDFLAGS,
-	    use=['BOOST', 'PROTOBUF', 'GTEST', 'ZEROMQ', 'shlib_simgrid_core', 'shlib_simgrid_grid_db', 'stlib_ringbuf_msg'],
-	    libpath=['.'] + buildCtx.env.component.lib_path_list,
+	    use=['BOOST', 'PROTOBUF', 'GTEST', 'ZEROMQ', 'shlib_simgrid_core', 'shlib_simgrid_grid_db', 'stlib_log_service_msg'],
+	    libpath=buildCtx.env.component.lib_path_list,
 	    rpath=buildCtx.env.component.rpath_list,
 	    install_path=buildCtx.env.component.install_tree.test,
 	    after=['shlib_simgrid_core', 'shlib_simgrid_grid_db'])
