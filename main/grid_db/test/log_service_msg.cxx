@@ -25,6 +25,12 @@ struct_A::struct_A(const struct_A& other)
     strncpy(value, other.value, sizeof(value));
 }
 
+struct_A::struct_A(const struct_A_msg& msg)
+{
+    strncpy(key, msg.key().c_str(), sizeof(key));
+    strncpy(value, msg.value().c_str(), sizeof(value));
+}
+
 struct_A::~struct_A()
 { }
 
@@ -38,21 +44,17 @@ struct_A& struct_A::operator=(const struct_A& other)
     return *this;
 }
 
-struct_A& struct_A::operator=(const struct_A_msg& other)
+struct_A& struct_A::operator=(const struct_A_msg& msg)
 {
-    strncpy(key, other.key().c_str(), sizeof(key));
-    strncpy(value, other.value().c_str(), sizeof(value));
+    strncpy(key, msg.key().c_str(), sizeof(key));
+    strncpy(value, msg.value().c_str(), sizeof(value));
     return *this;
 }
 
-bool struct_A::operator==(const struct_A& other) const
+void struct_A::export_to(struct_A_msg& target) const
 {
-    return strncmp(key, other.key, sizeof(key)) == 0 && strncmp(value, other.value, sizeof(value));
-}
-
-bool struct_A::operator<(const struct_A& other) const
-{
-    return strncmp(key, other.key, sizeof(key)) < 0 && strncmp(value, other.value, sizeof(value)) < 0;;
+    target.set_key(key);
+    target.set_value(value);
 }
 
 struct_B::struct_B(const char* k, bool a, boost::int32_t b, double c) :
@@ -97,20 +99,89 @@ struct_B& struct_B::operator=(const struct_B_msg& msg)
     return *this;
 }
 
-bool struct_B::operator==(const struct_B& other) const
+void struct_B::export_to(struct_B_msg& target) const
 {
-    return (strncmp(key, other.key, sizeof(key)) == 0 &&
-	    value1 == other.value1 &&
-	    value2 == other.value2 &&
-	    value3 == other.value3);
 }
 
-bool struct_B::operator<(const struct_B& other) const
+union_AB::union_AB(const struct_A& a) :
+    value(a)
+{ }
+
+union_AB::union_AB(const struct_B& b) :
+    value(b)
+{ }
+
+union_AB::union_AB(const union_AB& other) :
+    value(other.value)
+{ }
+
+union_AB::union_AB(const union_AB_msg& msg)
 {
-    return (strncmp(key, other.key, sizeof(key)) < 0 &&
-	    value1 < other.value1 &&
-	    value2 < other.value2 &&
-	    value3 < other.value3);
+    if (msg.tag() == union_AB_msg::STRUCT_A)
+    {
+	value = msg.a();
+    }
+    else
+    {
+	value = msg.b();
+    }
+}
+
+union_AB::~union_AB()
+{ }
+
+union_AB& union_AB::operator=(const union_AB& other)
+{
+    if (this != &other)
+    {
+	value = other.value;
+    }
+    return *this;
+}
+
+union_AB& union_AB::operator=(const union_AB_msg& msg)
+{
+    if (msg.tag() == union_AB_msg::STRUCT_A)
+    {
+	value = msg.a();
+    }
+    else
+    {
+	value = msg.b();
+    }
+    return *this;
+}
+
+class union_AB_exporter : public boost::static_visitor<>
+{
+public:
+    union_AB_exporter(union_AB_msg& msg);
+    void operator()(const struct_A& a);
+    void operator()(const struct_B& b);
+private:
+    union_AB_msg& msg_;
+};
+
+union_AB_exporter::union_AB_exporter(union_AB_msg& msg) :
+    msg_(msg)
+{ }
+
+void union_AB_exporter::operator()(const struct_A& a)
+{
+    msg_.set_tag(union_AB_msg::STRUCT_A);
+    a.export_to(*msg_.mutable_a());
+}
+
+void union_AB_exporter::operator()(const struct_B& b)
+{
+    msg_.set_tag(union_AB_msg::STRUCT_B);
+    b.export_to(*msg_.mutable_b());
+}
+
+void union_AB::export_to(union_AB_msg& target) const
+{
+    union_AB_exporter exporter(target);
+    boost::apply_visitor(exporter, value);
 }
 
 instruction::instruction() :
@@ -210,7 +281,8 @@ result::msg_status result::deserialize(zmq::socket_t& socket)
     {
 	if ((is_malformed_message_msg() && msg_.has_malformed_message_msg()) ||
 	    (is_invalid_argument_msg() && msg_.has_invalid_argument_msg()) ||
-	    (is_confirmation_msg() && msg_.has_confirmation_msg()))
+	    (is_confirmation_msg() && msg_.has_confirmation_msg()) ||
+	    (is_index_msg() && msg_.has_index_msg()))
 	{
 	    status = WELLFORMED;
 	}
@@ -234,6 +306,12 @@ void result::set_confirmation_msg(const confirmation_msg& msg)
 {
     msg_.set_opcode(result_msg::CONFIRMATION);
     *msg_.mutable_confirmation_msg() = msg;
+}
+
+void result::set_index_msg(const index_msg& msg)
+{
+    msg_.set_opcode(result_msg::INDEX);
+    *msg_.mutable_index_msg() = msg;
 }
 
 } // namespace grid_db

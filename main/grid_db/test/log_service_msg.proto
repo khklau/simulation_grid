@@ -14,7 +14,7 @@ message struct_B_msg
     required double value3 = 4;
 }
 
-message union_AB
+message union_AB_msg
 {
     enum tag_t
     {
@@ -34,7 +34,7 @@ message terminate_msg
 message append_msg
 {
     required fixed32 sequence = 1;
-    required union_AB entry = 2;
+    required union_AB_msg entry = 2;
 }
 
 message instruction_msg
@@ -64,6 +64,12 @@ message confirmation_msg
     required fixed32 sequence = 1;
 }
 
+message index_msg
+{
+    required fixed32 sequence = 1;
+    required fixed64 index = 2;
+}
+
 message result_msg
 {
     enum opcode_t
@@ -71,9 +77,11 @@ message result_msg
 	MALFORMED_MESSAGE = 0;
 	INVALID_ARGUMENT = 1;
 	CONFIRMATION = 2;
+	INDEX = 2;
     }
     required opcode_t opcode = 1;
     optional malformed_message_msg malformed_message_msg = 2;
     optional invalid_argument_msg invalid_argument_msg = 3;
     optional confirmation_msg confirmation_msg = 4;
+    optional index_msg index_msg = 5;
 }
