@@ -77,7 +77,7 @@ message result_msg
 	MALFORMED_MESSAGE = 0;
 	INVALID_ARGUMENT = 1;
 	CONFIRMATION = 2;
-	INDEX = 2;
+	INDEX = 3;
     }
     required opcode_t opcode = 1;
     optional malformed_message_msg malformed_message_msg = 2;
