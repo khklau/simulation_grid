@@ -7,6 +7,7 @@
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
 #include <simulation_grid/grid_db/about.hpp>
+#include "mode.hpp"
 
 namespace simulation_grid {
 namespace grid_db {
@@ -66,12 +67,6 @@ private:
 #ifdef SIMGRID_GRIDDB_MVCCMEMORY_DEBUG
 #include <vector>
 #endif
-
-enum open_mode
-{
-    open_existing,
-    open_new
-};
 
 template <class memory_t>
 class mvcc_owner_handle : private boost::noncopyable
