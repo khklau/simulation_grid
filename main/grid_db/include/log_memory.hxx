@@ -23,8 +23,8 @@ struct log_header
     version memory_version;
     boost::uint16_t header_size;
     boost::uint64_t region_size;
-    boost::atomic<log_index> tail_index;
     log_index max_index;
+    boost::atomic<log_index> tail_index;
 } __attribute__((aligned(LEVEL1_DCACHE_LINESIZE)));
 
 #endif
@@ -83,8 +83,13 @@ void check(const bip::mapped_region& region)
         throw malformed_db_error("Wrong region size")
                 << info_component_identity("log_memory");
     }
-    std::size_t expected_tail = ((region.get_size() - sizeof(log_container<entry_t>)) / sizeof(entry_t)) - 1;
-    if (UNLIKELY_EXT(expected_tail < container->header.tail_index.load(boost::memory_order_relaxed)))
+    std::size_t expected_max = ((region.get_size() - sizeof(log_container<entry_t>)) / sizeof(entry_t)) - 1;
+    if (UNLIKELY_EXT(expected_max != container->header.max_index))
+    {
+        throw malformed_db_error("Log entry size mismatch")
+                << info_component_identity("log_memory");
+    }
+    if (UNLIKELY_EXT(container->header.max_index < container->header.tail_index.load(boost::memory_order_relaxed)))
     {
         throw malformed_db_error("Tail index is greater than maximum allowed index")
                 << info_component_identity("log_memory");
