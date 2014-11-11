@@ -17,7 +17,7 @@ log_mmap_reader<entry_t>::log_mmap_reader(const bfs::path& path)
 try :
     file_(path.string().c_str(), bip::read_only),
     region_(file_, bip::read_only, bfs::file_size(path), bfs::file_size(path)),
-    reader_handle(region_)
+    reader_handle_(region_)
 {
 }
 catch (grid_db_condition& cond)
@@ -31,6 +31,16 @@ catch (grid_db_error& err)
     throw err;
 }
 
+template <class entry_t>
+log_mmap_reader<entry_t>::~log_mmap_reader()
+{ }
+
+template <class entry_t>
+log_index log_mmap_reader<entry_t>::get_max_index() const
+{
+    return reader_handle_.get_max_index();
+}
+
 const bfs::path& init_file(const bfs::path& path, std::size_t size);
 
 template <class entry_t>
@@ -41,8 +51,8 @@ try :
     slock_(flock_),
     file_(path.string().c_str(), bip::read_write),
     region_(file_, bip::read_write, 0U, bfs::file_size(path)),
-    owner_handle(exists_ ? open_existing : open_new, region_),
-    reader_handle(region_)
+    owner_handle_(exists_ ? open_existing : open_new, region_),
+    reader_handle_(region_)
 {
     region_.flush();
 }
@@ -56,6 +66,10 @@ catch (grid_db_error& err)
     err << info_db_identity(path.string());
     throw err;
 }
+
+template <class entry_t>
+log_mmap_owner<entry_t>::~log_mmap_owner()
+{ }
 
 template <class entry_t>
 log_index log_mmap_owner<entry_t>::append(const entry_t& entry)

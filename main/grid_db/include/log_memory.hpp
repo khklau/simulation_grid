@@ -21,6 +21,7 @@ class log_reader_handle : private boost::noncopyable
 public:
     log_reader_handle(const boost::interprocess::mapped_region& region);
     ~log_reader_handle();
+    inline log_index get_max_index() const;
 private:
     const boost::interprocess::mapped_region& region_;
 };

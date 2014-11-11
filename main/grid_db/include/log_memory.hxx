@@ -2,6 +2,7 @@
 #define SIMULATION_GRID_GRID_DB_LOG_MEMORY_HXX
 
 #include "log_memory.hpp"
+#include <boost/atomic.hpp>
 #include <simulation_grid/core/compiler_extensions.hpp>
 #include <simulation_grid/grid_db/exception.hpp>
 
@@ -12,6 +13,8 @@ namespace grid_db {
 
 extern const char* LOG_TYPE_TAG;
 
+#ifdef LEVEL1_DCACHE_LINESIZE
+
 struct log_header
 {
     log_header(const version& ver, boost::uint64_t regsize, log_index maxidx);
@@ -20,9 +23,11 @@ struct log_header
     version memory_version;
     boost::uint16_t header_size;
     boost::uint64_t region_size;
-    log_index tail_index;
+    boost::atomic<log_index> tail_index;
     log_index max_index;
-};
+} __attribute__((aligned(LEVEL1_DCACHE_LINESIZE)));
+
+#endif
 
 template <class entry_t>
 struct log_container
@@ -78,9 +83,10 @@ void check(const bip::mapped_region& region)
         throw malformed_db_error("Wrong region size")
                 << info_component_identity("log_memory");
     }
-    if (UNLIKELY_EXT(container->header.tail_index > container->header.tail_index))
+    std::size_t expected_tail = ((region.get_size() - sizeof(log_container<entry_t>)) / sizeof(entry_t)) - 1;
+    if (UNLIKELY_EXT(expected_tail < container->header.tail_index.load(boost::memory_order_relaxed)))
     {
-        throw malformed_db_error("Tail index is greater than maximuma allowed index")
+        throw malformed_db_error("Tail index is greater than maximum allowed index")
                 << info_component_identity("log_memory");
     }
 }
@@ -111,6 +117,14 @@ log_reader_handle<entry_t>::log_reader_handle(const bip::mapped_region& region) 
 template <class entry_t>
 log_reader_handle<entry_t>::~log_reader_handle()
 { }
+
+template <class entry_t>
+log_index log_reader_handle<entry_t>::get_max_index() const
+{
+    const log_container<entry_t>* container = static_cast<const log_container<entry_t>*>(region_.get_address());
+    assert(container);
+    return container->header.max_index;
+}
 
 template <class entry_t>
 log_owner_handle<entry_t>::log_owner_handle(open_mode mode, bip::mapped_region& region) :
