@@ -16,7 +16,7 @@ template <class entry_t>
 log_mmap_reader<entry_t>::log_mmap_reader(const bfs::path& path)
 try :
     file_(path.string().c_str(), bip::read_only),
-    region_(file_, bip::read_only, bfs::file_size(path), bfs::file_size(path)),
+    region_(file_, bip::read_only, 0U, bfs::file_size(path)),
     reader_handle_(region_)
 {
 }
