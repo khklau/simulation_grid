@@ -101,6 +101,10 @@ struct_B& struct_B::operator=(const struct_B_msg& msg)
 
 void struct_B::export_to(struct_B_msg& target) const
 {
+    target.set_key(key);
+    target.set_value1(value1);
+    target.set_value2(value2);
+    target.set_value3(value3);
 }
 
 union_AB::union_AB(const struct_A& a) :
