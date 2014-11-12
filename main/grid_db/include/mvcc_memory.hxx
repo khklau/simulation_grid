@@ -558,7 +558,7 @@ void mvcc_writer_handle<memory_t>::write(const char* key, const value_t& value)
 	record->ringbuf.grow(record->ringbuf.capacity() * 1.5);
     }
     mvcc_value<value_t> tmp(value, mut_resource_pool_ref(memory_).global_revision.fetch_add(
-	    1, boost::memory_order_relaxed),
+	    1, boost::memory_order_consume),
 	    bpt::microsec_clock::local_time());
     record->ringbuf.push_front(tmp);
     record->want_removed = false;
