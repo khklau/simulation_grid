@@ -9,7 +9,7 @@ namespace grid_db {
 
 struct_A::struct_A(const char* k, const char* v)
 {
-    if (UNLIKELY_EXT(strlen(key) > MAX_LENGTH) || UNLIKELY_EXT(strlen(value) > MAX_LENGTH))
+    if (UNLIKELY_EXT(strlen(k) > MAX_LENGTH) || UNLIKELY_EXT(strlen(v) > MAX_LENGTH))
     {
         throw grid_db_error("Maximum value length exceeded")
                 << info_component_identity("struct_A")
@@ -286,7 +286,8 @@ result::msg_status result::deserialize(zmq::socket_t& socket)
 	if ((is_malformed_message_msg() && msg_.has_malformed_message_msg()) ||
 	    (is_invalid_argument_msg() && msg_.has_invalid_argument_msg()) ||
 	    (is_confirmation_msg() && msg_.has_confirmation_msg()) ||
-	    (is_index_msg() && msg_.has_index_msg()))
+	    (is_index_msg() && msg_.has_index_msg()) ||
+	    (is_failed_op_msg() && msg_.has_failed_op_msg()))
 	{
 	    status = WELLFORMED;
 	}
@@ -316,6 +317,12 @@ void result::set_index_msg(const index_msg& msg)
 {
     msg_.set_opcode(result_msg::INDEX);
     *msg_.mutable_index_msg() = msg;
+}
+
+void result::set_failed_op_msg(const failed_op_msg& msg)
+{
+    msg_.set_opcode(result_msg::FAILED_OP);
+    *msg_.mutable_failed_op_msg() = msg;
 }
 
 } // namespace grid_db

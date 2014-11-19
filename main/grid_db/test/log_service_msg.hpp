@@ -93,14 +93,17 @@ public:
     inline bool is_invalid_argument_msg() { return msg_.opcode() == simulation_grid::grid_db::result_msg::INVALID_ARGUMENT; }
     inline bool is_confirmation_msg() { return msg_.opcode() == simulation_grid::grid_db::result_msg::CONFIRMATION; }
     inline bool is_index_msg() { return msg_.opcode() == simulation_grid::grid_db::result_msg::INDEX; }
+    inline bool is_failed_op_msg() { return msg_.opcode() == simulation_grid::grid_db::result_msg::FAILED_OP; }
     inline const simulation_grid::grid_db::malformed_message_msg& get_malformed_message_msg() { return msg_.malformed_message_msg(); }
     inline const simulation_grid::grid_db::invalid_argument_msg& get_invalid_argument_msg() { return msg_.invalid_argument_msg(); }
     inline const simulation_grid::grid_db::confirmation_msg& get_confirmation_msg() { return msg_.confirmation_msg(); }
     inline const simulation_grid::grid_db::index_msg& get_index_msg() { return msg_.index_msg(); }
+    inline const simulation_grid::grid_db::failed_op_msg& get_failed_op_msg() { return msg_.failed_op_msg(); }
     void set_malformed_message_msg(const simulation_grid::grid_db::malformed_message_msg& msg);
     void set_invalid_argument_msg(const simulation_grid::grid_db::invalid_argument_msg& msg);
     void set_confirmation_msg(const simulation_grid::grid_db::confirmation_msg& msg);
     void set_index_msg(const simulation_grid::grid_db::index_msg& msg);
+    void set_failed_op_msg(const simulation_grid::grid_db::failed_op_msg& msg);
 private:
     simulation_grid::grid_db::result_msg msg_;
     zmq::message_t buf_;

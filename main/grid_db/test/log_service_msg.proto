@@ -70,6 +70,11 @@ message index_msg
     required fixed64 index = 2;
 }
 
+message failed_op_msg
+{
+    required fixed32 sequence = 1;
+}
+
 message result_msg
 {
     enum opcode_t
@@ -78,10 +83,12 @@ message result_msg
 	INVALID_ARGUMENT = 1;
 	CONFIRMATION = 2;
 	INDEX = 3;
+	FAILED_OP = 4;
     }
     required opcode_t opcode = 1;
     optional malformed_message_msg malformed_message_msg = 2;
     optional invalid_argument_msg invalid_argument_msg = 3;
     optional confirmation_msg confirmation_msg = 4;
     optional index_msg index_msg = 5;
+    optional failed_op_msg failed_op_msg = 6;
 }
