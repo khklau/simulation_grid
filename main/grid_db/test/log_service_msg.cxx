@@ -51,6 +51,13 @@ struct_A& struct_A::operator=(const struct_A_msg& msg)
     return *this;
 }
 
+bool struct_A::operator==(const struct_A& other) const
+{
+    return (this == &other) ||
+	    (strncmp(key, other.key, sizeof(key)) == 0 &&
+	    strncmp(value, other.value, sizeof(value)) == 0);
+}
+
 void struct_A::export_to(struct_A_msg& target) const
 {
     target.set_key(key);
@@ -97,6 +104,15 @@ struct_B& struct_B::operator=(const struct_B_msg& msg)
     value2 = msg.value2();
     value3 = msg.value3();
     return *this;
+}
+
+bool struct_B::operator==(const struct_B& other) const
+{
+    return (this == &other) ||
+	    (strncmp(key, other.key, sizeof(key)) == 0 &&
+	    value1 == other.value1 &&
+	    value2 == other.value2 &&
+	    value3 == other.value3);
 }
 
 void struct_B::export_to(struct_B_msg& target) const
@@ -154,6 +170,11 @@ union_AB& union_AB::operator=(const union_AB_msg& msg)
 	value = msg.b();
     }
     return *this;
+}
+
+bool union_AB::operator==(const union_AB& other) const
+{
+    return (this == &other) || (value == other.value);
 }
 
 class union_AB_exporter : public boost::static_visitor<>

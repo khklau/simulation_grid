@@ -18,6 +18,7 @@ struct struct_A
     ~struct_A();
     struct_A& operator=(const struct_A& other);
     struct_A& operator=(const struct_A_msg& msg);
+    bool operator==(const struct_A& other) const;
     void export_to(struct_A_msg& target) const;
     char key[MAX_LENGTH + 1];
     char value[MAX_LENGTH + 1];
@@ -32,6 +33,7 @@ struct struct_B
     ~struct_B();
     struct_B& operator=(const struct_B& other);
     struct_B& operator=(const struct_B_msg& msg);
+    bool operator==(const struct_B& other) const;
     void export_to(struct_B_msg& target) const;
     char key[MAX_LENGTH + 1];
     bool value1;
@@ -46,8 +48,9 @@ struct union_AB
     union_AB(const union_AB& other);
     union_AB(const union_AB_msg& msg);
     ~union_AB();
-    union_AB& operator=(const union_AB&other);
+    union_AB& operator=(const union_AB& other);
     union_AB& operator=(const union_AB_msg& msg);
+    bool operator==(const union_AB& other) const;
     void export_to(union_AB_msg& target) const;
     boost::variant<struct_A, struct_B> value;
 };
