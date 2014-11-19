@@ -17,7 +17,10 @@ class log_mmap_reader
 public:
     log_mmap_reader(const boost::filesystem::path& path);
     ~log_mmap_reader();
-    log_index get_max_index() const;
+    inline boost::optional<const entry_t&> read(const log_index& index) const;
+    inline boost::optional<log_index> get_front_index() const;
+    inline boost::optional<log_index> get_back_index() const;
+    inline log_index get_max_index() const;
 private:
     boost::interprocess::file_mapping file_;
     boost::interprocess::mapped_region region_;
@@ -30,7 +33,11 @@ class log_mmap_owner
 public:
     log_mmap_owner(const boost::filesystem::path& path, std::size_t size);
     ~log_mmap_owner();
-    log_index append(const entry_t& entry);
+    inline boost::optional<log_index> append(const entry_t& entry);
+    inline boost::optional<const entry_t&> read(const log_index& index) const;
+    inline boost::optional<log_index> get_front_index() const;
+    inline boost::optional<log_index> get_back_index() const;
+    inline log_index get_max_index() const;
 private:
     bool exists_;
     boost::interprocess::file_lock flock_;

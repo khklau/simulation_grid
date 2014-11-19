@@ -36,6 +36,24 @@ log_mmap_reader<entry_t>::~log_mmap_reader()
 { }
 
 template <class entry_t>
+boost::optional<const entry_t&> log_mmap_reader<entry_t>::read(const log_index& index) const
+{
+    return reader_handle_.read(index);
+}
+
+template <class entry_t>
+boost::optional<log_index> log_mmap_reader<entry_t>::get_front_index() const
+{
+    return reader_handle_.get_front_index();
+}
+
+template <class entry_t>
+boost::optional<log_index> log_mmap_reader<entry_t>::get_back_index() const
+{
+    return reader_handle_.get_back_index();
+}
+
+template <class entry_t>
 log_index log_mmap_reader<entry_t>::get_max_index() const
 {
     return reader_handle_.get_max_index();
@@ -72,11 +90,34 @@ log_mmap_owner<entry_t>::~log_mmap_owner()
 { }
 
 template <class entry_t>
-log_index log_mmap_owner<entry_t>::append(const entry_t& entry)
+boost::optional<log_index> log_mmap_owner<entry_t>::append(const entry_t& entry)
 {
-    return 0U;
+    return owner_handle_.append(entry);
 }
 
+template <class entry_t>
+boost::optional<const entry_t&> log_mmap_owner<entry_t>::read(const log_index& index) const
+{
+    return reader_handle_.read(index);
+}
+
+template <class entry_t>
+boost::optional<log_index> log_mmap_owner<entry_t>::get_front_index() const
+{
+    return reader_handle_.get_front_index();
+}
+
+template <class entry_t>
+boost::optional<log_index> log_mmap_owner<entry_t>::get_back_index() const
+{
+    return reader_handle_.get_back_index();
+}
+
+template <class entry_t>
+log_index log_mmap_owner<entry_t>::get_max_index() const
+{
+    return reader_handle_.get_max_index();
+}
 
 } // namespace grid_db
 } // namespace simulation_grid

@@ -3,6 +3,7 @@
 
 #include <boost/cstdint.hpp>
 #include <boost/interprocess/mapped_region.hpp>
+#include <boost/optional.hpp>
 #include <boost/noncopyable.hpp>
 #include <simulation_grid/grid_db/about.hpp>
 #include "mode.hpp"
@@ -21,7 +22,10 @@ class log_reader_handle : private boost::noncopyable
 public:
     log_reader_handle(const boost::interprocess::mapped_region& region);
     ~log_reader_handle();
-    inline log_index get_max_index() const;
+    boost::optional<const entry_t&> read(const log_index& index) const;
+    boost::optional<log_index> get_front_index() const;
+    boost::optional<log_index> get_back_index() const;
+    log_index get_max_index() const;
 private:
     const boost::interprocess::mapped_region& region_;
 };
@@ -32,6 +36,7 @@ class log_owner_handle : private boost::noncopyable
 public:
     log_owner_handle(open_mode mode, boost::interprocess::mapped_region& region);
     ~log_owner_handle();
+    boost::optional<log_index> append(const entry_t& entry);
 private:
     boost::interprocess::mapped_region& region_;
 };
