@@ -15,6 +15,7 @@
 #include <boost/format.hpp>
 #include <boost/lockfree/spsc_queue.hpp>
 #include <boost/lockfree/queue.hpp>
+#include <boost/optional.hpp>
 #include <boost/thread/thread.hpp>
 #include <boost/thread/thread_time.hpp>
 #include <gtest/gtest.h>
@@ -39,7 +40,7 @@ namespace {
 typedef boost::uint16_t port_t;
 
 static const port_t DEFAULT_PORT = 22220U;
-static const size_t DEFAULT_SIZE = 1 << 24;
+static const size_t DEFAULT_SIZE = 1 << 10;
 
 namespace ipc {
 
@@ -116,7 +117,7 @@ public:
     ~service_client();
     sgd::result send(sgd::instruction& instr);
     void send_terminate_msg(boost::uint32_t sequence);
-    sgd::log_index send_append_msg(boost::uint32_t sequence, const sgd::union_AB& entry);
+    boost::optional<sgd::log_index> send_append_msg(boost::uint32_t sequence, const sgd::union_AB& entry);
 private:
     bool terminate_sent_;
     static int init_zmq_socket(zmq::socket_t& socket, const config& config);
@@ -203,7 +204,7 @@ void service_client::send_terminate_msg(boost::uint32_t sequence)
     terminate_sent_ = true;
 }
 
-sgd::log_index service_client::send_append_msg(boost::uint32_t sequence, const sgd::union_AB& entry)
+boost::optional<sgd::log_index> service_client::send_append_msg(boost::uint32_t sequence, const sgd::union_AB& entry)
 {
     sgd::instruction instr;
     sgd::append_msg append;
@@ -213,9 +214,17 @@ sgd::log_index service_client::send_append_msg(boost::uint32_t sequence, const s
     entry.export_to(*append.mutable_entry());
     instr.set_append_msg(append);
     sgd::result outmsg(send(instr));
-    EXPECT_TRUE(outmsg.is_index_msg()) << "unexpected write result";
-    EXPECT_EQ(instr.get_append_msg().sequence(), outmsg.get_index_msg().sequence()) << "sequence number mismatch";
-    return outmsg.get_index_msg().index();
+    boost::optional<sgd::log_index> output;
+    if (outmsg.is_index_msg())
+    {
+	EXPECT_EQ(instr.get_append_msg().sequence(), outmsg.get_index_msg().sequence()) << "sequence number mismatch";
+	output = outmsg.get_index_msg().index();
+    }
+    else if (outmsg.is_failed_op_msg())
+    {
+	EXPECT_EQ(instr.get_append_msg().sequence(), outmsg.get_failed_op_msg().sequence()) << "sequence number mismatch";
+    }
+    return output;
 }
 
 class service_launcher
@@ -318,4 +327,64 @@ TEST(log_mmap_test, startup_and_shutdown_benchmark)
     service_launcher launcher(conf);
     service_client client(conf);
     client.send_terminate_msg(1U);
+}
+
+TEST(log_mmap_test, atomic_tail_index)
+{
+    boost::atomic<sgd::log_index> tmp;
+    ASSERT_TRUE(tmp.is_lock_free()) << "log_index is not atomic";
+}
+
+TEST(log_mmap_test, empty_log)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
+    service_launcher launcher(conf);
+    service_client client(conf);
+    sgd::log_mmap_reader<sgd::union_AB> reader(bfs::path(conf.name.c_str()));
+    EXPECT_FALSE(reader.get_front_index()) << "front index is defined for an empty log";
+    EXPECT_FALSE(reader.get_back_index()) << "back index is defined for an empty log";
+    client.send_terminate_msg(1U);
+}
+
+TEST(log_mmap_test, fill_log)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
+    service_launcher launcher(conf);
+    service_client client(conf);
+    sgd::log_mmap_reader<sgd::union_AB> reader1(bfs::path(conf.name.c_str()));
+    sgd::log_mmap_reader<sgd::union_AB> reader2(bfs::path(conf.name.c_str()));
+
+    sgd::struct_A A1("foo", "bar");
+    sgd::union_AB U1(A1);
+    boost::optional<sgd::log_index> index1 = client.send_append_msg(10U, U1);
+    ASSERT_TRUE(index1) << "append failed";
+    EXPECT_NE(index1.get(), reader1.get_max_index()) << "log is prematurely full";
+    EXPECT_TRUE(reader1.get_front_index()) << "front index is not defined";
+    EXPECT_TRUE(reader2.get_back_index()) << "back index is not defined";
+    EXPECT_TRUE(reader1.read(index1.get())) << "cannot read entry";
+    EXPECT_EQ(U1, reader2.read(index1.get()).get()) << "entry read does not match entry just appended";
+
+    sgd::struct_B B2("blah", true, 52, 3.8);
+    sgd::union_AB U2(B2);
+    boost::optional<sgd::log_index> index2 = client.send_append_msg(20U, U2);
+    EXPECT_TRUE(reader1.get_front_index()) << "front index is not defined";
+    EXPECT_TRUE(reader2.get_back_index()) << "back index is not defined";
+    ASSERT_TRUE(index2) << "append failed";
+    EXPECT_NE(index2.get(), reader2.get_max_index()) << "log is prematurely full";
+    EXPECT_NE(index1.get(), index2.get()) << "index from appending is not unique";
+    EXPECT_TRUE(index1.get() < index2.get()) << "index of first append is not less than second append";
+    EXPECT_TRUE(reader1.read(index2.get())) << "cannot read entry";
+    EXPECT_EQ(U2, reader2.read(index2.get()).get()) << "entry read does not match entry just appended";
+
+    for (boost::optional<sgd::log_index> index = index2.get() + 1; index && index.get() <= reader1.get_max_index(); ++(index.get()))
+    {
+	sgd::struct_B fillerB("blah", true, index.get(), 1.0 * index.get());
+	sgd::union_AB fillerU(fillerB);
+	index = client.send_append_msg(30U + index.get(), fillerU);
+	EXPECT_TRUE(reader1.read(index.get())) << "cannot read entry";
+	EXPECT_EQ(fillerU, reader2.read(index.get()).get()) << "entry read does not match entry just appended";
+    }
+    EXPECT_EQ(reader1.get_back_index(), reader2.get_max_index()) << "in a full log the back index != max index";
+
+    client.send_terminate_msg(40U);
 }

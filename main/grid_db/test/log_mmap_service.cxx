@@ -397,11 +397,21 @@ void log_service::exec_terminate(const sgd::terminate_msg& input, sgd::result& o
 
 void log_service::exec_append(const sgd::append_msg& input, sgd::result& output)
 {
-    sgd::index_msg tmp;
-    tmp.set_sequence(input.sequence());
     sgd::union_AB entry(input.entry());
-    tmp.set_index(owner_.append(entry));
-    output.set_index_msg(tmp);
+    boost::optional<sgd::log_index> result = owner_.append(entry);
+    if (result)
+    {
+	sgd::index_msg success;
+	success.set_sequence(input.sequence());
+	success.set_index(result.get());
+	output.set_index_msg(success);
+    }
+    else
+    {
+	sgd::failed_op_msg failure;
+	failure.set_sequence(input.sequence());
+	output.set_failed_op_msg(failure);
+    }
 }
 
 } // anonymous namespace
