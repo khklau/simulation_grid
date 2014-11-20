@@ -386,7 +386,9 @@ TEST(log_mmap_test, fill_log)
     }
     EXPECT_EQ(reader1.get_back_index(), reader2.get_max_index()) << "in a full log the back index != max index";
 
-    client.send_terminate_msg(40U);
+    EXPECT_FALSE(client.send_append_msg(40U, U1)) << "append to full log allowed";
+
+    client.send_terminate_msg(50U);
 }
 
 TEST(log_mmap_test, forward_iterate)
@@ -457,6 +459,39 @@ TEST(log_mmap_test, backward_iterate)
     EXPECT_EQ(reader.get_front_index().get(), iter.get()) << "front of log was not reached";
     --(iter.get());
     EXPECT_FALSE(reader.read(iter.get())) << "read beyond front of log was allowed";
+
+    client.send_terminate_msg(20U);
+}
+
+TEST(log_mmap_test, out_of_bounds)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
+    service_launcher launcher(conf);
+    service_client client(conf);
+    sgd::log_mmap_reader<sgd::union_AB> reader(bfs::path(conf.name.c_str()));
+
+    sgd::struct_A A1("foo", "bar");
+    sgd::union_AB U1(A1);
+    client.send_append_msg(10U, U1);
+    sgd::struct_B B2("wah", true, 52, 3.8);
+    sgd::union_AB U2(B2);
+    client.send_append_msg(11U, U2);
+
+    boost::optional<sgd::log_index> iter1 = reader.get_front_index();
+    iter1 = iter1.get() - 1;
+    EXPECT_FALSE(reader.read(iter1.get())) << "out of bounds read was allowed";
+
+    boost::optional<sgd::log_index> iter2 = reader.get_back_index();
+    iter2 = iter2.get() + 1;
+    EXPECT_FALSE(reader.read(iter2.get())) << "out of bounds read was allowed";
+
+    boost::optional<sgd::log_index> iter3 = reader.get_front_index();
+    iter3 = iter3.get() + 4;
+    EXPECT_FALSE(reader.read(iter3.get())) << "out of bounds read was allowed";
+
+    boost::optional<sgd::log_index> iter4 = reader.get_back_index();
+    iter4 = iter4.get() - 4;
+    EXPECT_FALSE(reader.read(iter4.get())) << "out of bounds read was allowed";
 
     client.send_terminate_msg(20U);
 }
