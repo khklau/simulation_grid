@@ -388,3 +388,75 @@ TEST(log_mmap_test, fill_log)
 
     client.send_terminate_msg(40U);
 }
+
+TEST(log_mmap_test, forward_iterate)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
+    service_launcher launcher(conf);
+    service_client client(conf);
+    sgd::log_mmap_reader<sgd::union_AB> reader(bfs::path(conf.name.c_str()));
+
+    sgd::struct_A A1("foo", "bar");
+    sgd::union_AB U1(A1);
+    client.send_append_msg(10U, U1);
+    sgd::struct_B B2("wah", true, 52, 3.8);
+    sgd::union_AB U2(B2);
+    client.send_append_msg(11U, U2);
+    sgd::struct_A A3("blah", "blob");
+    sgd::union_AB U3(A3);
+    client.send_append_msg(12U, U3);
+    sgd::struct_B B4("woot", false, 106, 21.7);
+    sgd::union_AB U4(B4);
+    client.send_append_msg(13U, U4);
+
+    boost::optional<sgd::log_index> iter = reader.get_front_index();
+    ASSERT_TRUE(iter) << "front index is not defined";
+    EXPECT_EQ(U1, reader.read(iter.get()).get()) << "read failed";
+    ++(iter.get());
+    EXPECT_EQ(U2, reader.read(iter.get()).get()) << "read failed";
+    ++(iter.get());
+    EXPECT_EQ(U3, reader.read(iter.get()).get()) << "read failed";
+    ++(iter.get());
+    EXPECT_EQ(U4, reader.read(iter.get()).get()) << "read failed";
+    EXPECT_EQ(reader.get_back_index().get(), iter.get()) << "back of log was not reached";
+    ++(iter.get());
+    EXPECT_FALSE(reader.read(iter.get())) << "read beyond back of log was allowed";
+
+    client.send_terminate_msg(20U);
+}
+
+TEST(log_mmap_test, backward_iterate)
+{
+    config conf(ipc::mmap, bfs::absolute(bfs::unique_path()).string());
+    service_launcher launcher(conf);
+    service_client client(conf);
+    sgd::log_mmap_reader<sgd::union_AB> reader(bfs::path(conf.name.c_str()));
+
+    sgd::struct_A A1("foo", "bar");
+    sgd::union_AB U1(A1);
+    client.send_append_msg(10U, U1);
+    sgd::struct_B B2("wah", true, 52, 3.8);
+    sgd::union_AB U2(B2);
+    client.send_append_msg(11U, U2);
+    sgd::struct_A A3("blah", "blob");
+    sgd::union_AB U3(A3);
+    client.send_append_msg(12U, U3);
+    sgd::struct_B B4("woot", false, 106, 21.7);
+    sgd::union_AB U4(B4);
+    client.send_append_msg(13U, U4);
+
+    boost::optional<sgd::log_index> iter = reader.get_back_index();
+    ASSERT_TRUE(iter) << "back index is not defined";
+    EXPECT_EQ(U4, reader.read(iter.get()).get()) << "read failed";
+    --(iter.get());
+    EXPECT_EQ(U3, reader.read(iter.get()).get()) << "read failed";
+    --(iter.get());
+    EXPECT_EQ(U2, reader.read(iter.get()).get()) << "read failed";
+    --(iter.get());
+    EXPECT_EQ(U1, reader.read(iter.get()).get()) << "read failed";
+    EXPECT_EQ(reader.get_front_index().get(), iter.get()) << "front of log was not reached";
+    --(iter.get());
+    EXPECT_FALSE(reader.read(iter.get())) << "read beyond front of log was allowed";
+
+    client.send_terminate_msg(20U);
+}
