@@ -479,7 +479,7 @@ TEST(mvcc_shm_test, access_historical)
     config conf(ipc::shm, bfs::unique_path().string());
     service_launcher launcher(conf);
     service_client client(conf);
-    sgd::mvcc_shm_reader readerA(conf.name.c_str());
+    sgd::mvcc_shm_reader readerA(conf.name);
     const char* key = "access_historical";
 
     sgd::string_value expected1("11");
@@ -511,8 +511,8 @@ TEST(mvcc_shm_test, process_read_metadata_single_key)
     config conf(ipc::shm, bfs::unique_path().string());
     service_launcher launcher(conf);
     service_client client(conf);
-    sgd::mvcc_shm_reader readerA(conf.name.c_str());
-    sgd::mvcc_shm_reader readerB(conf.name.c_str());
+    sgd::mvcc_shm_reader readerA(conf.name);
+    sgd::mvcc_shm_reader readerB(conf.name);
     const char* key = "process_read_metadata_single";
 
     sgd::string_value expected1("abc1");
@@ -571,8 +571,8 @@ TEST(mvcc_shm_test, process_read_metadata_multi_key)
     config conf(ipc::shm, bfs::unique_path().string());
     service_launcher launcher(conf);
     service_client client(conf);
-    sgd::mvcc_shm_reader readerA(conf.name.c_str());
-    sgd::mvcc_shm_reader readerB(conf.name.c_str());
+    sgd::mvcc_shm_reader readerA(conf.name);
+    sgd::mvcc_shm_reader readerB(conf.name);
     const char* keyA = "process_read_metadata_multi_A";
     const char* keyB = "process_read_metadata_multi_B";
     const char* keyC = "process_read_metadata_multi_C";
@@ -635,9 +635,9 @@ TEST(mvcc_shm_test, process_read_metadata_subset)
     config conf(ipc::shm, bfs::unique_path().string());
     service_launcher launcher(conf);
     service_client client(conf);
-    sgd::mvcc_shm_reader readerA(conf.name.c_str());
-    sgd::mvcc_shm_reader readerB(conf.name.c_str());
-    sgd::mvcc_shm_reader readerC(conf.name.c_str());
+    sgd::mvcc_shm_reader readerA(conf.name);
+    sgd::mvcc_shm_reader readerB(conf.name);
+    sgd::mvcc_shm_reader readerC(conf.name);
     const char* keyA = "process_read_metadata_multi_A";
     const char* keyB = "process_read_metadata_multi_B";
 
@@ -768,8 +768,8 @@ TEST(mvcc_shm_test, collect_garbage_single_key_single_type)
     config conf(ipc::shm, bfs::unique_path().string());
     service_launcher launcher(conf);
     service_client client(conf);
-    sgd::mvcc_shm_reader readerA(conf.name.c_str());
-    sgd::mvcc_shm_reader readerB(conf.name.c_str());
+    sgd::mvcc_shm_reader readerA(conf.name);
+    sgd::mvcc_shm_reader readerB(conf.name);
     std::string keyA("collect_garbage_A");
 
     std::size_t depth1 = 0;
@@ -825,8 +825,8 @@ TEST(mvcc_shm_test, collect_garbage_single_key_multi_type)
     config conf(ipc::shm, bfs::unique_path().string());
     service_launcher launcher(conf);
     service_client client(conf);
-    sgd::mvcc_shm_reader readerA(conf.name.c_str());
-    sgd::mvcc_shm_reader readerB(conf.name.c_str());
+    sgd::mvcc_shm_reader readerA(conf.name);
+    sgd::mvcc_shm_reader readerB(conf.name);
     std::string keyA("collect_garbage_A");
     std::string keyB("collect_garbage_B");
     std::size_t depthA1 = 0;
@@ -891,8 +891,8 @@ TEST(mvcc_shm_test, collect_garbage_multi_key_multi_type)
     config conf(ipc::shm, bfs::unique_path().string());
     service_launcher launcher(conf);
     service_client client(conf);
-    sgd::mvcc_shm_reader reader1(conf.name.c_str());
-    sgd::mvcc_shm_reader reader2(conf.name.c_str());
+    sgd::mvcc_shm_reader reader1(conf.name);
+    sgd::mvcc_shm_reader reader2(conf.name);
     std::string stringKeyA("collect_string_A");
     std::string stringKeyB("collect_string_B");
     std::string structKeyA("collect_struct_A");
@@ -980,8 +980,8 @@ TEST(mvcc_shm_test, collect_garbage_subset)
     config conf(ipc::shm, bfs::unique_path().string());
     service_launcher launcher(conf);
     service_client client(conf);
-    sgd::mvcc_shm_reader reader1(conf.name.c_str());
-    sgd::mvcc_shm_reader reader2(conf.name.c_str());
+    sgd::mvcc_shm_reader reader1(conf.name);
+    sgd::mvcc_shm_reader reader2(conf.name);
     std::string stringKeyA("collect_string_A");
     std::string stringKeyB("collect_string_B");
     std::string structKeyA("collect_struct_A");
@@ -1089,8 +1089,8 @@ TEST(mvcc_shm_test, exists_after_removed)
     config conf(ipc::shm, bfs::unique_path().string());
     service_launcher launcher(conf);
     service_client client(conf);
-    sgd::mvcc_shm_reader readerA(conf.name.c_str());
-    sgd::mvcc_shm_reader readerB(conf.name.c_str());
+    sgd::mvcc_shm_reader readerA(conf.name);
+    sgd::mvcc_shm_reader readerB(conf.name);
     std::string stringKey("string_@@@");
     std::string structKey("struct_@@@");
     std::size_t stringDepth = 0;
@@ -1118,8 +1118,8 @@ TEST(mvcc_shm_test, write_after_remove)
     config conf(ipc::shm, bfs::unique_path().string());
     service_launcher launcher(conf);
     service_client client(conf);
-    sgd::mvcc_shm_reader readerA(conf.name.c_str());
-    sgd::mvcc_shm_reader readerB(conf.name.c_str());
+    sgd::mvcc_shm_reader readerA(conf.name);
+    sgd::mvcc_shm_reader readerB(conf.name);
     std::string stringKey("string_@@@");
     std::string structKey("struct_@@@");
     std::size_t stringDepth = 0;
@@ -1153,8 +1153,8 @@ TEST(mvcc_shm_test, collect_garbage_after_remove)
     config conf(ipc::shm, bfs::unique_path().string());
     service_launcher launcher(conf);
     service_client client(conf);
-    sgd::mvcc_shm_reader readerA(conf.name.c_str());
-    sgd::mvcc_shm_reader readerB(conf.name.c_str());
+    sgd::mvcc_shm_reader readerA(conf.name);
+    sgd::mvcc_shm_reader readerB(conf.name);
     std::string stringKey("string_@@@");
     std::string structKey("struct_@@@");
     std::size_t stringDepth = 0;
@@ -1196,10 +1196,10 @@ TEST(mvcc_shm_test, read_after_remove)
     config conf(ipc::shm, bfs::unique_path().string());
     service_launcher launcher(conf);
     service_client client(conf);
-    sgd::mvcc_shm_reader readerA(conf.name.c_str());
-    sgd::mvcc_shm_reader readerB(conf.name.c_str());
-    sgd::mvcc_shm_reader readerC(conf.name.c_str());
-    sgd::mvcc_shm_reader readerD(conf.name.c_str());
+    sgd::mvcc_shm_reader readerA(conf.name);
+    sgd::mvcc_shm_reader readerB(conf.name);
+    sgd::mvcc_shm_reader readerC(conf.name);
+    sgd::mvcc_shm_reader readerD(conf.name);
     std::string stringKey("string_@@@");
     std::string structKey("struct_@@@");
 
