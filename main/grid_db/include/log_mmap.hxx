@@ -2,9 +2,10 @@
 #define SIMULATION_GRID_GRID_DB_LOG_MMAP_HXX
 
 #include "log_mmap.hpp"
-#include "log_memory.hxx"
 #include <boost/filesystem/operations.hpp>
 #include <simulation_grid/grid_db/exception.hpp>
+#include "mode.hpp"
+#include "log_memory.hxx"
 
 namespace bfs = boost::filesystem;
 namespace bip = boost::interprocess;
