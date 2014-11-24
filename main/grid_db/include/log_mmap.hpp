@@ -6,13 +6,14 @@
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/sync/file_lock.hpp>
 #include <boost/interprocess/sync/scoped_lock.hpp>
+#include <boost/noncopyable.hpp>
 #include "log_memory.hpp"
 
 namespace simulation_grid {
 namespace grid_db {
 
 template <class entry_t>
-class log_mmap_reader
+class log_mmap_reader : private boost::noncopyable
 {
 public:
     log_mmap_reader(const boost::filesystem::path& path);
@@ -28,7 +29,7 @@ private:
 };
 
 template <class entry_t>
-class log_mmap_owner
+class log_mmap_owner : private boost::noncopyable
 {
 public:
     log_mmap_owner(const boost::filesystem::path& path, std::size_t size);
