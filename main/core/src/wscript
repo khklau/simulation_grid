@@ -4,6 +4,7 @@ def build(buildCtx):
     buildCtx.shlib(
 	    name='shlib_simgrid_core',
 	    source=[buildCtx.path.find_node('process_utility.cxx'),
+		    buildCtx.path.find_node('signal_notifier.cxx'),
 		    buildCtx.path.find_node('tcpip_utility.cxx'),],
 	    target=join(buildCtx.env.component.build_tree.libPathFromBuild(buildCtx), 'simgrid_core'),
 	    includes=buildCtx.env.component.include_path_list,

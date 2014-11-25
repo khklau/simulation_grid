@@ -3,6 +3,7 @@ from os.path import join
 def build(buildCtx):
     for header in [
 	    'process_utility.hpp',
+	    'signal_notifier.hpp',
 	    'tcpip_utility.hpp',
 	    'compiler_extensions.hpp']:
 	buildCtx(

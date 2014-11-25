@@ -30,6 +30,7 @@
 #include <boost/thread/thread.hpp>
 #include <google/protobuf/message.h>
 #include <simulation_grid/core/compiler_extensions.hpp>
+#include <simulation_grid/core/signal_notifier.hpp>
 #include <zmq.hpp>
 #include <signal.h>
 #include "multi_reader_ring_buffer.hpp"
@@ -43,6 +44,7 @@ namespace bpo = boost::program_options;
 namespace bsi = boost::signals2;
 namespace bsy = boost::system;
 namespace sgd = simulation_grid::grid_db;
+namespace sco = simulation_grid::core;
 
 namespace {
 
@@ -164,104 +166,6 @@ parse_result parse_cmd_line(const int argc, char* const argv[], std::ostringstre
     return result;
 }
 
-class signal_notifier : private boost::noncopyable
-{
-public:
-    typedef bsi::signal<void ()> channel;
-    typedef boost::function<void ()> receiver;
-    signal_notifier();
-    ~signal_notifier();
-    bool running() const { return thread_ != 0; }
-    void add(int signal, const receiver& slot);
-    void reset();
-    void start();
-    void stop();
-private:
-    static const size_t MAX_SIGNAL = 64U; // TODO : work out how to base this on SIGRTMAX
-    void run();
-    void handle(const bsy::error_code& error, int signal);
-    boost::thread* thread_;
-    bas::io_service service_;
-    bas::signal_set sigset_;
-    channel chanset_[MAX_SIGNAL];
-};
-
-signal_notifier::signal_notifier() :
-    thread_(0), service_(), sigset_(service_)
-{ }
-
-signal_notifier::~signal_notifier()
-{
-    try
-    {
-	for (std::size_t iter = 0; iter < MAX_SIGNAL; ++iter)
-	{
-		chanset_[iter].disconnect_all_slots();
-	}
-	if (!service_.stopped())
-	{
-	    service_.stop();
-	    if (running())
-	    {
-		thread_->join();
-		delete thread_;
-	    }
-	}
-    }
-    catch (...)
-    {
-	// do nothing
-    }
-}
-
-void signal_notifier::add(int signal, const receiver& slot)
-{
-    std::size_t usignal = static_cast<std::size_t>(signal);
-    if (!running() && usignal < MAX_SIGNAL)
-    {
-	chanset_[usignal].connect(slot);
-	sigset_.add(signal);
-    }
-}
-
-void signal_notifier::reset()
-{
-    boost::function2<void, const bsy::error_code&, int> handler(
-	    boost::bind(&signal_notifier::handle, this, 
-	    bas::placeholders::error, bas::placeholders::signal_number));
-    sigset_.async_wait(handler);
-}
-
-void signal_notifier::start()
-{
-    if (!running())
-    {
-	boost::function<void ()> entry(boost::bind(&signal_notifier::run, this));
-	thread_ = new boost::thread(entry);
-    }
-}
-
-void signal_notifier::stop()
-{
-    service_.stop();
-}
-
-void signal_notifier::run()
-{
-    reset();
-    service_.run();
-}
-
-void signal_notifier::handle(const bsy::error_code& error, int signal)
-{
-    std::size_t usignal = static_cast<std::size_t>(signal);
-    if (!error && usignal < MAX_SIGNAL)
-    {
-	chanset_[usignal]();
-    }
-    reset();
-}
-
 template <class element_t, class memory_t>
 class ringbuf_service
 {
@@ -286,7 +190,7 @@ private:
     void exec_push_front(const sgd::push_front_instr& input, sgd::result_msg& output);
     void exec_pop_back(const sgd::pop_back_instr& input, sgd::result_msg& output);
     void exec_export_element(const sgd::export_element_instr& input, sgd::result_msg& output);
-    signal_notifier notifier_;
+    sco::signal_notifier notifier_;
     memory_t memory_;
     sgd::multi_reader_ring_buffer<element_t, allocator_t>* ringbuf_;
     std::vector<const element_t*> register_set_;
