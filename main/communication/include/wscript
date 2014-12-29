@@ -1,0 +1,14 @@
+from os.path import join
+
+def build(buildCtx):
+    for header in [
+	    'message_access.hpp',
+	    'request_reply_client.hpp',
+	    'request_reply_service.hpp']:
+	buildCtx(
+		rule='cp ${SRC} ${TGT}',
+		source=header,
+		target=join(buildCtx.env.component.build_tree.includePathFromBuild(buildCtx), header))
+
+def install(buildCtx):
+    return

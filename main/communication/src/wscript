@@ -1,0 +1,19 @@
+from os.path import join
+
+def build(buildCtx):
+    buildCtx.shlib(
+	    name='shlib_simgrid_communication',
+	    source=[buildCtx.path.find_node('message_access.cxx'),
+		    buildCtx.path.find_node('request_reply_client.cxx'),
+		    buildCtx.path.find_node('request_reply_service.cxx'),],
+	    target=join(buildCtx.env.component.build_tree.libPathFromBuild(buildCtx), 'simgrid_communication'),
+	    includes=buildCtx.env.component.include_path_list,
+	    cxxflags=buildCtx.env.CXXFLAGS,
+	    linkflags=buildCtx.env.LDFLAGS,
+	    use=['BOOST'],
+	    libpath=buildCtx.env.component.lib_path_list,
+	    rpath=buildCtx.env.component.rpath_list,
+	    install_path=buildCtx.env.component.install_tree.lib)
+
+def install(installCtx):
+    return
