@@ -30,6 +30,7 @@
 #include <google/protobuf/message.h>
 #include <simulation_grid/core/compiler_extensions.hpp>
 #include <simulation_grid/core/signal_notifier.hpp>
+#include <simulation_grid/communication/request_reply_service.hpp>
 #include <zmq.hpp>
 #include <signal.h>
 #include "exception.hpp"
@@ -43,8 +44,9 @@ namespace bip = boost::interprocess;
 namespace bpo = boost::program_options;
 namespace bsi = boost::signals2;
 namespace bsy = boost::system;
-namespace sgd = simulation_grid::grid_db;
 namespace sco = simulation_grid::core;
+namespace scm = simulation_grid::communication;
+namespace sgd = simulation_grid::grid_db;
 
 namespace {
 
@@ -169,11 +171,11 @@ public:
     ~mvcc_service();
     void start();
     void stop();
-    bool terminated() const { return service_.stopped(); }
+    bool terminated() const { return service_.has_stopped(); }
 private:
     static int init_zmq_socket(zmq::socket_t& socket, const config& config);
     void run();
-    void receive_instruction(const bsy::error_code& error, size_t);
+    void receive_instruction(const scm::request_reply_service::source& source, scm::request_reply_service::sink& sink);
     void exec_terminate(const sgd::terminate_instr& input, sgd::result_msg& output);
     void exec_exists_string(const sgd::exists_string_instr& input, sgd::result_msg& output);
     void exec_exists_struct(const sgd::exists_struct_instr& input, sgd::result_msg& output);
@@ -195,25 +197,19 @@ private:
     void exec_get_registered_keys(const sgd::get_registered_keys_instr& input, sgd::result_msg& output);
     void exec_get_string_history_depth(const sgd::get_string_history_depth_instr& input, sgd::result_msg& output);
     void exec_get_struct_history_depth(const sgd::get_struct_history_depth_instr& input, sgd::result_msg& output);
-    sgd::mvcc_mmap_owner owner_;
-    bas::io_service service_;
-    sco::signal_notifier notifier_;
     sgd::instruction_msg instr_;
     sgd::result_msg result_;
-    zmq::context_t context_;
-    zmq::socket_t socket_;
-    bas::posix::stream_descriptor stream_;
+    sgd::mvcc_mmap_owner owner_;
+    sco::signal_notifier notifier_;
+    scm::request_reply_service service_;
 };
 
 mvcc_service::mvcc_service(const config& config) :
-    owner_(bfs::path(config.name.c_str()), config.size),
-    service_(),
-    notifier_(),
     instr_(),
     result_(),
-    context_(1),
-    socket_(context_, ZMQ_REP),
-    stream_(service_, init_zmq_socket(socket_, config))
+    owner_(bfs::path(config.name.c_str()), config.size),
+    notifier_(),
+    service_("127.0.0.1", config.port, sizeof(instr_), sizeof(result_))
 {
     notifier_.add(SIGTERM, boost::bind(&mvcc_service::stop, this));
     notifier_.add(SIGINT, boost::bind(&mvcc_service::stop, this));
@@ -222,16 +218,13 @@ mvcc_service::mvcc_service(const config& config) :
 
 mvcc_service::~mvcc_service()
 {
-    stream_.release();
-    socket_.close();
-    context_.close();
     notifier_.stop();
     stop();
 }
 
 void mvcc_service::start()
 {
-    if (service_.stopped())
+    if (service_.has_stopped())
     {
 	service_.reset();
     }
@@ -243,145 +236,120 @@ void mvcc_service::stop()
     service_.stop();
 }
 
-int mvcc_service::init_zmq_socket(zmq::socket_t& socket, const config& config)
-{
-    std::string address(str(boost::format("tcp://127.0.0.1:%d") % config.port));
-    socket.bind(address.c_str());
-
-    // TODO this is currently POSIX specific, add a Windows version
-    int fd = 0;
-    size_t size = sizeof(fd);
-    socket.getsockopt(ZMQ_FD, &fd, &size);
-    if (UNLIKELY_EXT(size != sizeof(fd)))
-    {
-	throw std::runtime_error("Can't find ZeroMQ socket file descriptor");
-    }
-    return fd;
-}
-
 void mvcc_service::run()
 {
     if (!terminated())
     {
-	boost::function2<void, const bsy::error_code&, size_t> func(
+	scm::request_reply_service::receive_func func(
 		boost::bind(&mvcc_service::receive_instruction, this, _1, _2));
-	stream_.async_read_some(boost::asio::null_buffers(), func);
-	service_.run();
+	service_.submit(func);
+	service_.start();
     }
 }
 
-void mvcc_service::receive_instruction(const bsy::error_code& error, size_t)
+void mvcc_service::receive_instruction(const scm::request_reply_service::source& source, scm::request_reply_service::sink& sink)
 {
-    int event = 0;
-    size_t size = sizeof(event);
-    socket_.getsockopt(ZMQ_EVENTS, &event, &size);
-    // More than 1 message may be available, so we need to consume all of them
-    while (LIKELY_EXT(!error && size == sizeof(event)) && (event & ZMQ_POLLIN))
+    sgd::instruction_msg::msg_status status = instr_.deserialize(source);
+    if (UNLIKELY_EXT(status == sgd::instruction_msg::MALFORMED))
     {
-	sgd::instruction_msg::msg_status status = instr_.deserialize(socket_);
-	if (UNLIKELY_EXT(status == sgd::instruction_msg::MALFORMED))
-	{
-	    sgd::malformed_message_result tmp;
-	    result_.set_malformed_message(tmp);
-	}
-	else if (instr_.is_terminate())
-	{
-	    exec_terminate(instr_.get_terminate(), result_);
-	}
-	else if (instr_.is_exists_string())
-	{
-	    exec_exists_string(instr_.get_exists_string(), result_);
-	}
-	else if (instr_.is_exists_struct())
-	{
-	    exec_exists_struct(instr_.get_exists_struct(), result_);
-	}
-	else if (instr_.is_read_string())
-	{
-	    exec_read_string(instr_.get_read_string(), result_);
-	}
-	else if (instr_.is_read_struct())
-	{
-	    exec_read_struct(instr_.get_read_struct(), result_);
-	}
-	else if (instr_.is_write_string())
-	{
-	    exec_write_string(instr_.get_write_string(), result_);
-	}
-	else if (instr_.is_write_struct())
-	{
-	    exec_write_struct(instr_.get_write_struct(), result_);
-	}
-	else if (instr_.is_remove_string())
-	{
-	    exec_remove_string(instr_.get_remove_string(), result_);
-	}
-	else if (instr_.is_remove_struct())
-	{
-	    exec_remove_struct(instr_.get_remove_struct(), result_);
-	}
-	else if (instr_.is_process_read_metadata())
-	{
-	    exec_process_read_metadata(instr_.get_process_read_metadata(), result_);
-	}
-	else if (instr_.is_process_write_metadata())
-	{
-	    exec_process_write_metadata(instr_.get_process_write_metadata(), result_);
-	}
-	else if (instr_.is_collect_garbage_1())
-	{
-	    exec_collect_garbage_1(instr_.get_collect_garbage_1(), result_);
-	}
-	else if (instr_.is_collect_garbage_2())
-	{
-	    exec_collect_garbage_2(instr_.get_collect_garbage_2(), result_);
-	}
-	else if (instr_.is_get_reader_token_id())
-	{
-	    exec_get_reader_token_id(instr_.get_get_reader_token_id(), result_);
-	}
-	else if (instr_.is_get_last_read_revision())
-	{
-	    exec_get_last_read_revision(instr_.get_get_last_read_revision(), result_);
-	}
-	else if (instr_.is_get_oldest_string_revision())
-	{
-	    exec_get_oldest_string_revision(instr_.get_get_oldest_string_revision(), result_);
-	}
-	else if (instr_.is_get_oldest_struct_revision())
-	{
-	    exec_get_oldest_struct_revision(instr_.get_get_oldest_struct_revision(), result_);
-	}
-	else if (instr_.is_get_global_oldest_revision_read())
-	{
-	    exec_get_global_oldest_revision_read(instr_.get_get_global_oldest_revision_read(), result_);
-	}
-	else if (instr_.is_get_registered_keys())
-	{
-	    exec_get_registered_keys(instr_.get_get_registered_keys(), result_);
-	}
-	else if (instr_.is_get_string_history_depth())
-	{
-	    exec_get_string_history_depth(instr_.get_get_string_history_depth(), result_);
-	}
-	else if (instr_.is_get_struct_history_depth())
-	{
-	    exec_get_struct_history_depth(instr_.get_get_struct_history_depth(), result_);
-	}
-	else
-	{
-	    sgd::malformed_message_result tmp;
-	    result_.set_malformed_message(tmp);
-	}
-	result_.serialize(socket_);
-	socket_.getsockopt(ZMQ_EVENTS, &event, &size);
+	sgd::malformed_message_result tmp;
+	result_.set_malformed_message(tmp);
     }
+    else if (instr_.is_terminate())
+    {
+	exec_terminate(instr_.get_terminate(), result_);
+    }
+    else if (instr_.is_exists_string())
+    {
+	exec_exists_string(instr_.get_exists_string(), result_);
+    }
+    else if (instr_.is_exists_struct())
+    {
+	exec_exists_struct(instr_.get_exists_struct(), result_);
+    }
+    else if (instr_.is_read_string())
+    {
+	exec_read_string(instr_.get_read_string(), result_);
+    }
+    else if (instr_.is_read_struct())
+    {
+	exec_read_struct(instr_.get_read_struct(), result_);
+    }
+    else if (instr_.is_write_string())
+    {
+	exec_write_string(instr_.get_write_string(), result_);
+    }
+    else if (instr_.is_write_struct())
+    {
+	exec_write_struct(instr_.get_write_struct(), result_);
+    }
+    else if (instr_.is_remove_string())
+    {
+	exec_remove_string(instr_.get_remove_string(), result_);
+    }
+    else if (instr_.is_remove_struct())
+    {
+	exec_remove_struct(instr_.get_remove_struct(), result_);
+    }
+    else if (instr_.is_process_read_metadata())
+    {
+	exec_process_read_metadata(instr_.get_process_read_metadata(), result_);
+    }
+    else if (instr_.is_process_write_metadata())
+    {
+	exec_process_write_metadata(instr_.get_process_write_metadata(), result_);
+    }
+    else if (instr_.is_collect_garbage_1())
+    {
+	exec_collect_garbage_1(instr_.get_collect_garbage_1(), result_);
+    }
+    else if (instr_.is_collect_garbage_2())
+    {
+	exec_collect_garbage_2(instr_.get_collect_garbage_2(), result_);
+    }
+    else if (instr_.is_get_reader_token_id())
+    {
+	exec_get_reader_token_id(instr_.get_get_reader_token_id(), result_);
+    }
+    else if (instr_.is_get_last_read_revision())
+    {
+	exec_get_last_read_revision(instr_.get_get_last_read_revision(), result_);
+    }
+    else if (instr_.is_get_oldest_string_revision())
+    {
+	exec_get_oldest_string_revision(instr_.get_get_oldest_string_revision(), result_);
+    }
+    else if (instr_.is_get_oldest_struct_revision())
+    {
+	exec_get_oldest_struct_revision(instr_.get_get_oldest_struct_revision(), result_);
+    }
+    else if (instr_.is_get_global_oldest_revision_read())
+    {
+	exec_get_global_oldest_revision_read(instr_.get_get_global_oldest_revision_read(), result_);
+    }
+    else if (instr_.is_get_registered_keys())
+    {
+	exec_get_registered_keys(instr_.get_get_registered_keys(), result_);
+    }
+    else if (instr_.is_get_string_history_depth())
+    {
+	exec_get_string_history_depth(instr_.get_get_string_history_depth(), result_);
+    }
+    else if (instr_.is_get_struct_history_depth())
+    {
+	exec_get_struct_history_depth(instr_.get_get_struct_history_depth(), result_);
+    }
+    else
+    {
+	sgd::malformed_message_result tmp;
+	result_.set_malformed_message(tmp);
+    }
+    result_.serialize(sink);
     if (!terminated())
     {
-	boost::function2<void, const bsy::error_code&, size_t> func(
+	scm::request_reply_service::receive_func func(
 		boost::bind(&mvcc_service::receive_instruction, this, _1, _2));
-	stream_.async_read_some(boost::asio::null_buffers(), func);
-	service_.run_one();
+	service_.submit(func);
     }
 }
 

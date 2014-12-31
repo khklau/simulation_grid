@@ -2,6 +2,7 @@
 #include <simulation_grid/grid_db/exception.hpp>
 #include "log_service_msg.hpp"
 
+namespace scm = simulation_grid::communication;
 namespace sgd = simulation_grid::grid_db;
 
 namespace simulation_grid {
@@ -210,13 +211,11 @@ void union_AB::export_to(union_AB_msg& target) const
 }
 
 instruction::instruction() :
-    msg_(),
-    buf_(static_cast<size_t>(msg_.SpaceUsed()))
+    msg_()
 { }
 
 instruction::instruction(const instruction& other) :
-    msg_(other.msg_),
-    buf_(static_cast<size_t>(other.msg_.SpaceUsed()))
+    msg_(other.msg_)
 { }
 
 instruction& instruction::operator=(const instruction& other)
@@ -224,26 +223,23 @@ instruction& instruction::operator=(const instruction& other)
     if (&other != this)
     {
 	msg_ = other.msg_;
-	buf_.rebuild();
     }
     return *this;
 }
 
-void instruction::serialize(zmq::socket_t& socket)
+void instruction::serialize(scm::message_sink& sink) const
 {
-    buf_.rebuild(static_cast<size_t>(msg_.ByteSize()));
-    msg_.SerializeToArray(buf_.data(), buf_.size());
-    socket.send(buf_);
+    std::size_t required_size = msg_.ByteSize();
+    msg_.SerializeToArray(sink.data(required_size), required_size);
 }
 
 /**
  * Unfortunately we need this because Protocol Buffers doesn't support unions, so we have to fake it which is not type safe
  */
-instruction::msg_status instruction::deserialize(zmq::socket_t& socket)
+instruction::msg_status instruction::deserialize(const scm::message_source& source)
 {
     msg_status status = MALFORMED;
-    socket.recv(&buf_);
-    if (msg_.ParseFromArray(buf_.data(), buf_.size()))
+    if (msg_.ParseFromArray(source.data(), source.size()))
     {
 	if ((is_terminate_msg() && msg_.has_terminate_msg()) ||
 	    (is_append_msg() && msg_.has_append_msg()))
@@ -267,15 +263,13 @@ void instruction::set_append_msg(const append_msg& msg)
 }
 
 result::result() :
-     msg_(),
-     buf_(static_cast<size_t>(msg_.SpaceUsed()))
+     msg_()
 {
     msg_.set_opcode(result_msg::CONFIRMATION);
 }
 
 result::result(const result& other) :
-    msg_(other.msg_),
-    buf_(static_cast<size_t>(other.msg_.SpaceUsed()))
+    msg_(other.msg_)
 { }
 
 result& result::operator=(const result& other)
@@ -283,26 +277,23 @@ result& result::operator=(const result& other)
     if (&other != this)
     {
 	msg_ = other.msg_;
-	buf_.rebuild();
     }
     return *this;
 }
 
-void result::serialize(zmq::socket_t& socket)
+void result::serialize(scm::message_sink& sink) const
 {
-    buf_.rebuild(static_cast<size_t>(msg_.ByteSize()));
-    msg_.SerializeToArray(buf_.data(), buf_.size());
-    socket.send(buf_);
+    std::size_t required_size = msg_.ByteSize();
+    msg_.SerializeToArray(sink.data(required_size), required_size);
 }
 
 /**
  * Unfortunately we need this because Protocol Buffers doesn't support unions, so we have to fake it which is not type safe
  */
-result::msg_status result::deserialize(zmq::socket_t& socket)
+result::msg_status result::deserialize(const scm::message_source& source)
 {
     msg_status status = MALFORMED;
-    socket.recv(&buf_);
-    if (msg_.ParseFromArray(buf_.data(), buf_.size()))
+    if (msg_.ParseFromArray(source.data(), source.size()))
     {
 	if ((is_malformed_message_msg() && msg_.has_malformed_message_msg()) ||
 	    (is_invalid_argument_msg() && msg_.has_invalid_argument_msg()) ||

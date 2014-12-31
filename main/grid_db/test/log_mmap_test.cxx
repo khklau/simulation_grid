@@ -23,6 +23,7 @@
 #include <simulation_grid/core/compiler_extensions.hpp>
 #include <simulation_grid/core/process_utility.hpp>
 #include <simulation_grid/core/tcpip_utility.hpp>
+#include <simulation_grid/communication/request_reply_client.hpp>
 #include "exception.hpp"
 #include "log_mmap.hpp"
 #include "log_mmap.hxx"
@@ -33,6 +34,7 @@ namespace bfs = boost::filesystem;
 namespace bpt = boost::posix_time;
 namespace scp = simulation_grid::core::process_utility;
 namespace sct = simulation_grid::core::tcpip_utility;
+namespace scm = simulation_grid::communication;
 namespace sgd = simulation_grid::grid_db;
 
 namespace {
@@ -120,19 +122,12 @@ public:
     boost::optional<sgd::log_index> send_append_msg(boost::uint32_t sequence, const sgd::union_AB& entry);
 private:
     bool terminate_sent_;
-    static int init_zmq_socket(zmq::socket_t& socket, const config& config);
-    zmq::context_t context_;
-    zmq::socket_t socket_;
-    bas::io_service service_;
-    bas::posix::stream_descriptor stream_;
+    scm::request_reply_client client_;
 };
 
 service_client::service_client(const config& config) :
     terminate_sent_(false),
-    context_(1),
-    socket_(context_, ZMQ_REQ),
-    service_(),
-    stream_(service_, init_zmq_socket(socket_, config))
+    client_("127.0.0.1", config.port)
 { }
 
 service_client::~service_client()
@@ -141,50 +136,16 @@ service_client::~service_client()
     {
 	send_terminate_msg(99U);
     }
-    stream_.release();
-    service_.stop();
-    socket_.close();
-    context_.close();
-}
-
-int service_client::init_zmq_socket(zmq::socket_t& socket, const config& config)
-{
-    std::string address(str(boost::format("tcp://127.0.0.1:%d") % config.port));
-    socket.connect(address.c_str());
-
-    // TODO this is currently POSIX specific, add a Windows version
-    int fd = 0;
-    size_t size = sizeof(fd);
-    socket.getsockopt(ZMQ_FD, &fd, &size);
-    if (UNLIKELY_EXT(size != sizeof(fd)))
-    {
-	throw std::runtime_error("Can't find ZeroMQ socket file descriptor");
-    }
-    return fd;
 }
 
 sgd::result service_client::send(sgd::instruction& instr)
 {
-    instr.serialize(socket_);
-    int event = 0;
-    size_t size = sizeof(event);
-    boost::system::error_code error;
     sgd::result result;
-    do
-    {
-	//stream_.read_some(boost::asio::null_buffers(), error);
-	if (UNLIKELY_EXT(error))
-	{
-	    throw std::runtime_error("Unexpected connection close");
-	}
-	socket_.getsockopt(ZMQ_EVENTS, &event, &size);
-	if (UNLIKELY_EXT(size != sizeof(event)))
-	{
-	    throw std::runtime_error("Unable to read socket options");
-	}
-    } while (!(event & ZMQ_POLLIN));
-    // Finally received a whole message
-    sgd::result::msg_status status = result.deserialize(socket_);
+    scm::request_reply_client::source source(result.get_size());
+    scm::request_reply_client::sink sink(instr.get_size());
+    instr.serialize(sink);
+    client_.send(sink, source);
+    sgd::result::msg_status status = result.deserialize(source);
     if (UNLIKELY_EXT(status == sgd::result::MALFORMED))
     {
 	throw std::runtime_error("Received malformed message");

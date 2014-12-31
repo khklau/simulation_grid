@@ -31,6 +31,7 @@
 #include <google/protobuf/message.h>
 #include <simulation_grid/core/compiler_extensions.hpp>
 #include <simulation_grid/core/signal_notifier.hpp>
+#include <simulation_grid/communication/request_reply_service.hpp>
 #include <zmq.hpp>
 #include <signal.h>
 #include "multi_reader_ring_buffer.hpp"
@@ -43,8 +44,9 @@ namespace bip = boost::interprocess;
 namespace bpo = boost::program_options;
 namespace bsi = boost::signals2;
 namespace bsy = boost::system;
-namespace sgd = simulation_grid::grid_db;
 namespace sco = simulation_grid::core;
+namespace scm = simulation_grid::communication;
+namespace sgd = simulation_grid::grid_db;
 
 namespace {
 
@@ -175,11 +177,11 @@ public:
     ~ringbuf_service();
     void start();
     void stop();
-    bool terminated() const { return service_.stopped(); }
+    bool terminated() const { return service_.has_stopped(); }
 private:
     static int init_zmq_socket(zmq::socket_t& socket, const config& config);
     void run();
-    void receive_instruction(const bsy::error_code& error, size_t);
+    void receive_instruction(const scm::request_reply_service::source& source, scm::request_reply_service::sink& sink);
     void exec_terminate(const sgd::terminate_instr& input, sgd::result_msg& output);
     void exec_query_front(const sgd::query_front_instr& input, sgd::result_msg& output);
     void exec_query_back(const sgd::query_back_instr& input, sgd::result_msg& output);
@@ -190,31 +192,25 @@ private:
     void exec_push_front(const sgd::push_front_instr& input, sgd::result_msg& output);
     void exec_pop_back(const sgd::pop_back_instr& input, sgd::result_msg& output);
     void exec_export_element(const sgd::export_element_instr& input, sgd::result_msg& output);
-    sco::signal_notifier notifier_;
     memory_t memory_;
     sgd::multi_reader_ring_buffer<element_t, allocator_t>* ringbuf_;
     std::vector<const element_t*> register_set_;
     sgd::instruction_msg instr_;
     sgd::result_msg result_;
-    zmq::context_t context_;
-    zmq::socket_t socket_;
-    bas::io_service service_;
-    bas::posix::stream_descriptor stream_;
+    sco::signal_notifier notifier_;
+    scm::request_reply_service service_;
 };
 
 template <class element_t, class memory_t>
 ringbuf_service<element_t, memory_t>::ringbuf_service(const config& config) :
-    notifier_(),
     memory_(bip::create_only, config.name.c_str(), config.size),
     ringbuf_(memory_.template construct< sgd::multi_reader_ring_buffer<element_t, allocator_t> >(config.name.c_str())(
 	    config.capacity, memory_.get_segment_manager())),
     register_set_(config.capacity, 0),
     instr_(),
     result_(),
-    context_(1),
-    socket_(context_, ZMQ_REP),
-    service_(),
-    stream_(service_, init_zmq_socket(socket_, config))
+    notifier_(),
+    service_("127.0.0.1", config.port, sizeof(instr_), sizeof(result_))
 {
     notifier_.add(SIGTERM, boost::bind(&ringbuf_service::stop, this));
     notifier_.add(SIGINT, boost::bind(&ringbuf_service::stop, this));
@@ -224,17 +220,14 @@ ringbuf_service<element_t, memory_t>::ringbuf_service(const config& config) :
 template <class element_t, class memory_t>
 ringbuf_service<element_t, memory_t>::~ringbuf_service()
 {
-    stream_.release();
-    stop();
-    socket_.close();
-    context_.close();
     notifier_.stop();
+    stop();
 }
 
 template <class element_t, class memory_t>
 void ringbuf_service<element_t, memory_t>::start()
 {
-    if (service_.stopped())
+    if (service_.has_stopped())
     {
 	service_.reset();
     }
@@ -248,103 +241,77 @@ void ringbuf_service<element_t, memory_t>::stop()
 }
 
 template <class element_t, class memory_t>
-int ringbuf_service<element_t, memory_t>::init_zmq_socket(zmq::socket_t& socket, const config& config)
-{
-    std::string address(str(boost::format("tcp://127.0.0.1:%d") % config.port));
-    socket.bind(address.c_str());
-
-    // TODO this is currently POSIX specific, add a Windows version
-    int fd = 0;
-    size_t size = sizeof(fd);
-    socket.getsockopt(ZMQ_FD, &fd, &size);
-    if (UNLIKELY_EXT(size != sizeof(fd)))
-    {
-	throw std::runtime_error("Can't find ZeroMQ socket file descriptor");
-    }
-    return fd;
-}
-
-template <class element_t, class memory_t>
 void ringbuf_service<element_t, memory_t>::run()
 {
     if (!terminated())
     {
-	boost::function2<void, const bsy::error_code&, size_t> func(
+	scm::request_reply_service::receive_func func(
 		boost::bind(&ringbuf_service::receive_instruction, this, _1, _2));
-	stream_.async_read_some(boost::asio::null_buffers(), func);
-	service_.run();
+	service_.submit(func);
+	service_.start();
     }
 }
 
 template <class element_t, class memory_t>
-void ringbuf_service<element_t, memory_t>::receive_instruction(const bsy::error_code& error, size_t)
+void ringbuf_service<element_t, memory_t>::receive_instruction(const scm::request_reply_service::source& source, scm::request_reply_service::sink& sink)
 {
-    int event = 0;
-    size_t size = sizeof(event);
-    socket_.getsockopt(ZMQ_EVENTS, &event, &size);
-    // More than 1 message may be available, so we need to consume all of them
-    while (LIKELY_EXT(!error && size == sizeof(event)) && (event & ZMQ_POLLIN))
+    sgd::instruction_msg::msg_status status = instr_.deserialize(source);
+    if (UNLIKELY_EXT(status == sgd::instruction_msg::MALFORMED))
     {
-	sgd::instruction_msg::msg_status status = instr_.deserialize(socket_);
-	if (UNLIKELY_EXT(status == sgd::instruction_msg::MALFORMED))
-	{
-	    sgd::malformed_message_result tmp;
-	    result_.set_malformed_message(tmp);
-	}
-	else if (instr_.is_terminate())
-	{
-	    exec_terminate(instr_.get_terminate(), result_);
-	}
-	else if (instr_.is_query_front())
-	{
-	    exec_query_front(instr_.get_query_front(), result_);
-	}
-	else if (instr_.is_query_back())
-	{
-	    exec_query_back(instr_.get_query_back(), result_);
-	}
-	else if (instr_.is_query_capacity())
-	{
-	    exec_query_capacity(instr_.get_query_capacity(), result_);
-	}
-	else if (instr_.is_query_count())
-	{
-	    exec_query_count(instr_.get_query_count(), result_);
-	}
-	else if (instr_.is_query_empty())
-	{
-	    exec_query_empty(instr_.get_query_empty(), result_);
-	}
-	else if (instr_.is_query_full())
-	{
-	    exec_query_full(instr_.get_query_full(), result_);
-	}
-	else if (instr_.is_push_front())
-	{
-	    exec_push_front(instr_.get_push_front(), result_);
-	}
-	else if (instr_.is_pop_back())
-	{
-	    exec_pop_back(instr_.get_pop_back(), result_);
-	}
-	else if (instr_.is_export_element())
-	{
-	    exec_export_element(instr_.get_export_element(), result_);
-	}
-	else
-	{
-	    sgd::malformed_message_result tmp;
-	    result_.set_malformed_message(tmp);
-	}
-	result_.serialize(socket_);
-	socket_.getsockopt(ZMQ_EVENTS, &event, &size);
+	sgd::malformed_message_result tmp;
+	result_.set_malformed_message(tmp);
     }
+    else if (instr_.is_terminate())
+    {
+	exec_terminate(instr_.get_terminate(), result_);
+    }
+    else if (instr_.is_query_front())
+    {
+	exec_query_front(instr_.get_query_front(), result_);
+    }
+    else if (instr_.is_query_back())
+    {
+	exec_query_back(instr_.get_query_back(), result_);
+    }
+    else if (instr_.is_query_capacity())
+    {
+	exec_query_capacity(instr_.get_query_capacity(), result_);
+    }
+    else if (instr_.is_query_count())
+    {
+	exec_query_count(instr_.get_query_count(), result_);
+    }
+    else if (instr_.is_query_empty())
+    {
+	exec_query_empty(instr_.get_query_empty(), result_);
+    }
+    else if (instr_.is_query_full())
+    {
+	exec_query_full(instr_.get_query_full(), result_);
+    }
+    else if (instr_.is_push_front())
+    {
+	exec_push_front(instr_.get_push_front(), result_);
+    }
+    else if (instr_.is_pop_back())
+    {
+	exec_pop_back(instr_.get_pop_back(), result_);
+    }
+    else if (instr_.is_export_element())
+    {
+	exec_export_element(instr_.get_export_element(), result_);
+    }
+    else
+    {
+	sgd::malformed_message_result tmp;
+	result_.set_malformed_message(tmp);
+    }
+    result_.serialize(sink);
     if (!terminated())
     {
-	boost::function2<void, const bsy::error_code&, size_t> func(
+	scm::request_reply_service::receive_func func(
 		boost::bind(&ringbuf_service::receive_instruction, this, _1, _2));
-	stream_.async_read_some(boost::asio::null_buffers(), func);
-	service_.run_one();
+	service_.submit(func);
     }
 }
 

@@ -1,9 +1,9 @@
 #ifndef SIMULATION_GRID_GRID_DB_MVCC_SERVICE_MSG_HPP
 #define SIMULATION_GRID_GRID_DB_MVCC_SERVICE_MSG_HPP
 
-#include <google/protobuf/message.h>
-#include <zmq.hpp>
 #include "mvcc_service_msg.pb.h"
+#include <google/protobuf/message.h>
+#include <simulation_grid/communication/message_access.hpp>
 
 namespace simulation_grid {
 namespace grid_db {
@@ -47,8 +47,8 @@ public:
     instruction_msg();
     instruction_msg(const instruction_msg& other);
     instruction_msg& operator=(const instruction_msg& other);
-    void serialize(zmq::socket_t& socket);
-    msg_status deserialize(zmq::socket_t& socket);
+    void serialize(simulation_grid::communication::message_sink& sink) const;
+    msg_status deserialize(const simulation_grid::communication::message_source& source);
     inline bool is_terminate() { return msg_.opcode() == simulation_grid::grid_db::instruction::TERMINATE; }
     inline bool is_exists_string() { return msg_.opcode() == simulation_grid::grid_db::instruction::EXISTS_STRING; }
     inline bool is_exists_struct() { return msg_.opcode() == simulation_grid::grid_db::instruction::EXISTS_STRUCT; }
@@ -114,7 +114,6 @@ public:
     void set_get_struct_history_depth(const simulation_grid::grid_db::get_struct_history_depth_instr& instr);
 private:
     simulation_grid::grid_db::instruction msg_;
-    zmq::message_t buf_;
 };
 
 class result_msg
@@ -128,8 +127,8 @@ public:
     result_msg();
     result_msg(const result_msg& other);
     result_msg& operator=(const result_msg& other);
-    void serialize(zmq::socket_t& socket);
-    msg_status deserialize(zmq::socket_t& socket);
+    void serialize(simulation_grid::communication::message_sink& sink) const;
+    msg_status deserialize(const simulation_grid::communication::message_source& source);
     inline bool is_malformed_message() { return msg_.opcode() == simulation_grid::grid_db::result::MALFORMED_MESSAGE; }
     inline bool is_invalid_argument() { return msg_.opcode() == simulation_grid::grid_db::result::INVALID_ARGUMENT; }
     inline bool is_confirmation() { return msg_.opcode() == simulation_grid::grid_db::result::CONFIRMATION; }
@@ -165,7 +164,6 @@ public:
     void set_size(const simulation_grid::grid_db::size_result& result);
 private:
     simulation_grid::grid_db::result msg_;
-    zmq::message_t buf_;
 };
 
 } // namespace grid_db

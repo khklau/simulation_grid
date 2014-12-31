@@ -31,6 +31,7 @@
 #include <google/protobuf/message.h>
 #include <simulation_grid/core/compiler_extensions.hpp>
 #include <simulation_grid/core/signal_notifier.hpp>
+#include <simulation_grid/communication/request_reply_service.hpp>
 #include <zmq.hpp>
 #include <signal.h>
 #include "exception.hpp"
@@ -44,8 +45,9 @@ namespace bip = boost::interprocess;
 namespace bpo = boost::program_options;
 namespace bsi = boost::signals2;
 namespace bsy = boost::system;
-namespace sgd = simulation_grid::grid_db;
 namespace sco = simulation_grid::core;
+namespace scm = simulation_grid::communication;
+namespace sgd = simulation_grid::grid_db;
 
 namespace {
 
@@ -170,32 +172,25 @@ public:
     ~log_service();
     void start();
     void stop();
-    bool terminated() const { return service_.stopped(); }
+    bool terminated() const { return service_.has_stopped(); }
 private:
-    static int init_zmq_socket(zmq::socket_t& socket, const config& config);
     void run();
-    void receive_instruction(const bsy::error_code& error, size_t);
+    void receive_instruction(const scm::request_reply_service::source&, scm::request_reply_service::sink&);
     void exec_terminate(const sgd::terminate_msg& input, sgd::result& output);
     void exec_append(const sgd::append_msg& input, sgd::result& output);
-    sgd::log_shm_owner<sgd::union_AB> owner_;
-    bas::io_service service_;
-    sco::signal_notifier notifier_;
     sgd::instruction instr_;
     sgd::result result_;
-    zmq::context_t context_;
-    zmq::socket_t socket_;
-    bas::posix::stream_descriptor stream_;
+    sgd::log_shm_owner<sgd::union_AB> owner_;
+    sco::signal_notifier notifier_;
+    scm::request_reply_service service_;
 };
 
 log_service::log_service(const config& config) :
-    owner_(config.name, config.size),
-    service_(),
-    notifier_(),
     instr_(),
     result_(),
-    context_(1),
-    socket_(context_, ZMQ_REP),
-    stream_(service_, init_zmq_socket(socket_, config))
+    owner_(config.name, config.size),
+    notifier_(),
+    service_("127.0.0.1", config.port, sizeof(instr_), sizeof(result_))
 {
     notifier_.add(SIGTERM, boost::bind(&log_service::stop, this));
     notifier_.add(SIGINT, boost::bind(&log_service::stop, this));
@@ -204,16 +199,13 @@ log_service::log_service(const config& config) :
 
 log_service::~log_service()
 {
-    stream_.release();
-    socket_.close();
-    context_.close();
     notifier_.stop();
     stop();
 }
 
 void log_service::start()
 {
-    if (service_.stopped())
+    if (service_.has_stopped())
     {
 	service_.reset();
     }
@@ -225,69 +217,44 @@ void log_service::stop()
     service_.stop();
 }
 
-int log_service::init_zmq_socket(zmq::socket_t& socket, const config& config)
-{
-    std::string address(str(boost::format("tcp://127.0.0.1:%d") % config.port));
-    socket.bind(address.c_str());
-
-    // TODO this is currently POSIX specific, add a Windows version
-    int fd = 0;
-    size_t size = sizeof(fd);
-    socket.getsockopt(ZMQ_FD, &fd, &size);
-    if (UNLIKELY_EXT(size != sizeof(fd)))
-    {
-	throw std::runtime_error("Can't find ZeroMQ socket file descriptor");
-    }
-    return fd;
-}
-
 void log_service::run()
 {
     if (!terminated())
     {
-	boost::function2<void, const bsy::error_code&, size_t> func(
+	scm::request_reply_service::receive_func func(
 		boost::bind(&log_service::receive_instruction, this, _1, _2));
-	stream_.async_read_some(boost::asio::null_buffers(), func);
-	service_.run();
+	service_.submit(func);
+	service_.start();
     }
 }
 
-void log_service::receive_instruction(const bsy::error_code& error, size_t)
+void log_service::receive_instruction(const scm::request_reply_service::source& source, scm::request_reply_service::sink& sink)
 {
-    int event = 0;
-    size_t size = sizeof(event);
-    socket_.getsockopt(ZMQ_EVENTS, &event, &size);
-    // More than 1 message may be available, so we need to consume all of them
-    while (LIKELY_EXT(!error && size == sizeof(event)) && (event & ZMQ_POLLIN))
+    sgd::instruction::msg_status status = instr_.deserialize(source);
+    if (UNLIKELY_EXT(status == sgd::instruction::MALFORMED))
     {
-	sgd::instruction::msg_status status = instr_.deserialize(socket_);
-	if (UNLIKELY_EXT(status == sgd::instruction::MALFORMED))
-	{
-	    sgd::malformed_message_msg tmp;
-	    result_.set_malformed_message_msg(tmp);
-	}
-	else if (instr_.is_terminate_msg())
-	{
-	    exec_terminate(instr_.get_terminate_msg(), result_);
-	}
-	else if (instr_.is_append_msg())
-	{
-	    exec_append(instr_.get_append_msg(), result_);
-	}
-	else
-	{
-	    sgd::malformed_message_msg tmp;
-	    result_.set_malformed_message_msg(tmp);
-	}
-	result_.serialize(socket_);
-	socket_.getsockopt(ZMQ_EVENTS, &event, &size);
+	sgd::malformed_message_msg tmp;
+	result_.set_malformed_message_msg(tmp);
     }
+    else if (instr_.is_terminate_msg())
+    {
+	exec_terminate(instr_.get_terminate_msg(), result_);
+    }
+    else if (instr_.is_append_msg())
+    {
+	exec_append(instr_.get_append_msg(), result_);
+    }
+    else
+    {
+	sgd::malformed_message_msg tmp;
+	result_.set_malformed_message_msg(tmp);
+    }
+    result_.serialize(sink);
     if (!terminated())
     {
-	boost::function2<void, const bsy::error_code&, size_t> func(
+	scm::request_reply_service::receive_func func(
 		boost::bind(&log_service::receive_instruction, this, _1, _2));
-	stream_.async_read_some(boost::asio::null_buffers(), func);
-	service_.run_one();
+	service_.submit(func);
     }
 }
 

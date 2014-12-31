@@ -26,6 +26,7 @@
 #include <zmq.hpp>
 #include <simulation_grid/core/compiler_extensions.hpp>
 #include <simulation_grid/core/process_utility.hpp>
+#include <simulation_grid/communication/request_reply_client.hpp>
 #include "multi_reader_ring_buffer.hpp"
 #include "multi_reader_ring_buffer.hxx"
 #include "ringbuf_msg.hpp"
@@ -34,6 +35,7 @@ namespace bas = boost::asio;
 namespace bfs = boost::filesystem;
 namespace bip = boost::interprocess;
 namespace scp = simulation_grid::core::process_utility;
+namespace scm = simulation_grid::communication;
 namespace sgd = simulation_grid::grid_db;
 
 namespace {
@@ -123,24 +125,18 @@ public:
     ~service_client();
     const ringbuf& get_ringbuf() const { return *ringbuf_; }
     sgd::result_msg send(sgd::instruction_msg& msg);
+    void send_terminate(boost::uint32_t sequence);
 private:
-    static int init_zmq_socket(zmq::socket_t& socket, const config& config);
     memory_t memory_;
     ringbuf* ringbuf_;
-    zmq::context_t context_;
-    zmq::socket_t socket_;
-    bas::io_service service_;
-    bas::posix::stream_descriptor stream_;
+    scm::request_reply_client client_;
 };
 
 template <class element_t, class memory_t>
 service_client<element_t, memory_t>::service_client(const config& config) :
     memory_(bip::open_only, config.name.c_str()),
     ringbuf_(memory_.template find< sgd::multi_reader_ring_buffer<element_t, allocator_t> >(config.name.c_str()).first),
-    context_(1),
-    socket_(context_, ZMQ_REQ),
-    service_(),
-    stream_(service_, init_zmq_socket(socket_, config))
+    client_("127.0.0.1", config.port)
 {
     if (UNLIKELY_EXT(!ringbuf_))
     {
@@ -150,59 +146,34 @@ service_client<element_t, memory_t>::service_client(const config& config) :
 
 template <class element_t, class memory_t>
 service_client<element_t, memory_t>::~service_client()
-{
-    stream_.release();
-    service_.stop();
-    socket_.close();
-    context_.close();
-}
-
+{ }
 
 template <class element_t, class memory_t>
-int service_client<element_t, memory_t>::init_zmq_socket(zmq::socket_t& socket, const config& config)
+sgd::result_msg service_client<element_t, memory_t>::send(sgd::instruction_msg& instr)
 {
-    std::string address(str(boost::format("tcp://127.0.0.1:%d") % config.port));
-    socket.connect(address.c_str());
-
-    // TODO this is currently POSIX specific, add a Windows version
-    int fd = 0;
-    size_t size = sizeof(fd);
-    socket.getsockopt(ZMQ_FD, &fd, &size);
-    if (UNLIKELY_EXT(size != sizeof(fd)))
-    {
-	throw std::runtime_error("Can't find ZeroMQ socket file descriptor");
-    }
-    return fd;
-}
-
-template <class element_t, class memory_t>
-sgd::result_msg service_client<element_t, memory_t>::send(sgd::instruction_msg& msg)
-{
-    msg.serialize(socket_);
-    int event = 0;
-    size_t size = sizeof(event);
-    boost::system::error_code error;
     sgd::result_msg result;
-    do
-    {
-	//stream_.read_some(boost::asio::null_buffers(), error);
-	if (UNLIKELY_EXT(error))
-	{
-	    throw std::runtime_error("Unexpected connection close");
-	}
-	socket_.getsockopt(ZMQ_EVENTS, &event, &size);
-	if (UNLIKELY_EXT(size != sizeof(event)))
-	{
-	    throw std::runtime_error("Unable to read socket options");
-	}
-    } while (!(event & ZMQ_POLLIN));
-    // Finally received a whole message
-    sgd::result_msg::msg_status status = result.deserialize(socket_);
+    scm::request_reply_client::source source(sizeof(result));
+    scm::request_reply_client::sink sink(sizeof(instr));
+    instr.serialize(sink);
+    client_.send(sink, source);
+    sgd::result_msg::msg_status status = result.deserialize(source);
     if (UNLIKELY_EXT(status == sgd::result_msg::MALFORMED))
     {
 	throw std::runtime_error("Received malformed message");
     }
     return result;
+}
+
+template <class element_t, class memory_t>
+void service_client<element_t, memory_t>::send_terminate(boost::uint32_t sequence)
+{
+    sgd::instruction_msg inmsg;
+    sgd::terminate_instr instr;
+    instr.set_sequence(sequence);
+    inmsg.set_terminate(instr);
+    sgd::result_msg outmsg(send(inmsg));
+    EXPECT_TRUE(outmsg.is_confirmation()) << "Unexpected terminate result";
+    EXPECT_EQ(inmsg.get_terminate().sequence(), outmsg.get_confirmation().sequence()) << "Sequence number mismatch";
 }
 
 typedef service_client<boost::int32_t, bip::managed_mapped_file> mmap_service_client;
@@ -346,13 +317,7 @@ TEST(multi_reader_ring_buffer_test, mmap_front_reference_lifetime)
     EXPECT_EQ(2U, client.get_ringbuf().element_count()) << "element count is wrong";
     ASSERT_EQ(expected1, actual1) << "reference to original front element is lost after subsequent push";
 
-    sgd::instruction_msg inmsg3;
-    sgd::terminate_instr instr3;
-    instr3.set_sequence(3U);
-    inmsg3.set_terminate(instr3);
-    sgd::result_msg outmsg3(client.send(inmsg3));
-    ASSERT_TRUE(outmsg3.is_confirmation()) << "Unexpected terminate result";
-    ASSERT_EQ(inmsg3.get_terminate().sequence(), outmsg3.get_confirmation().sequence()) << "Sequence number mismatch";
+    client.send_terminate(3U);
 }
 
 TEST(multi_reader_ring_buffer_test, mmap_already_popped_back_element)
@@ -448,13 +413,7 @@ TEST(multi_reader_ring_buffer_test, mmap_already_popped_back_element)
     ASSERT_EQ(inmsg8.get_pop_back().sequence(), outmsg8.get_confirmation().sequence()) << "sequence number mismatch";
     EXPECT_EQ(1U, client.get_ringbuf().element_count()) << "attempting to pop an element that was already popped should have failed";
 
-    sgd::instruction_msg inmsg9;
-    sgd::terminate_instr instr9;
-    instr9.set_sequence(9U);
-    inmsg9.set_terminate(instr9);
-    sgd::result_msg outmsg9(client.send(inmsg9));
-    ASSERT_TRUE(outmsg9.is_confirmation()) << "Unexpected terminate result";
-    ASSERT_EQ(inmsg9.get_terminate().sequence(), outmsg9.get_confirmation().sequence()) << "Sequence number mismatch";
+    client.send_terminate(9U);
 }
 
 TEST(multi_reader_ring_buffer_test, mmap_overfill)
@@ -534,13 +493,7 @@ TEST(multi_reader_ring_buffer_test, mmap_overfill)
     const boost::int32_t actual7 = outmsg7.get_element().element();
     ASSERT_NE(actual4, actual7) << "back element was not popped";
 
-    sgd::instruction_msg inmsg9;
-    sgd::terminate_instr instr9;
-    instr9.set_sequence(9U);
-    inmsg9.set_terminate(instr9);
-    sgd::result_msg outmsg9(client.send(inmsg9));
-    ASSERT_TRUE(outmsg9.is_confirmation()) << "Unexpected terminate result";
-    ASSERT_EQ(inmsg9.get_terminate().sequence(), outmsg9.get_confirmation().sequence()) << "Sequence number mismatch";
+    client.send_terminate(9U);
 }
 
 TEST(multi_reader_ring_buffer_test, mmap_multi_read_sequence)
@@ -601,13 +554,7 @@ TEST(multi_reader_ring_buffer_test, mmap_multi_read_sequence)
 
 	ASSERT_EQ(4U, client2.get_ringbuf().element_count()) << "element_count is wrong";
 
-	sgd::instruction_msg inmsg5;
-	sgd::terminate_instr instr5;
-	instr5.set_sequence(5U);
-	inmsg5.set_terminate(instr5);
-	sgd::result_msg outmsg5(client2.send(inmsg5));
-	ASSERT_TRUE(outmsg5.is_confirmation()) << "Unexpected terminate result";
-	ASSERT_EQ(inmsg5.get_terminate().sequence(), outmsg5.get_confirmation().sequence()) << "Sequence number mismatch";
+	client2.send_terminate(5U);
     }
 }
 
@@ -645,13 +592,7 @@ TEST(multi_reader_ring_buffer_test, shm_front_reference_lifetime)
     EXPECT_EQ(2U, client.get_ringbuf().element_count()) << "element count is wrong";
     ASSERT_EQ(expected1, actual1) << "reference to original front element is lost after subsequent push";
 
-    sgd::instruction_msg inmsg3;
-    sgd::terminate_instr instr3;
-    instr3.set_sequence(3U);
-    inmsg3.set_terminate(instr3);
-    sgd::result_msg outmsg3(client.send(inmsg3));
-    ASSERT_TRUE(outmsg3.is_confirmation()) << "Unexpected terminate result";
-    ASSERT_EQ(inmsg3.get_terminate().sequence(), outmsg3.get_confirmation().sequence()) << "Sequence number mismatch";
+    client.send_terminate(3U);
 }
 
 TEST(multi_reader_ring_buffer_test, shm_already_popped_back_element)
@@ -747,13 +688,7 @@ TEST(multi_reader_ring_buffer_test, shm_already_popped_back_element)
     ASSERT_EQ(inmsg8.get_pop_back().sequence(), outmsg8.get_confirmation().sequence()) << "sequence number mismatch";
     EXPECT_EQ(1U, client.get_ringbuf().element_count()) << "attempting to pop an element that was already popped should have failed";
 
-    sgd::instruction_msg inmsg9;
-    sgd::terminate_instr instr9;
-    instr9.set_sequence(9U);
-    inmsg9.set_terminate(instr9);
-    sgd::result_msg outmsg9(client.send(inmsg9));
-    ASSERT_TRUE(outmsg9.is_confirmation()) << "Unexpected terminate result";
-    ASSERT_EQ(inmsg9.get_terminate().sequence(), outmsg9.get_confirmation().sequence()) << "Sequence number mismatch";
+    client.send_terminate(9U);
 }
 
 TEST(multi_reader_ring_buffer_test, shm_overfill)
@@ -833,13 +768,7 @@ TEST(multi_reader_ring_buffer_test, shm_overfill)
     const boost::int32_t actual7 = outmsg7.get_element().element();
     ASSERT_NE(actual4, actual7) << "back element was not popped";
 
-    sgd::instruction_msg inmsg9;
-    sgd::terminate_instr instr9;
-    instr9.set_sequence(9U);
-    inmsg9.set_terminate(instr9);
-    sgd::result_msg outmsg9(client.send(inmsg9));
-    ASSERT_TRUE(outmsg9.is_confirmation()) << "Unexpected terminate result";
-    ASSERT_EQ(inmsg9.get_terminate().sequence(), outmsg9.get_confirmation().sequence()) << "Sequence number mismatch";
+    client.send_terminate(9U);
 }
 
 TEST(multi_reader_ring_buffer_test, shm_multi_read_sequence)
@@ -900,12 +829,6 @@ TEST(multi_reader_ring_buffer_test, shm_multi_read_sequence)
 
 	ASSERT_EQ(4U, client2.get_ringbuf().element_count()) << "element_count is wrong";
 
-	sgd::instruction_msg inmsg5;
-	sgd::terminate_instr instr5;
-	instr5.set_sequence(5U);
-	inmsg5.set_terminate(instr5);
-	sgd::result_msg outmsg5(client2.send(inmsg5));
-	ASSERT_TRUE(outmsg5.is_confirmation()) << "Unexpected terminate result";
-	ASSERT_EQ(inmsg5.get_terminate().sequence(), outmsg5.get_confirmation().sequence()) << "Sequence number mismatch";
+	client2.send_terminate(5U);
     }
 }
