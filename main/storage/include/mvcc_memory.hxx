@@ -760,30 +760,30 @@ std::vector<std::string> mvcc_owner_handle<memory_t>::get_registered_keys() cons
 
 namespace boost {
 
-namespace sgd = supernova::storage;
+namespace sst = supernova::storage;
 
 // FIXME: this is anti-generic but we don't have a better solution right now
 
 template <>
-struct has_trivial_destructor< sgd::mvcc_deleter<bip::managed_mapped_file> >
+struct has_trivial_destructor< sst::mvcc_deleter<bip::managed_mapped_file> >
 {
     static const bool value = true;
 };
 
 template <>
-struct has_trivial_destructor< sgd::mvcc_deleter<bip::managed_shared_memory> >
+struct has_trivial_destructor< sst::mvcc_deleter<bip::managed_shared_memory> >
 {
     static const bool value = true;
 };
 
 template <>
-struct has_trivial_assign< sgd::mvcc_deleter<bip::managed_mapped_file> >
+struct has_trivial_assign< sst::mvcc_deleter<bip::managed_mapped_file> >
 {
     static const bool value = true;
 };
 
 template <>
-struct has_trivial_assign< sgd::mvcc_deleter<bip::managed_shared_memory> >
+struct has_trivial_assign< sst::mvcc_deleter<bip::managed_shared_memory> >
 {
     static const bool value = true;
 };
