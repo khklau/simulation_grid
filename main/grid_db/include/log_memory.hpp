@@ -1,15 +1,15 @@
-#ifndef SIMULATION_GRID_GRID_DB_LOG_MEMORY_HPP
-#define SIMULATION_GRID_GRID_DB_LOG_MEMORY_HPP
+#ifndef SUPERNOVA_STORAGE_LOG_MEMORY_HPP
+#define SUPERNOVA_STORAGE_LOG_MEMORY_HPP
 
 #include <boost/cstdint.hpp>
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/optional.hpp>
 #include <boost/noncopyable.hpp>
-#include <simulation_grid/grid_db/about.hpp>
+#include <supernova/storage/about.hpp>
 #include "mode.hpp"
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 typedef boost::uint64_t log_index;
 
@@ -41,7 +41,7 @@ private:
     boost::interprocess::mapped_region& region_;
 };
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova
 
 #endif

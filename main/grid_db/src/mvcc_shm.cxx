@@ -3,15 +3,15 @@
 #include <boost/filesystem/operations.hpp>
 #include <boost/interprocess/creation_tags.hpp>
 #include <boost/ref.hpp>
-#include <simulation_grid/grid_db/exception.hpp>
+#include <supernova/storage/exception.hpp>
 #include "mvcc_shm.hxx"
 
 namespace bfs = boost::filesystem;
 namespace bip = boost::interprocess;
 namespace bpt = boost::posix_time;
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 mvcc_shm_reader::mvcc_shm_reader(const std::string& name)
 try :
@@ -20,12 +20,12 @@ try :
     reader_handle_(share_)
 {
 }
-catch (grid_db_condition& cond)
+catch (storage_condition& cond)
 {
     cond << info_db_identity(name);
     throw cond;
 }
-catch (grid_db_error& err)
+catch (storage_error& err)
 {
     err << info_db_identity(name);
     throw err;
@@ -54,12 +54,12 @@ try :
     reader_handle_(share_)
 {
 }
-catch (grid_db_condition& cond)
+catch (storage_condition& cond)
 {
     cond << info_db_identity(name);
     throw cond;
 }
-catch (grid_db_error& err)
+catch (storage_error& err)
 {
     err << info_db_identity(name);
     throw err;
@@ -112,5 +112,5 @@ bool mvcc_shm_owner::does_shm_exist(const std::string& name)
     return result;
 }
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova

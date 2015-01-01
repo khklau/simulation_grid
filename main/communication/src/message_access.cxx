@@ -1,6 +1,6 @@
 #include "message_access.hpp"
 
-namespace simulation_grid {
+namespace supernova {
 namespace communication {
 
 message_source::message_source(std::size_t initial_size) :
@@ -24,4 +24,4 @@ void* message_sink::data(std::size_t required_size)
 }
 
 } // namespace communication
-} // namespace simulation_grid
+} // namespace supernova

@@ -1,7 +1,7 @@
 #include "about.hpp"
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 version::version(boost::uint32_t a, boost::uint32_t b, boost::uint32_t c, boost::uint32_t d) :
 	num_a(a), num_b(b), num_c(c), num_d(d)
@@ -85,5 +85,5 @@ std::ostream& operator<<(std::ostream& out, const version& value)
     return out;
 }
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova

@@ -1,13 +1,13 @@
-#ifndef SIMULATION_GRID_GRID_DB_LOG_SERVICE_MSG_HPP
-#define SIMULATION_GRID_GRID_DB_LOG_SERVICE_MSG_HPP
+#ifndef SUPERNOVA_STORAGE_LOG_SERVICE_MSG_HPP
+#define SUPERNOVA_STORAGE_LOG_SERVICE_MSG_HPP
 
 #include "log_service_msg.pb.h"
 #include <boost/variant.hpp>
 #include <google/protobuf/message.h>
-#include <simulation_grid/communication/message_access.hpp>
+#include <supernova/communication/message_access.hpp>
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 struct struct_A
 {
@@ -67,16 +67,16 @@ public:
     instruction(const instruction& other);
     instruction& operator=(const instruction& other);
     inline std::size_t get_size() const { return msg_.ByteSize(); }
-    void serialize(simulation_grid::communication::message_sink& sink) const;
-    msg_status deserialize(const simulation_grid::communication::message_source& source);
-    inline bool is_terminate_msg() { return msg_.opcode() == simulation_grid::grid_db::instruction_msg::TERMINATE; }
-    inline bool is_append_msg() { return msg_.opcode() == simulation_grid::grid_db::instruction_msg::APPEND; }
-    inline const simulation_grid::grid_db::terminate_msg& get_terminate_msg() { return msg_.terminate_msg(); }
-    inline const simulation_grid::grid_db::append_msg& get_append_msg() { return msg_.append_msg(); }
-    void set_terminate_msg(const simulation_grid::grid_db::terminate_msg& msg);
-    void set_append_msg(const simulation_grid::grid_db::append_msg& msg);
+    void serialize(supernova::communication::message_sink& sink) const;
+    msg_status deserialize(const supernova::communication::message_source& source);
+    inline bool is_terminate_msg() { return msg_.opcode() == supernova::storage::instruction_msg::TERMINATE; }
+    inline bool is_append_msg() { return msg_.opcode() == supernova::storage::instruction_msg::APPEND; }
+    inline const supernova::storage::terminate_msg& get_terminate_msg() { return msg_.terminate_msg(); }
+    inline const supernova::storage::append_msg& get_append_msg() { return msg_.append_msg(); }
+    void set_terminate_msg(const supernova::storage::terminate_msg& msg);
+    void set_append_msg(const supernova::storage::append_msg& msg);
 private:
-    simulation_grid::grid_db::instruction_msg msg_;
+    supernova::storage::instruction_msg msg_;
 };
 
 class result
@@ -91,28 +91,28 @@ public:
     result(const result& other);
     result& operator=(const result& other);
     inline std::size_t get_size() const { return msg_.ByteSize(); }
-    void serialize(simulation_grid::communication::message_sink& sink) const;
-    msg_status deserialize(const simulation_grid::communication::message_source& source);
-    inline bool is_malformed_message_msg() { return msg_.opcode() == simulation_grid::grid_db::result_msg::MALFORMED_MESSAGE; }
-    inline bool is_invalid_argument_msg() { return msg_.opcode() == simulation_grid::grid_db::result_msg::INVALID_ARGUMENT; }
-    inline bool is_confirmation_msg() { return msg_.opcode() == simulation_grid::grid_db::result_msg::CONFIRMATION; }
-    inline bool is_index_msg() { return msg_.opcode() == simulation_grid::grid_db::result_msg::INDEX; }
-    inline bool is_failed_op_msg() { return msg_.opcode() == simulation_grid::grid_db::result_msg::FAILED_OP; }
-    inline const simulation_grid::grid_db::malformed_message_msg& get_malformed_message_msg() { return msg_.malformed_message_msg(); }
-    inline const simulation_grid::grid_db::invalid_argument_msg& get_invalid_argument_msg() { return msg_.invalid_argument_msg(); }
-    inline const simulation_grid::grid_db::confirmation_msg& get_confirmation_msg() { return msg_.confirmation_msg(); }
-    inline const simulation_grid::grid_db::index_msg& get_index_msg() { return msg_.index_msg(); }
-    inline const simulation_grid::grid_db::failed_op_msg& get_failed_op_msg() { return msg_.failed_op_msg(); }
-    void set_malformed_message_msg(const simulation_grid::grid_db::malformed_message_msg& msg);
-    void set_invalid_argument_msg(const simulation_grid::grid_db::invalid_argument_msg& msg);
-    void set_confirmation_msg(const simulation_grid::grid_db::confirmation_msg& msg);
-    void set_index_msg(const simulation_grid::grid_db::index_msg& msg);
-    void set_failed_op_msg(const simulation_grid::grid_db::failed_op_msg& msg);
+    void serialize(supernova::communication::message_sink& sink) const;
+    msg_status deserialize(const supernova::communication::message_source& source);
+    inline bool is_malformed_message_msg() { return msg_.opcode() == supernova::storage::result_msg::MALFORMED_MESSAGE; }
+    inline bool is_invalid_argument_msg() { return msg_.opcode() == supernova::storage::result_msg::INVALID_ARGUMENT; }
+    inline bool is_confirmation_msg() { return msg_.opcode() == supernova::storage::result_msg::CONFIRMATION; }
+    inline bool is_index_msg() { return msg_.opcode() == supernova::storage::result_msg::INDEX; }
+    inline bool is_failed_op_msg() { return msg_.opcode() == supernova::storage::result_msg::FAILED_OP; }
+    inline const supernova::storage::malformed_message_msg& get_malformed_message_msg() { return msg_.malformed_message_msg(); }
+    inline const supernova::storage::invalid_argument_msg& get_invalid_argument_msg() { return msg_.invalid_argument_msg(); }
+    inline const supernova::storage::confirmation_msg& get_confirmation_msg() { return msg_.confirmation_msg(); }
+    inline const supernova::storage::index_msg& get_index_msg() { return msg_.index_msg(); }
+    inline const supernova::storage::failed_op_msg& get_failed_op_msg() { return msg_.failed_op_msg(); }
+    void set_malformed_message_msg(const supernova::storage::malformed_message_msg& msg);
+    void set_invalid_argument_msg(const supernova::storage::invalid_argument_msg& msg);
+    void set_confirmation_msg(const supernova::storage::confirmation_msg& msg);
+    void set_index_msg(const supernova::storage::index_msg& msg);
+    void set_failed_op_msg(const supernova::storage::failed_op_msg& msg);
 private:
-    simulation_grid::grid_db::result_msg msg_;
+    supernova::storage::result_msg msg_;
 };
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova
 
 #endif

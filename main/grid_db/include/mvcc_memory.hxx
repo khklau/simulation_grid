@@ -1,5 +1,5 @@
-#ifndef SIMULATION_GRID_GRID_DB_MVCC_MEMORY_HXX
-#define SIMULATION_GRID_GRID_DB_MVCC_MEMORY_HXX
+#ifndef SUPERNOVA_STORAGE_MVCC_MEMORY_HXX
+#define SUPERNOVA_STORAGE_MVCC_MEMORY_HXX
 
 #include "mvcc_memory.hpp"
 #include <cstring>
@@ -20,8 +20,8 @@
 #include <boost/ref.hpp>
 #include <boost/thread/thread.hpp>
 #include <boost/thread/thread_time.hpp>
-#include <simulation_grid/core/compiler_extensions.hpp>
-#include <simulation_grid/grid_db/exception.hpp>
+#include <supernova/core/compiler_extensions.hpp>
+#include <supernova/storage/exception.hpp>
 #include "multi_reader_ring_buffer.hpp"
 #include "multi_reader_ring_buffer.hxx"
 
@@ -29,15 +29,15 @@ namespace bip = boost::interprocess;
 namespace bpt = boost::posix_time;
 namespace bra = boost::random;
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 typedef boost::uint64_t mvcc_revision;
 typedef boost::uint8_t history_depth;
 static const size_t DEFAULT_HISTORY_DEPTH = 1 <<  std::numeric_limits<history_depth>::digits;
 static const char* RESOURCE_POOL_KEY = "@@RESOURCE_POOL@@";
 static const char* HEADER_KEY = "@@HEADER@@";
-static const char* MVCC_FILE_TYPE_TAG = "simulation_grid::grid_db::mvcc_memory";
+static const char* MVCC_FILE_TYPE_TAG = "supernova::storage::mvcc_memory";
 
 struct mvcc_key
 {
@@ -445,7 +445,7 @@ void mvcc_reader_handle<memory_t>::release_reader_token(memory_t& memory, const 
     }
 }
 
-#ifdef SIMGRID_GRIDDB_MVCCMEMORY_DEBUG
+#ifdef SUPERNOVA_STORAGE_MVCCMEMORY_DEBUG
 
 template <class memory_t>
 reader_token_id mvcc_reader_handle<memory_t>::get_reader_token_id() const
@@ -602,7 +602,7 @@ void mvcc_writer_handle<memory_t>::release_writer_token(memory_t& memory, const 
     }
 }
 
-#ifdef SIMGRID_GRIDDB_MVCCMEMORY_DEBUG
+#ifdef SUPERNOVA_STORAGE_MVCCMEMORY_DEBUG
 
 template <class memory_t>
 writer_token_id mvcc_writer_handle<memory_t>::get_writer_token_id() const
@@ -726,7 +726,7 @@ std::string mvcc_owner_handle<memory_t>::collect_garbage(const std::string& from
     return iter->first.c_str;
 }
 
-#ifdef SIMGRID_GRIDDB_MVCCMEMORY_DEBUG
+#ifdef SUPERNOVA_STORAGE_MVCCMEMORY_DEBUG
 
 template <class memory_t>
 boost::uint64_t mvcc_owner_handle<memory_t>::get_global_oldest_revision_read() const
@@ -755,12 +755,12 @@ std::vector<std::string> mvcc_owner_handle<memory_t>::get_registered_keys() cons
 
 #endif
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova
 
 namespace boost {
 
-namespace sgd = simulation_grid::grid_db;
+namespace sgd = supernova::storage;
 
 // FIXME: this is anti-generic but we don't have a better solution right now
 

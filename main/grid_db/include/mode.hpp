@@ -1,8 +1,8 @@
-#ifndef SIMULATION_GRID_GRID_DB_MODE_HPP
-#define SIMULATION_GRID_GRID_DB_MODE_HPP
+#ifndef SUPERNOVA_STORAGE_MODE_HPP
+#define SUPERNOVA_STORAGE_MODE_HPP
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 enum open_mode
 {
@@ -10,7 +10,7 @@ enum open_mode
     open_new
 };
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova
 
 #endif

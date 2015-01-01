@@ -28,9 +28,9 @@
 #include <boost/signals2.hpp>
 #include <boost/thread/thread.hpp>
 #include <google/protobuf/message.h>
-#include <simulation_grid/core/compiler_extensions.hpp>
-#include <simulation_grid/core/signal_notifier.hpp>
-#include <simulation_grid/communication/request_reply_service.hpp>
+#include <supernova/core/compiler_extensions.hpp>
+#include <supernova/core/signal_notifier.hpp>
+#include <supernova/communication/request_reply_service.hpp>
 #include <zmq.hpp>
 #include <signal.h>
 #include "exception.hpp"
@@ -44,9 +44,9 @@ namespace bip = boost::interprocess;
 namespace bpo = boost::program_options;
 namespace bsi = boost::signals2;
 namespace bsy = boost::system;
-namespace sco = simulation_grid::core;
-namespace scm = simulation_grid::communication;
-namespace sgd = simulation_grid::grid_db;
+namespace sco = supernova::core;
+namespace scm = supernova::communication;
+namespace sst = supernova::storage;
 
 namespace {
 
@@ -176,30 +176,30 @@ private:
     static int init_zmq_socket(zmq::socket_t& socket, const config& config);
     void run();
     void receive_instruction(const scm::request_reply_service::source& source, scm::request_reply_service::sink& sink);
-    void exec_terminate(const sgd::terminate_instr& input, sgd::result_msg& output);
-    void exec_exists_string(const sgd::exists_string_instr& input, sgd::result_msg& output);
-    void exec_exists_struct(const sgd::exists_struct_instr& input, sgd::result_msg& output);
-    void exec_read_string(const sgd::read_string_instr& input, sgd::result_msg& output);
-    void exec_read_struct(const sgd::read_struct_instr& input, sgd::result_msg& output);
-    void exec_write_string(const sgd::write_string_instr& input, sgd::result_msg& output);
-    void exec_write_struct(const sgd::write_struct_instr& input, sgd::result_msg& output);
-    void exec_remove_string(const sgd::remove_string_instr& input, sgd::result_msg& output);
-    void exec_remove_struct(const sgd::remove_struct_instr& input, sgd::result_msg& output);
-    void exec_process_read_metadata(const sgd::process_read_metadata_instr& input, sgd::result_msg& output);
-    void exec_process_write_metadata(const sgd::process_write_metadata_instr& input, sgd::result_msg& output);
-    void exec_collect_garbage_1(const sgd::collect_garbage_1_instr& input, sgd::result_msg& output);
-    void exec_collect_garbage_2(const sgd::collect_garbage_2_instr& input, sgd::result_msg& output);
-    void exec_get_reader_token_id(const sgd::get_reader_token_id_instr& input, sgd::result_msg& output);
-    void exec_get_last_read_revision(const sgd::get_last_read_revision_instr& input, sgd::result_msg& output);
-    void exec_get_oldest_string_revision(const sgd::get_oldest_string_revision_instr& input, sgd::result_msg& output);
-    void exec_get_oldest_struct_revision(const sgd::get_oldest_struct_revision_instr& input, sgd::result_msg& output);
-    void exec_get_global_oldest_revision_read(const sgd::get_global_oldest_revision_read_instr& input, sgd::result_msg& output);
-    void exec_get_registered_keys(const sgd::get_registered_keys_instr& input, sgd::result_msg& output);
-    void exec_get_string_history_depth(const sgd::get_string_history_depth_instr& input, sgd::result_msg& output);
-    void exec_get_struct_history_depth(const sgd::get_struct_history_depth_instr& input, sgd::result_msg& output);
-    sgd::instruction_msg instr_;
-    sgd::result_msg result_;
-    sgd::mvcc_mmap_owner owner_;
+    void exec_terminate(const sst::terminate_instr& input, sst::result_msg& output);
+    void exec_exists_string(const sst::exists_string_instr& input, sst::result_msg& output);
+    void exec_exists_struct(const sst::exists_struct_instr& input, sst::result_msg& output);
+    void exec_read_string(const sst::read_string_instr& input, sst::result_msg& output);
+    void exec_read_struct(const sst::read_struct_instr& input, sst::result_msg& output);
+    void exec_write_string(const sst::write_string_instr& input, sst::result_msg& output);
+    void exec_write_struct(const sst::write_struct_instr& input, sst::result_msg& output);
+    void exec_remove_string(const sst::remove_string_instr& input, sst::result_msg& output);
+    void exec_remove_struct(const sst::remove_struct_instr& input, sst::result_msg& output);
+    void exec_process_read_metadata(const sst::process_read_metadata_instr& input, sst::result_msg& output);
+    void exec_process_write_metadata(const sst::process_write_metadata_instr& input, sst::result_msg& output);
+    void exec_collect_garbage_1(const sst::collect_garbage_1_instr& input, sst::result_msg& output);
+    void exec_collect_garbage_2(const sst::collect_garbage_2_instr& input, sst::result_msg& output);
+    void exec_get_reader_token_id(const sst::get_reader_token_id_instr& input, sst::result_msg& output);
+    void exec_get_last_read_revision(const sst::get_last_read_revision_instr& input, sst::result_msg& output);
+    void exec_get_oldest_string_revision(const sst::get_oldest_string_revision_instr& input, sst::result_msg& output);
+    void exec_get_oldest_struct_revision(const sst::get_oldest_struct_revision_instr& input, sst::result_msg& output);
+    void exec_get_global_oldest_revision_read(const sst::get_global_oldest_revision_read_instr& input, sst::result_msg& output);
+    void exec_get_registered_keys(const sst::get_registered_keys_instr& input, sst::result_msg& output);
+    void exec_get_string_history_depth(const sst::get_string_history_depth_instr& input, sst::result_msg& output);
+    void exec_get_struct_history_depth(const sst::get_struct_history_depth_instr& input, sst::result_msg& output);
+    sst::instruction_msg instr_;
+    sst::result_msg result_;
+    sst::mvcc_mmap_owner owner_;
     sco::signal_notifier notifier_;
     scm::request_reply_service service_;
 };
@@ -249,10 +249,10 @@ void mvcc_service::run()
 
 void mvcc_service::receive_instruction(const scm::request_reply_service::source& source, scm::request_reply_service::sink& sink)
 {
-    sgd::instruction_msg::msg_status status = instr_.deserialize(source);
-    if (UNLIKELY_EXT(status == sgd::instruction_msg::MALFORMED))
+    sst::instruction_msg::msg_status status = instr_.deserialize(source);
+    if (UNLIKELY_EXT(status == sst::instruction_msg::MALFORMED))
     {
-	sgd::malformed_message_result tmp;
+	sst::malformed_message_result tmp;
 	result_.set_malformed_message(tmp);
     }
     else if (instr_.is_terminate())
@@ -341,7 +341,7 @@ void mvcc_service::receive_instruction(const scm::request_reply_service::source&
     }
     else
     {
-	sgd::malformed_message_result tmp;
+	sst::malformed_message_result tmp;
 	result_.set_malformed_message(tmp);
     }
     result_.serialize(sink);
@@ -353,39 +353,39 @@ void mvcc_service::receive_instruction(const scm::request_reply_service::source&
     }
 }
 
-void mvcc_service::exec_terminate(const sgd::terminate_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_terminate(const sst::terminate_instr& input, sst::result_msg& output)
 {
     stop();
-    sgd::confirmation_result tmp;
+    sst::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
     output.set_confirmation(tmp);
 }
 
-void mvcc_service::exec_exists_string(const sgd::exists_string_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_exists_string(const sst::exists_string_instr& input, sst::result_msg& output)
 {
-    sgd::predicate_result tmp;
+    sst::predicate_result tmp;
     tmp.set_sequence(input.sequence());
-    bool result(owner_.exists<sgd::string_value>(input.key().c_str()));
+    bool result(owner_.exists<sst::string_value>(input.key().c_str()));
     tmp.set_predicate(result);
     output.set_predicate(tmp);
 }
 
-void mvcc_service::exec_exists_struct(const sgd::exists_struct_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_exists_struct(const sst::exists_struct_instr& input, sst::result_msg& output)
 {
-    sgd::predicate_result tmp;
+    sst::predicate_result tmp;
     tmp.set_sequence(input.sequence());
-    bool result(owner_.exists<sgd::struct_value>(input.key().c_str()));
+    bool result(owner_.exists<sst::struct_value>(input.key().c_str()));
     tmp.set_predicate(result);
     output.set_predicate(tmp);
 }
 
-void mvcc_service::exec_read_string(const sgd::read_string_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_read_string(const sst::read_string_instr& input, sst::result_msg& output)
 {
-    sgd::string_value_result tmp;
-    sgd::invalid_argument_result failed;
+    sst::string_value_result tmp;
+    sst::invalid_argument_result failed;
     tmp.set_sequence(input.sequence());
     failed.set_sequence(input.sequence());
-    const boost::optional<const sgd::string_value&> result = owner_.read<sgd::string_value>(input.key().c_str());
+    const boost::optional<const sst::string_value&> result = owner_.read<sst::string_value>(input.key().c_str());
     if (result)
     {
 	std::string tmpString(result.get().c_str);
@@ -398,13 +398,13 @@ void mvcc_service::exec_read_string(const sgd::read_string_instr& input, sgd::re
     }
 }
 
-void mvcc_service::exec_read_struct(const sgd::read_struct_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_read_struct(const sst::read_struct_instr& input, sst::result_msg& output)
 {
-    sgd::struct_value_result tmp;
-    sgd::invalid_argument_result failed;
+    sst::struct_value_result tmp;
+    sst::invalid_argument_result failed;
     tmp.set_sequence(input.sequence());
     failed.set_sequence(input.sequence());
-    const boost::optional<const sgd::struct_value&> result = owner_.read<sgd::struct_value>(input.key().c_str());
+    const boost::optional<const sst::struct_value&> result = owner_.read<sst::struct_value>(input.key().c_str());
     if (result)
     {
 	tmp.set_value1(result.get().value1);
@@ -418,122 +418,122 @@ void mvcc_service::exec_read_struct(const sgd::read_struct_instr& input, sgd::re
     }
 }
 
-void mvcc_service::exec_write_string(const sgd::write_string_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_write_string(const sst::write_string_instr& input, sst::result_msg& output)
 {
-    sgd::confirmation_result tmp;
+    sst::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
-    sgd::string_value value(input.value().c_str());
-    owner_.write<sgd::string_value>(input.key().c_str(), value);
+    sst::string_value value(input.value().c_str());
+    owner_.write<sst::string_value>(input.key().c_str(), value);
     output.set_confirmation(tmp);
 }
 
-void mvcc_service::exec_write_struct(const sgd::write_struct_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_write_struct(const sst::write_struct_instr& input, sst::result_msg& output)
 {
-    sgd::confirmation_result tmp;
+    sst::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
-    sgd::struct_value value(input.value1(), input.value2(), input.value3());
-    owner_.write<sgd::struct_value>(input.key().c_str(), value);
+    sst::struct_value value(input.value1(), input.value2(), input.value3());
+    owner_.write<sst::struct_value>(input.key().c_str(), value);
     output.set_confirmation(tmp);
 }
 
-void mvcc_service::exec_remove_string(const sgd::remove_string_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_remove_string(const sst::remove_string_instr& input, sst::result_msg& output)
 {
-    sgd::confirmation_result tmp;
+    sst::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
-    owner_.remove<sgd::string_value>(input.key().c_str());
+    owner_.remove<sst::string_value>(input.key().c_str());
     output.set_confirmation(tmp);
 }
 
-void mvcc_service::exec_remove_struct(const sgd::remove_struct_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_remove_struct(const sst::remove_struct_instr& input, sst::result_msg& output)
 {
-    sgd::confirmation_result tmp;
+    sst::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
-    owner_.remove<sgd::struct_value>(input.key().c_str());
+    owner_.remove<sst::struct_value>(input.key().c_str());
     output.set_confirmation(tmp);
 }
 
-void mvcc_service::exec_process_read_metadata(const sgd::process_read_metadata_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_process_read_metadata(const sst::process_read_metadata_instr& input, sst::result_msg& output)
 {
-    sgd::confirmation_result tmp;
+    sst::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
     owner_.process_read_metadata(input.from(), input.to());
     output.set_confirmation(tmp);
 }
 
-void mvcc_service::exec_process_write_metadata(const sgd::process_write_metadata_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_process_write_metadata(const sst::process_write_metadata_instr& input, sst::result_msg& output)
 {
-    sgd::confirmation_result tmp;
+    sst::confirmation_result tmp;
     tmp.set_sequence(input.sequence());
     owner_.process_write_metadata(input.max_attempts());
     output.set_confirmation(tmp);
 }
 
-void mvcc_service::exec_collect_garbage_1(const sgd::collect_garbage_1_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_collect_garbage_1(const sst::collect_garbage_1_instr& input, sst::result_msg& output)
 {
-    sgd::key_result tmp;
+    sst::key_result tmp;
     tmp.set_sequence(input.sequence());
     std::string result(owner_.collect_garbage(input.max_attempts()));
     tmp.set_key(result);
     output.set_key(tmp);
 }
 
-void mvcc_service::exec_collect_garbage_2(const sgd::collect_garbage_2_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_collect_garbage_2(const sst::collect_garbage_2_instr& input, sst::result_msg& output)
 {
-    sgd::key_result tmp;
+    sst::key_result tmp;
     tmp.set_sequence(input.sequence());
     std::string result(owner_.collect_garbage(input.from(), input.max_attempts()));
     tmp.set_key(result);
     output.set_key(tmp);
 }
 
-void mvcc_service::exec_get_reader_token_id(const sgd::get_reader_token_id_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_get_reader_token_id(const sst::get_reader_token_id_instr& input, sst::result_msg& output)
 {
-    sgd::token_id_result tmp;
+    sst::token_id_result tmp;
     tmp.set_sequence(input.sequence());
-    sgd::reader_token_id result(owner_.get_reader_token_id());
+    sst::reader_token_id result(owner_.get_reader_token_id());
     tmp.set_token_id(result);
     output.set_token_id(tmp);
 }
 
-void mvcc_service::exec_get_last_read_revision(const sgd::get_last_read_revision_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_get_last_read_revision(const sst::get_last_read_revision_instr& input, sst::result_msg& output)
 {
-    sgd::revision_result tmp;
+    sst::revision_result tmp;
     tmp.set_sequence(input.sequence());
     boost::uint64_t result = owner_.get_last_read_revision();
     tmp.set_revision(result);
     output.set_revision(tmp);
 }
 
-void mvcc_service::exec_get_oldest_string_revision(const sgd::get_oldest_string_revision_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_get_oldest_string_revision(const sst::get_oldest_string_revision_instr& input, sst::result_msg& output)
 {
-    sgd::revision_result tmp;
+    sst::revision_result tmp;
     tmp.set_sequence(input.sequence());
-    boost::uint64_t result = owner_.get_oldest_revision<sgd::string_value>(input.key().c_str());
+    boost::uint64_t result = owner_.get_oldest_revision<sst::string_value>(input.key().c_str());
     tmp.set_revision(result);
     output.set_revision(tmp);
 }
 
-void mvcc_service::exec_get_oldest_struct_revision(const sgd::get_oldest_struct_revision_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_get_oldest_struct_revision(const sst::get_oldest_struct_revision_instr& input, sst::result_msg& output)
 {
-    sgd::revision_result tmp;
+    sst::revision_result tmp;
     tmp.set_sequence(input.sequence());
-    boost::uint64_t result = owner_.get_oldest_revision<sgd::struct_value>(input.key().c_str());
+    boost::uint64_t result = owner_.get_oldest_revision<sst::struct_value>(input.key().c_str());
     tmp.set_revision(result);
     output.set_revision(tmp);
 }
 
-void mvcc_service::exec_get_global_oldest_revision_read(const sgd::get_global_oldest_revision_read_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_get_global_oldest_revision_read(const sst::get_global_oldest_revision_read_instr& input, sst::result_msg& output)
 {
-    sgd::revision_result tmp;
+    sst::revision_result tmp;
     tmp.set_sequence(input.sequence());
     boost::uint64_t result = owner_.get_global_oldest_revision_read();
     tmp.set_revision(result);
     output.set_revision(tmp);
 }
 
-void mvcc_service::exec_get_registered_keys(const sgd::get_registered_keys_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_get_registered_keys(const sst::get_registered_keys_instr& input, sst::result_msg& output)
 {
-    sgd::key_list_result tmp;
+    sst::key_list_result tmp;
     tmp.set_sequence(input.sequence());
     std::vector<std::string> result(owner_.get_registered_keys());
     for (std::vector<std::string>::const_iterator iter = result.begin(); iter != result.end(); ++iter)
@@ -543,20 +543,20 @@ void mvcc_service::exec_get_registered_keys(const sgd::get_registered_keys_instr
     output.set_key_list(tmp);
 }
 
-void mvcc_service::exec_get_string_history_depth(const sgd::get_string_history_depth_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_get_string_history_depth(const sst::get_string_history_depth_instr& input, sst::result_msg& output)
 {
-    sgd::size_result tmp;
+    sst::size_result tmp;
     tmp.set_sequence(input.sequence());
-    boost::uint64_t result = owner_.get_history_depth<sgd::string_value>(input.key().c_str());
+    boost::uint64_t result = owner_.get_history_depth<sst::string_value>(input.key().c_str());
     tmp.set_size(result);
     output.set_size(tmp);
 }
 
-void mvcc_service::exec_get_struct_history_depth(const sgd::get_struct_history_depth_instr& input, sgd::result_msg& output)
+void mvcc_service::exec_get_struct_history_depth(const sst::get_struct_history_depth_instr& input, sst::result_msg& output)
 {
-    sgd::size_result tmp;
+    sst::size_result tmp;
     tmp.set_sequence(input.sequence());
-    boost::uint64_t result = owner_.get_history_depth<sgd::struct_value>(input.key().c_str());
+    boost::uint64_t result = owner_.get_history_depth<sst::struct_value>(input.key().c_str());
     tmp.set_size(result);
     output.set_size(tmp);
 }

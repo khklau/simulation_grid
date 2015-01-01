@@ -1,4 +1,4 @@
-simulation_grid
-===============
+supernova
+=========
 
-Infrastructure for distributing a real-time simulation across a computing grid
+A library for soft real time streaming of live structured data to many subscribers

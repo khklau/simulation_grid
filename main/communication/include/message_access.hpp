@@ -1,9 +1,9 @@
-#ifndef SIMULATION_GRID_COMMUNICATION_MESSAGE_ACCESS_HPP
-#define SIMULATION_GRID_COMMUNICATION_MESSAGE_ACCESS_HPP
+#ifndef SUPERNOVA_COMMUNICATION_MESSAGE_ACCESS_HPP
+#define SUPERNOVA_COMMUNICATION_MESSAGE_ACCESS_HPP
 
 #include <zmq.hpp>
 
-namespace simulation_grid {
+namespace supernova {
 namespace communication {
 
 class message_source
@@ -28,6 +28,6 @@ protected:
 };
 
 } // namespace communication
-} // namespace simulation_grid
+} // namespace supernova
 
 #endif

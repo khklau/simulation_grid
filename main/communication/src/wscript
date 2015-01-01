@@ -2,11 +2,11 @@ from os.path import join
 
 def build(buildCtx):
     buildCtx.shlib(
-	    name='shlib_simgrid_communication',
+	    name='shlib_supernova_communication',
 	    source=[buildCtx.path.find_node('message_access.cxx'),
 		    buildCtx.path.find_node('request_reply_client.cxx'),
 		    buildCtx.path.find_node('request_reply_service.cxx'),],
-	    target=join(buildCtx.env.component.build_tree.libPathFromBuild(buildCtx), 'simgrid_communication'),
+	    target=join(buildCtx.env.component.build_tree.libPathFromBuild(buildCtx), 'supernova_communication'),
 	    includes=buildCtx.env.component.include_path_list,
 	    cxxflags=buildCtx.env.CXXFLAGS,
 	    linkflags=buildCtx.env.LDFLAGS,

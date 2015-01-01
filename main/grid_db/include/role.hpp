@@ -1,11 +1,11 @@
-#ifndef SIMULATION_GRID_GRID_DB_ROLE_HPP
-#define SIMULATION_GRID_GRID_DB_ROLE_HPP
+#ifndef SUPERNOVA_STORAGE_ROLE_HPP
+#define SUPERNOVA_STORAGE_ROLE_HPP
 
 #include <iosfwd>
 #include <boost/variant.hpp>
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 struct owner_t {};
 
@@ -19,7 +19,7 @@ typedef boost::variant<owner_t, reader_t> role;
 std::ostream& operator<<(std::ostream& out, const role& source);
 std::istream& operator>>(std::istream& in, role& target);
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova
 
 #endif

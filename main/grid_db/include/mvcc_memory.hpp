@@ -1,16 +1,16 @@
-#ifndef SIMULATION_GRID_GRID_DB_MVCC_MEMORY_HPP
-#define SIMULATION_GRID_GRID_DB_MVCC_MEMORY_HPP
+#ifndef SUPERNOVA_STORAGE_MVCC_MEMORY_HPP
+#define SUPERNOVA_STORAGE_MVCC_MEMORY_HPP
 
 #include <string>
 #include <limits>
 #include <boost/cstdint.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
-#include <simulation_grid/grid_db/about.hpp>
+#include <supernova/storage/about.hpp>
 #include "mode.hpp"
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 typedef boost::uint16_t reader_token_id;
 typedef boost::uint16_t writer_token_id;
@@ -31,7 +31,7 @@ public:
     template <class value_t> inline const boost::optional<const value_t&> read(const char* key) const;
     inline std::size_t get_available_space() const;
     inline std::size_t get_size() const;
-#ifdef SIMGRID_GRIDDB_MVCCMEMORY_DEBUG
+#ifdef SUPERNOVA_STORAGE_MVCCMEMORY_DEBUG
     reader_token_id get_reader_token_id() const;
     boost::uint64_t get_last_read_revision() const;
     template <class value_t> boost::uint64_t get_oldest_revision(const char* key) const;
@@ -53,7 +53,7 @@ public:
     ~mvcc_writer_handle();
     template <class value_t> inline void write(const char* key, const value_t& value);
     template <class value_t> inline void remove(const char* key);
-#ifdef SIMGRID_GRIDDB_MVCCMEMORY_DEBUG
+#ifdef SUPERNOVA_STORAGE_MVCCMEMORY_DEBUG
     writer_token_id get_writer_token_id() const;
     boost::uint64_t get_last_write_revision() const;
 #endif
@@ -64,7 +64,7 @@ private:
     const writer_token_id token_id_;
 };
 
-#ifdef SIMGRID_GRIDDB_MVCCMEMORY_DEBUG
+#ifdef SUPERNOVA_STORAGE_MVCCMEMORY_DEBUG
 #include <vector>
 #endif
 
@@ -78,7 +78,7 @@ public:
     inline void process_write_metadata(std::size_t max_attempts = 0);
     inline std::string collect_garbage(std::size_t max_attempts = 0);
     inline std::string collect_garbage(const std::string& from, std::size_t max_attempts = 0);
-#ifdef SIMGRID_GRIDDB_MVCCMEMORY_DEBUG
+#ifdef SUPERNOVA_STORAGE_MVCCMEMORY_DEBUG
     boost::uint64_t get_global_oldest_revision_read() const;
     std::vector<std::string> get_registered_keys() const;
 #endif
@@ -86,7 +86,7 @@ private:
     memory_t& memory_;
 };
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova
 
 #endif

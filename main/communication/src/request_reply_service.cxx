@@ -2,11 +2,11 @@
 #include <boost/bind.hpp>
 #include <boost/format.hpp>
 #include <boost/ref.hpp>
-#include <simulation_grid/core/compiler_extensions.hpp>
+#include <supernova/core/compiler_extensions.hpp>
 
 namespace bsy = boost::system;
 
-namespace simulation_grid {
+namespace supernova {
 namespace communication {
 
 request_reply_service::request_reply_service(
@@ -94,4 +94,4 @@ void request_reply_service::handle(receive_func receiver, const boost::system::e
 }
 
 } // namespace communication
-} // namespace simulation_grid
+} // namespace supernova

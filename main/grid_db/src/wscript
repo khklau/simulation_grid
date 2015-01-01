@@ -33,7 +33,7 @@ def build(buildCtx):
 		after=[compileTask])
 	protoTaskList.append(publishTask)
     buildCtx.shlib(
-	    name='shlib_simgrid_grid_db',
+	    name='shlib_supernova_storage',
 	    source=ccNodeList + [
 		    buildCtx.path.find_node('about.cxx'),
 		    buildCtx.path.find_node('role.cxx'),
@@ -43,7 +43,7 @@ def build(buildCtx):
 		    buildCtx.path.find_node('mvcc_memory.cxx'),
 		    buildCtx.path.find_node('mvcc_shm.cxx'),
 		    buildCtx.path.find_node('mvcc_mmap.cxx')],
-	    target=join(buildCtx.env.component.build_tree.libPathFromBuild(buildCtx), 'simgrid_grid_db'),
+	    target=join(buildCtx.env.component.build_tree.libPathFromBuild(buildCtx), 'supernova_storage'),
 	    includes=buildCtx.env.component.include_path_list,
 	    libpath=buildCtx.env.component.lib_path_list,
 	    cxxflags=buildCtx.env.CXXFLAGS + ['-DBOOST_CB_DISABLE_DEBUG'],

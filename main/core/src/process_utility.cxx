@@ -5,7 +5,7 @@
 
 namespace bf = boost::filesystem;
 
-namespace simulation_grid {
+namespace supernova {
 namespace core {
 namespace process_utility {
 
@@ -27,4 +27,4 @@ bf::path current_exe_path()
 
 } // process_utility
 } // namespace core
-} // namespace simulation_grid
+} // namespace supernova

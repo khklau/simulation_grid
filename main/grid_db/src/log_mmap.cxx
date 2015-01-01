@@ -3,8 +3,8 @@
 
 namespace bfs = boost::filesystem;
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 const bfs::path& init_file(const bfs::path& path, std::size_t size)
 {
@@ -21,5 +21,5 @@ const bfs::path& init_file(const bfs::path& path, std::size_t size)
     return path;
 }
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova

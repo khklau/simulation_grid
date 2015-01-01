@@ -1,9 +1,9 @@
-#ifndef SIMULATION_GRID_CORE_PROCESS_UTILITY
-#define SIMULATION_GRID_CORE_PROCESS_UTILITY
+#ifndef SUPERNOVA_CORE_PROCESS_UTILITY
+#define SUPERNOVA_CORE_PROCESS_UTILITY
 
 #include <boost/filesystem/path.hpp>
 
-namespace simulation_grid {
+namespace supernova {
 namespace core {
 namespace process_utility {
 
@@ -13,6 +13,6 @@ boost::filesystem::path current_exe_path();
 
 } // namespace process_utility
 } // namespace core
-} // namespace simulation_grid
+} // namespace supernova
 
 #endif

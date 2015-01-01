@@ -1,13 +1,13 @@
-#ifndef SIMULATION_GRID_COMMUNICATION_REQUEST_REPLY_CLIENT_HPP
-#define SIMULATION_GRID_COMMUNICATION_REQUEST_REPLY_CLIENT_HPP
+#ifndef SUPERNOVA_COMMUNICATION_REQUEST_REPLY_CLIENT_HPP
+#define SUPERNOVA_COMMUNICATION_REQUEST_REPLY_CLIENT_HPP
 
 #include <string>
 #include <boost/cstdint.hpp>
 #include <boost/noncopyable.hpp>
 #include <zmq.hpp>
-#include <simulation_grid/communication/message_access.hpp>
+#include <supernova/communication/message_access.hpp>
 
-namespace simulation_grid {
+namespace supernova {
 namespace communication {
 
 class request_reply_client : public boost::noncopyable
@@ -36,6 +36,6 @@ private:
 };
 
 } // namespace communication
-} // namespace simulation_grid
+} // namespace supernova
 
 #endif

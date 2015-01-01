@@ -1,8 +1,8 @@
 #include "request_reply_client.hpp"
 #include <boost/format.hpp>
-#include <simulation_grid/core/compiler_extensions.hpp>
+#include <supernova/core/compiler_extensions.hpp>
 
-namespace simulation_grid {
+namespace supernova {
 namespace communication {
 
 request_reply_client::request_reply_client(const std::string& host, boost::uint16_t port) :
@@ -36,4 +36,4 @@ void request_reply_client::send(sink& sink, source& source)
 }
 
 } // namespace communication
-} // namespace simulation_grid
+} // namespace supernova

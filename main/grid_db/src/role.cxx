@@ -6,7 +6,7 @@
 
 namespace {
 
-using namespace simulation_grid::grid_db;
+using namespace supernova::storage;
 
 class out_streamer : public boost::static_visitor<>
 {
@@ -26,8 +26,8 @@ private:
 
 } // anonymous namespace
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 std::ostream& operator<<(std::ostream& out, const role& source)
 {
@@ -61,5 +61,5 @@ std::istream& operator>>(std::istream& in, role& target)
     return in;
 }
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova

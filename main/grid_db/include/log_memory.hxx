@@ -1,5 +1,5 @@
-#ifndef SIMULATION_GRID_GRID_DB_LOG_MEMORY_HXX
-#define SIMULATION_GRID_GRID_DB_LOG_MEMORY_HXX
+#ifndef SUPERNOVA_STORAGE_LOG_MEMORY_HXX
+#define SUPERNOVA_STORAGE_LOG_MEMORY_HXX
 
 #include "log_memory.hpp"
 #include <boost/atomic.hpp>
@@ -8,14 +8,14 @@
 #include <boost/random/uniform_int_distribution.hpp>
 #include <boost/thread/thread.hpp>
 #include <boost/thread/thread_time.hpp>
-#include <simulation_grid/core/compiler_extensions.hpp>
-#include <simulation_grid/grid_db/exception.hpp>
+#include <supernova/core/compiler_extensions.hpp>
+#include <supernova/storage/exception.hpp>
 
 namespace bip = boost::interprocess;
 namespace bra = boost::random;
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 extern const char* LOG_TYPE_TAG;
 
@@ -242,7 +242,7 @@ boost::optional<log_index> log_owner_handle<entry_t>::append(const entry_t& entr
     return result;
 }
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova
 
 #endif

@@ -1,5 +1,5 @@
-#ifndef SIMULATION_GRID_GRID_DB_MVCC_MMAP_HPP
-#define SIMULATION_GRID_GRID_DB_MVCC_MMAP_HPP
+#ifndef SUPERNOVA_STORAGE_MVCC_MMAP_HPP
+#define SUPERNOVA_STORAGE_MVCC_MMAP_HPP
 
 #include <string>
 #include <limits>
@@ -10,12 +10,12 @@
 #include <boost/interprocess/sync/file_lock.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
-#include <simulation_grid/grid_db/about.hpp>
+#include <supernova/storage/about.hpp>
 #include "role.hpp"
 #include "mvcc_memory.hpp"
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 class mvcc_mmap_reader : private boost::noncopyable
 {
@@ -26,7 +26,7 @@ public:
     template <class element_t> const boost::optional<const element_t&> read(const char* key) const;
     std::size_t get_available_space() const;
     std::size_t get_size() const;
-#ifdef SIMGRID_GRIDDB_MVCCMEMORY_DEBUG
+#ifdef SUPERNOVA_STORAGE_MVCCMEMORY_DEBUG
     reader_token_id get_reader_token_id() const;
     boost::uint64_t get_last_read_revision() const;
     template <class element_t> boost::uint64_t get_oldest_revision(const char* key) const;
@@ -38,7 +38,7 @@ private:
     mvcc_reader_handle<boost::interprocess::managed_mapped_file> reader_handle_;
 };
 
-#ifdef SIMGRID_GRIDDB_MVCCMEMORY_DEBUG
+#ifdef SUPERNOVA_STORAGE_MVCCMEMORY_DEBUG
 #include <vector>
 #endif
 
@@ -58,7 +58,7 @@ public:
     void flush();
     std::size_t get_available_space() const;
     std::size_t get_size() const;
-#ifdef SIMGRID_GRIDDB_MVCCMEMORY_DEBUG
+#ifdef SUPERNOVA_STORAGE_MVCCMEMORY_DEBUG
     reader_token_id get_reader_token_id() const;
     boost::uint64_t get_last_read_revision() const;
     template <class element_t> boost::uint64_t get_oldest_revision(const char* key) const;
@@ -79,7 +79,7 @@ private:
     boost::optional<boost::posix_time::ptime> last_flush_timestamp_;
 };
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova
 
 #endif

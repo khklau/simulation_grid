@@ -1,5 +1,5 @@
-#ifndef SIMULATION_GRID_GRID_DB_MULTI_READER_RING_BUFFER_HXX
-#define SIMULATION_GRID_GRID_DB_MULTI_READER_RING_BUFFER_HXX
+#ifndef SUPERNOVA_STORAGE_MULTI_READER_RING_BUFFER_HXX
+#define SUPERNOVA_STORAGE_MULTI_READER_RING_BUFFER_HXX
 
 #include <boost/circular_buffer.hpp>
 #include <boost/interprocess/managed_mapped_file.hpp>
@@ -10,8 +10,8 @@
 
 namespace bi = boost::interprocess;
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 template <class element_t, class allocator_t>
 multi_reader_ring_buffer<element_t, allocator_t>::multi_reader_ring_buffer(size_type capacity, const allocator_t& allocator) :
@@ -105,7 +105,7 @@ bool multi_reader_ring_buffer<element_t, allocator_t>::full() const
     return ringbuf_.full();
 }
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova
 
 #endif

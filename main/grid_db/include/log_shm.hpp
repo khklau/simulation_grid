@@ -1,5 +1,5 @@
-#ifndef SIMULATION_GRID_GRID_DB_LOG_SHM_HPP
-#define SIMULATION_GRID_GRID_DB_LOG_SHM_HPP
+#ifndef SUPERNOVA_STORAGE_LOG_SHM_HPP
+#define SUPERNOVA_STORAGE_LOG_SHM_HPP
 
 #include <string>
 #include <boost/interprocess/mapped_region.hpp>
@@ -7,8 +7,8 @@
 #include <boost/noncopyable.hpp>
 #include "log_memory.hpp"
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 template <class entry_t>
 class log_shm_reader : private boost::noncopyable
@@ -48,7 +48,7 @@ private:
     log_reader_handle<entry_t> reader_handle_;
 };
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova
 
 #endif

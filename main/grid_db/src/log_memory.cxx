@@ -2,12 +2,12 @@
 #include "log_memory.hxx"
 #include <cstring>
 #include <limits>
-#include <simulation_grid/core/compiler_extensions.hpp>
+#include <supernova/core/compiler_extensions.hpp>
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
-const char* LOG_TYPE_TAG = "simulation_grid::grid_db::log_memory";
+const char* LOG_TYPE_TAG = "supernova::storage::log_memory";
 
 log_header::log_header(const version& ver, boost::uint64_t regsize, log_index maxidx) :
     endianess_indicator(std::numeric_limits<boost::uint8_t>::max()),
@@ -25,5 +25,5 @@ log_index log_header::get_null_index() const
     return max_index + 1;
 }
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova

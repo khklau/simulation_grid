@@ -1,6 +1,6 @@
 import "router.proto";
 
-package simulation_grid.grid_db;
+package supernova.storage;
 
 message region
 {

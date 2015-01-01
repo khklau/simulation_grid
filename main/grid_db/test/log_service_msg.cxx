@@ -1,18 +1,18 @@
-#include <simulation_grid/core/compiler_extensions.hpp>
-#include <simulation_grid/grid_db/exception.hpp>
+#include <supernova/core/compiler_extensions.hpp>
+#include <supernova/storage/exception.hpp>
 #include "log_service_msg.hpp"
 
-namespace scm = simulation_grid::communication;
-namespace sgd = simulation_grid::grid_db;
+namespace scm = supernova::communication;
+namespace sst = supernova::storage;
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 struct_A::struct_A(const char* k, const char* v)
 {
     if (UNLIKELY_EXT(strlen(k) > MAX_LENGTH) || UNLIKELY_EXT(strlen(v) > MAX_LENGTH))
     {
-        throw grid_db_error("Maximum value length exceeded")
+        throw storage_error("Maximum value length exceeded")
                 << info_component_identity("struct_A")
                 << info_data_identity(key);
     }
@@ -337,5 +337,5 @@ void result::set_failed_op_msg(const failed_op_msg& msg)
     *msg_.mutable_failed_op_msg() = msg;
 }
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova

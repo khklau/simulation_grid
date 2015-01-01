@@ -1,7 +1,7 @@
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/mapped_region.hpp>
-#include <simulation_grid/grid_db/entry.pb.h>
-#include <simulation_grid/grid_db/exception.hpp>
+#include <supernova/storage/entry.pb.h>
+#include <supernova/storage/exception.hpp>
 #include "handle.hpp"
 
 using boost::interprocess::shared_memory_object;
@@ -9,10 +9,10 @@ using boost::interprocess::mapped_region;
 using boost::interprocess::open_only;
 using boost::interprocess::read_only;
 using boost::interprocess::read_write;
-using simulation_grid::grid_db::entry;
+using supernova::storage::entry;
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 class read_handle_impl
 {
@@ -102,5 +102,5 @@ entry& write_handle::get_db_entry() const
     return impl_->get_db_entry();
 }
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova

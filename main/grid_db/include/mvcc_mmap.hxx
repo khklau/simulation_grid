@@ -1,11 +1,11 @@
-#ifndef SIMULATION_GRID_GRID_DB_MVCC_MMAP_HXX
-#define SIMULATION_GRID_GRID_DB_MVCC_MMAP_HXX
+#ifndef SUPERNOVA_STORAGE_MVCC_MMAP_HXX
+#define SUPERNOVA_STORAGE_MVCC_MMAP_HXX
 
 #include "mvcc_mmap.hpp"
 #include "mvcc_memory.hxx"
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 template <class element_t>
 bool mvcc_mmap_reader::exists(const char* key) const
@@ -19,7 +19,7 @@ const boost::optional<const element_t&> mvcc_mmap_reader::read(const char* key) 
     return reader_handle_.template read<element_t>(key);
 }
 
-#ifdef SIMGRID_GRIDDB_MVCCMEMORY_DEBUG
+#ifdef SUPERNOVA_STORAGE_MVCCMEMORY_DEBUG
 
 reader_token_id mvcc_mmap_reader::get_reader_token_id() const
 {
@@ -69,7 +69,7 @@ void mvcc_mmap_owner::remove(const char* key)
     writer_handle_.template remove<element_t>(key);
 }
 
-#ifdef SIMGRID_GRIDDB_MVCCMEMORY_DEBUG
+#ifdef SUPERNOVA_STORAGE_MVCCMEMORY_DEBUG
 
 reader_token_id mvcc_mmap_owner::get_reader_token_id() const
 {
@@ -111,7 +111,7 @@ std::size_t mvcc_mmap_owner::get_history_depth(const char* key) const
 
 #endif
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova
 
 #endif

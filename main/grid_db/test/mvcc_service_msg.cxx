@@ -1,12 +1,12 @@
-#include <simulation_grid/core/compiler_extensions.hpp>
-#include <simulation_grid/grid_db/exception.hpp>
+#include <supernova/core/compiler_extensions.hpp>
+#include <supernova/storage/exception.hpp>
 #include "mvcc_service_msg.hpp"
 
-namespace scm = simulation_grid::communication;
-namespace sgd = simulation_grid::grid_db;
+namespace scm = supernova::communication;
+namespace sst = supernova::storage;
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 string_value::string_value()
 {
@@ -17,7 +17,7 @@ string_value::string_value(const char* key)
 {
     if (UNLIKELY_EXT(strlen(key) > MAX_LENGTH))
     {
-        throw grid_db_error("Maximum value length exceeded")
+        throw storage_error("Maximum value length exceeded")
                 << info_component_identity("string_value")
                 << info_data_identity(key);
     }
@@ -401,5 +401,5 @@ void result_msg::set_size(const size_result& result)
     *msg_.mutable_size() = result;
 }
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova

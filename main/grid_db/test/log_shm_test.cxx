@@ -20,10 +20,10 @@
 #include <boost/thread/thread_time.hpp>
 #include <gtest/gtest.h>
 #include <zmq.hpp>
-#include <simulation_grid/core/compiler_extensions.hpp>
-#include <simulation_grid/core/process_utility.hpp>
-#include <simulation_grid/core/tcpip_utility.hpp>
-#include <simulation_grid/communication/request_reply_client.hpp>
+#include <supernova/core/compiler_extensions.hpp>
+#include <supernova/core/process_utility.hpp>
+#include <supernova/core/tcpip_utility.hpp>
+#include <supernova/communication/request_reply_client.hpp>
 #include "exception.hpp"
 #include "log_shm.hpp"
 #include "log_shm.hxx"
@@ -32,10 +32,10 @@
 namespace bas = boost::asio;
 namespace bfs = boost::filesystem;
 namespace bpt = boost::posix_time;
-namespace scp = simulation_grid::core::process_utility;
-namespace sct = simulation_grid::core::tcpip_utility;
-namespace scm = simulation_grid::communication;
-namespace sgd = simulation_grid::grid_db;
+namespace scp = supernova::core::process_utility;
+namespace sct = supernova::core::tcpip_utility;
+namespace scm = supernova::communication;
+namespace sst = supernova::storage;
 
 namespace {
 
@@ -117,9 +117,9 @@ class service_client
 public:
     service_client(const config& config);
     ~service_client();
-    sgd::result send(sgd::instruction& instr);
+    sst::result send(sst::instruction& instr);
     void send_terminate_msg(boost::uint32_t sequence);
-    boost::optional<sgd::log_index> send_append_msg(boost::uint32_t sequence, const sgd::union_AB& entry);
+    boost::optional<sst::log_index> send_append_msg(boost::uint32_t sequence, const sst::union_AB& entry);
 private:
     bool terminate_sent_;
     scm::request_reply_client client_;
@@ -138,15 +138,15 @@ service_client::~service_client()
     }
 }
 
-sgd::result service_client::send(sgd::instruction& instr)
+sst::result service_client::send(sst::instruction& instr)
 {
-    sgd::result result;
+    sst::result result;
     scm::request_reply_client::source source(result.get_size());
     scm::request_reply_client::sink sink(instr.get_size());
     instr.serialize(sink);
     client_.send(sink, source);
-    sgd::result::msg_status status = result.deserialize(source);
-    if (UNLIKELY_EXT(status == sgd::result::MALFORMED))
+    sst::result::msg_status status = result.deserialize(source);
+    if (UNLIKELY_EXT(status == sst::result::MALFORMED))
     {
 	throw std::runtime_error("Received malformed message");
     }
@@ -155,27 +155,27 @@ sgd::result service_client::send(sgd::instruction& instr)
 
 void service_client::send_terminate_msg(boost::uint32_t sequence)
 {
-    sgd::instruction instr;
-    sgd::terminate_msg msg;
+    sst::instruction instr;
+    sst::terminate_msg msg;
     msg.set_sequence(sequence);
     instr.set_terminate_msg(msg);
-    sgd::result outmsg(send(instr));
+    sst::result outmsg(send(instr));
     EXPECT_TRUE(outmsg.is_confirmation_msg()) << "Unexpected terminate result";
     EXPECT_EQ(instr.get_terminate_msg().sequence(), outmsg.get_confirmation_msg().sequence()) << "Sequence number mismatch";
     terminate_sent_ = true;
 }
 
-boost::optional<sgd::log_index> service_client::send_append_msg(boost::uint32_t sequence, const sgd::union_AB& entry)
+boost::optional<sst::log_index> service_client::send_append_msg(boost::uint32_t sequence, const sst::union_AB& entry)
 {
-    sgd::instruction instr;
-    sgd::append_msg append;
-    sgd::union_AB_msg union_msg;
+    sst::instruction instr;
+    sst::append_msg append;
+    sst::union_AB_msg union_msg;
     entry.export_to(union_msg);
     append.set_sequence(sequence);
     entry.export_to(*append.mutable_entry());
     instr.set_append_msg(append);
-    sgd::result outmsg(send(instr));
-    boost::optional<sgd::log_index> output;
+    sst::result outmsg(send(instr));
+    boost::optional<sst::log_index> output;
     if (outmsg.is_index_msg())
     {
 	EXPECT_EQ(instr.get_append_msg().sequence(), outmsg.get_index_msg().sequence()) << "sequence number mismatch";
@@ -292,7 +292,7 @@ TEST(log_shm_test, startup_and_shutdown_benchmark)
 
 TEST(log_shm_test, atomic_tail_index)
 {
-    boost::atomic<sgd::log_index> tmp;
+    boost::atomic<sst::log_index> tmp;
     ASSERT_TRUE(tmp.is_lock_free()) << "log_index is not atomic";
 }
 
@@ -301,7 +301,7 @@ TEST(log_shm_test, empty_log)
     config conf(ipc::shm, bfs::unique_path().string());
     service_launcher launcher(conf);
     service_client client(conf);
-    sgd::log_shm_reader<sgd::union_AB> reader(conf.name);
+    sst::log_shm_reader<sst::union_AB> reader(conf.name);
     EXPECT_FALSE(reader.get_front_index()) << "front index is defined for an empty log";
     EXPECT_FALSE(reader.get_back_index()) << "back index is defined for an empty log";
     client.send_terminate_msg(1U);
@@ -312,12 +312,12 @@ TEST(log_shm_test, fill_log)
     config conf(ipc::shm, bfs::unique_path().string());
     service_launcher launcher(conf);
     service_client client(conf);
-    sgd::log_shm_reader<sgd::union_AB> reader1(conf.name);
-    sgd::log_shm_reader<sgd::union_AB> reader2(conf.name);
+    sst::log_shm_reader<sst::union_AB> reader1(conf.name);
+    sst::log_shm_reader<sst::union_AB> reader2(conf.name);
 
-    sgd::struct_A A1("foo", "bar");
-    sgd::union_AB U1(A1);
-    boost::optional<sgd::log_index> index1 = client.send_append_msg(10U, U1);
+    sst::struct_A A1("foo", "bar");
+    sst::union_AB U1(A1);
+    boost::optional<sst::log_index> index1 = client.send_append_msg(10U, U1);
     ASSERT_TRUE(index1) << "append failed";
     EXPECT_NE(index1.get(), reader1.get_max_index()) << "log is prematurely full";
     EXPECT_TRUE(reader1.get_front_index()) << "front index is not defined";
@@ -325,9 +325,9 @@ TEST(log_shm_test, fill_log)
     EXPECT_TRUE(reader1.read(index1.get())) << "cannot read entry";
     EXPECT_EQ(U1, reader2.read(index1.get()).get()) << "entry read does not match entry just appended";
 
-    sgd::struct_B B2("blah", true, 52, 3.8);
-    sgd::union_AB U2(B2);
-    boost::optional<sgd::log_index> index2 = client.send_append_msg(20U, U2);
+    sst::struct_B B2("blah", true, 52, 3.8);
+    sst::union_AB U2(B2);
+    boost::optional<sst::log_index> index2 = client.send_append_msg(20U, U2);
     EXPECT_TRUE(reader1.get_front_index()) << "front index is not defined";
     EXPECT_TRUE(reader2.get_back_index()) << "back index is not defined";
     ASSERT_TRUE(index2) << "append failed";
@@ -337,10 +337,10 @@ TEST(log_shm_test, fill_log)
     EXPECT_TRUE(reader1.read(index2.get())) << "cannot read entry";
     EXPECT_EQ(U2, reader2.read(index2.get()).get()) << "entry read does not match entry just appended";
 
-    for (boost::optional<sgd::log_index> index = index2.get() + 1; index && index.get() <= reader1.get_max_index(); ++(index.get()))
+    for (boost::optional<sst::log_index> index = index2.get() + 1; index && index.get() <= reader1.get_max_index(); ++(index.get()))
     {
-	sgd::struct_B fillerB("blah", true, index.get(), 1.0 * index.get());
-	sgd::union_AB fillerU(fillerB);
+	sst::struct_B fillerB("blah", true, index.get(), 1.0 * index.get());
+	sst::union_AB fillerU(fillerB);
 	index = client.send_append_msg(30U + index.get(), fillerU);
 	EXPECT_TRUE(reader1.read(index.get())) << "cannot read entry";
 	EXPECT_EQ(fillerU, reader2.read(index.get()).get()) << "entry read does not match entry just appended";
@@ -357,22 +357,22 @@ TEST(log_shm_test, forward_iterate)
     config conf(ipc::shm, bfs::unique_path().string());
     service_launcher launcher(conf);
     service_client client(conf);
-    sgd::log_shm_reader<sgd::union_AB> reader(conf.name);
+    sst::log_shm_reader<sst::union_AB> reader(conf.name);
 
-    sgd::struct_A A1("foo", "bar");
-    sgd::union_AB U1(A1);
+    sst::struct_A A1("foo", "bar");
+    sst::union_AB U1(A1);
     client.send_append_msg(10U, U1);
-    sgd::struct_B B2("wah", true, 52, 3.8);
-    sgd::union_AB U2(B2);
+    sst::struct_B B2("wah", true, 52, 3.8);
+    sst::union_AB U2(B2);
     client.send_append_msg(11U, U2);
-    sgd::struct_A A3("blah", "blob");
-    sgd::union_AB U3(A3);
+    sst::struct_A A3("blah", "blob");
+    sst::union_AB U3(A3);
     client.send_append_msg(12U, U3);
-    sgd::struct_B B4("woot", false, 106, 21.7);
-    sgd::union_AB U4(B4);
+    sst::struct_B B4("woot", false, 106, 21.7);
+    sst::union_AB U4(B4);
     client.send_append_msg(13U, U4);
 
-    boost::optional<sgd::log_index> iter = reader.get_front_index();
+    boost::optional<sst::log_index> iter = reader.get_front_index();
     ASSERT_TRUE(iter) << "front index is not defined";
     EXPECT_EQ(U1, reader.read(iter.get()).get()) << "read failed";
     ++(iter.get());
@@ -393,22 +393,22 @@ TEST(log_shm_test, backward_iterate)
     config conf(ipc::shm, bfs::unique_path().string());
     service_launcher launcher(conf);
     service_client client(conf);
-    sgd::log_shm_reader<sgd::union_AB> reader(conf.name);
+    sst::log_shm_reader<sst::union_AB> reader(conf.name);
 
-    sgd::struct_A A1("foo", "bar");
-    sgd::union_AB U1(A1);
+    sst::struct_A A1("foo", "bar");
+    sst::union_AB U1(A1);
     client.send_append_msg(10U, U1);
-    sgd::struct_B B2("wah", true, 52, 3.8);
-    sgd::union_AB U2(B2);
+    sst::struct_B B2("wah", true, 52, 3.8);
+    sst::union_AB U2(B2);
     client.send_append_msg(11U, U2);
-    sgd::struct_A A3("blah", "blob");
-    sgd::union_AB U3(A3);
+    sst::struct_A A3("blah", "blob");
+    sst::union_AB U3(A3);
     client.send_append_msg(12U, U3);
-    sgd::struct_B B4("woot", false, 106, 21.7);
-    sgd::union_AB U4(B4);
+    sst::struct_B B4("woot", false, 106, 21.7);
+    sst::union_AB U4(B4);
     client.send_append_msg(13U, U4);
 
-    boost::optional<sgd::log_index> iter = reader.get_back_index();
+    boost::optional<sst::log_index> iter = reader.get_back_index();
     ASSERT_TRUE(iter) << "back index is not defined";
     EXPECT_EQ(U4, reader.read(iter.get()).get()) << "read failed";
     --(iter.get());
@@ -429,28 +429,28 @@ TEST(log_shm_test, out_of_bounds)
     config conf(ipc::shm, bfs::unique_path().string());
     service_launcher launcher(conf);
     service_client client(conf);
-    sgd::log_shm_reader<sgd::union_AB> reader(conf.name);
+    sst::log_shm_reader<sst::union_AB> reader(conf.name);
 
-    sgd::struct_A A1("foo", "bar");
-    sgd::union_AB U1(A1);
+    sst::struct_A A1("foo", "bar");
+    sst::union_AB U1(A1);
     client.send_append_msg(10U, U1);
-    sgd::struct_B B2("wah", true, 52, 3.8);
-    sgd::union_AB U2(B2);
+    sst::struct_B B2("wah", true, 52, 3.8);
+    sst::union_AB U2(B2);
     client.send_append_msg(11U, U2);
 
-    boost::optional<sgd::log_index> iter1 = reader.get_front_index();
+    boost::optional<sst::log_index> iter1 = reader.get_front_index();
     iter1 = iter1.get() - 1;
     EXPECT_FALSE(reader.read(iter1.get())) << "out of bounds read was allowed";
 
-    boost::optional<sgd::log_index> iter2 = reader.get_back_index();
+    boost::optional<sst::log_index> iter2 = reader.get_back_index();
     iter2 = iter2.get() + 1;
     EXPECT_FALSE(reader.read(iter2.get())) << "out of bounds read was allowed";
 
-    boost::optional<sgd::log_index> iter3 = reader.get_front_index();
+    boost::optional<sst::log_index> iter3 = reader.get_front_index();
     iter3 = iter3.get() + 4;
     EXPECT_FALSE(reader.read(iter3.get())) << "out of bounds read was allowed";
 
-    boost::optional<sgd::log_index> iter4 = reader.get_back_index();
+    boost::optional<sst::log_index> iter4 = reader.get_back_index();
     iter4 = iter4.get() - 4;
     EXPECT_FALSE(reader.read(iter4.get())) << "out of bounds read was allowed";
 

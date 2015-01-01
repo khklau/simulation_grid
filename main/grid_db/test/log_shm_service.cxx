@@ -29,9 +29,9 @@
 #include <boost/signals2.hpp>
 #include <boost/thread/thread.hpp>
 #include <google/protobuf/message.h>
-#include <simulation_grid/core/compiler_extensions.hpp>
-#include <simulation_grid/core/signal_notifier.hpp>
-#include <simulation_grid/communication/request_reply_service.hpp>
+#include <supernova/core/compiler_extensions.hpp>
+#include <supernova/core/signal_notifier.hpp>
+#include <supernova/communication/request_reply_service.hpp>
 #include <zmq.hpp>
 #include <signal.h>
 #include "exception.hpp"
@@ -45,9 +45,9 @@ namespace bip = boost::interprocess;
 namespace bpo = boost::program_options;
 namespace bsi = boost::signals2;
 namespace bsy = boost::system;
-namespace sco = simulation_grid::core;
-namespace scm = simulation_grid::communication;
-namespace sgd = simulation_grid::grid_db;
+namespace sco = supernova::core;
+namespace scm = supernova::communication;
+namespace sst = supernova::storage;
 
 namespace {
 
@@ -176,11 +176,11 @@ public:
 private:
     void run();
     void receive_instruction(const scm::request_reply_service::source&, scm::request_reply_service::sink&);
-    void exec_terminate(const sgd::terminate_msg& input, sgd::result& output);
-    void exec_append(const sgd::append_msg& input, sgd::result& output);
-    sgd::instruction instr_;
-    sgd::result result_;
-    sgd::log_shm_owner<sgd::union_AB> owner_;
+    void exec_terminate(const sst::terminate_msg& input, sst::result& output);
+    void exec_append(const sst::append_msg& input, sst::result& output);
+    sst::instruction instr_;
+    sst::result result_;
+    sst::log_shm_owner<sst::union_AB> owner_;
     sco::signal_notifier notifier_;
     scm::request_reply_service service_;
 };
@@ -230,10 +230,10 @@ void log_service::run()
 
 void log_service::receive_instruction(const scm::request_reply_service::source& source, scm::request_reply_service::sink& sink)
 {
-    sgd::instruction::msg_status status = instr_.deserialize(source);
-    if (UNLIKELY_EXT(status == sgd::instruction::MALFORMED))
+    sst::instruction::msg_status status = instr_.deserialize(source);
+    if (UNLIKELY_EXT(status == sst::instruction::MALFORMED))
     {
-	sgd::malformed_message_msg tmp;
+	sst::malformed_message_msg tmp;
 	result_.set_malformed_message_msg(tmp);
     }
     else if (instr_.is_terminate_msg())
@@ -246,7 +246,7 @@ void log_service::receive_instruction(const scm::request_reply_service::source& 
     }
     else
     {
-	sgd::malformed_message_msg tmp;
+	sst::malformed_message_msg tmp;
 	result_.set_malformed_message_msg(tmp);
     }
     result_.serialize(sink);
@@ -258,28 +258,28 @@ void log_service::receive_instruction(const scm::request_reply_service::source& 
     }
 }
 
-void log_service::exec_terminate(const sgd::terminate_msg& input, sgd::result& output)
+void log_service::exec_terminate(const sst::terminate_msg& input, sst::result& output)
 {
     stop();
-    sgd::confirmation_msg tmp;
+    sst::confirmation_msg tmp;
     tmp.set_sequence(input.sequence());
     output.set_confirmation_msg(tmp);
 }
 
-void log_service::exec_append(const sgd::append_msg& input, sgd::result& output)
+void log_service::exec_append(const sst::append_msg& input, sst::result& output)
 {
-    sgd::union_AB entry(input.entry());
-    boost::optional<sgd::log_index> result = owner_.append(entry);
+    sst::union_AB entry(input.entry());
+    boost::optional<sst::log_index> result = owner_.append(entry);
     if (result)
     {
-	sgd::index_msg success;
+	sst::index_msg success;
 	success.set_sequence(input.sequence());
 	success.set_index(result.get());
 	output.set_index_msg(success);
     }
     else
     {
-	sgd::failed_op_msg failure;
+	sst::failed_op_msg failure;
 	failure.set_sequence(input.sequence());
 	output.set_failed_op_msg(failure);
     }

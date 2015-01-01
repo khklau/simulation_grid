@@ -1,5 +1,5 @@
-#ifndef SIMULATION_GRID_COMMUNICATION_REQUEST_REPLY_SERVICE_HPP
-#define SIMULATION_GRID_COMMUNICATION_REQUEST_REPLY_SERVICE_HPP
+#ifndef SUPERNOVA_COMMUNICATION_REQUEST_REPLY_SERVICE_HPP
+#define SUPERNOVA_COMMUNICATION_REQUEST_REPLY_SERVICE_HPP
 
 #include <string>
 #include <queue>
@@ -10,9 +10,9 @@
 #include <boost/noncopyable.hpp>
 #include <boost/system/system_error.hpp>
 #include <zmq.hpp>
-#include <simulation_grid/communication/message_access.hpp>
+#include <supernova/communication/message_access.hpp>
 
-namespace simulation_grid {
+namespace supernova {
 namespace communication {
 
 class request_reply_service : public boost::noncopyable
@@ -52,6 +52,6 @@ private:
 };
 
 } // namespace communication
-} // namespace simulation_grid
+} // namespace supernova
 
 #endif

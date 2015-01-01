@@ -1,17 +1,17 @@
-#ifndef SIMULATION_GRID_GRID_DB_LOG_MMAP_HXX
-#define SIMULATION_GRID_GRID_DB_LOG_MMAP_HXX
+#ifndef SUPERNOVA_STORAGE_LOG_MMAP_HXX
+#define SUPERNOVA_STORAGE_LOG_MMAP_HXX
 
 #include "log_mmap.hpp"
 #include <boost/filesystem/operations.hpp>
-#include <simulation_grid/grid_db/exception.hpp>
+#include <supernova/storage/exception.hpp>
 #include "mode.hpp"
 #include "log_memory.hxx"
 
 namespace bfs = boost::filesystem;
 namespace bip = boost::interprocess;
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 template <class entry_t>
 log_mmap_reader<entry_t>::log_mmap_reader(const bfs::path& path)
@@ -21,12 +21,12 @@ try :
     reader_handle_(region_)
 {
 }
-catch (grid_db_condition& cond)
+catch (storage_condition& cond)
 {
     cond << info_db_identity(path.string());
     throw cond;
 }
-catch (grid_db_error& err)
+catch (storage_error& err)
 {
     err << info_db_identity(path.string());
     throw err;
@@ -75,12 +75,12 @@ try :
 {
     region_.flush();
 }
-catch (grid_db_condition& cond)
+catch (storage_condition& cond)
 {
     cond << info_db_identity(path.string());
     throw cond;
 }
-catch (grid_db_error& err)
+catch (storage_error& err)
 {
     err << info_db_identity(path.string());
     throw err;
@@ -120,7 +120,7 @@ log_index log_mmap_owner<entry_t>::get_max_index() const
     return reader_handle_.get_max_index();
 }
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova
 
 #endif

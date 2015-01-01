@@ -3,15 +3,15 @@
 #include <boost/filesystem/operations.hpp>
 #include <boost/interprocess/creation_tags.hpp>
 #include <boost/ref.hpp>
-#include <simulation_grid/grid_db/exception.hpp>
+#include <supernova/storage/exception.hpp>
 #include "mvcc_mmap.hxx"
 
 namespace bfs = boost::filesystem;
 namespace bip = boost::interprocess;
 namespace bpt = boost::posix_time;
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 mvcc_mmap_reader::mvcc_mmap_reader(const bfs::path& path)
 try :
@@ -20,12 +20,12 @@ try :
     reader_handle_(file_)
 {
 }
-catch (grid_db_condition& cond)
+catch (storage_condition& cond)
 {
     cond << info_db_identity(path.string());
     throw cond;
 }
-catch (grid_db_error& err)
+catch (storage_error& err)
 {
     err << info_db_identity(path.string());
     throw err;
@@ -57,12 +57,12 @@ try :
     flush();
     file_lock_.lock();
 }
-catch (grid_db_condition& cond)
+catch (storage_condition& cond)
 {
     cond << info_db_identity(path.string());
     throw cond;
 }
-catch (grid_db_error& err)
+catch (storage_error& err)
 {
     err << info_db_identity(path.string());
     throw err;
@@ -122,5 +122,5 @@ std::size_t mvcc_mmap_owner::get_size() const
     return reader_handle_.get_size();
 }
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova

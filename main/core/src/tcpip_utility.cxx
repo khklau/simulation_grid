@@ -5,7 +5,7 @@
 #include <boost/lexical_cast.hpp>
 #include "tcpip_utility.hpp"
 
-namespace simulation_grid {
+namespace supernova {
 namespace core {
 namespace tcpip_utility {
 
@@ -77,4 +77,4 @@ bool is_udp_port_open(const char* hostname, boost::uint32_t port)
 
 } // namespace tcpip_utility
 } // namespace core
-} // namespace simulation_grid
+} // namespace supernova

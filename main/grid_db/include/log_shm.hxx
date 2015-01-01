@@ -1,15 +1,15 @@
-#ifndef SIMULATION_GRID_GRID_DB_LOG_SHM_HXX
-#define SIMULATION_GRID_GRID_DB_LOG_SHM_HXX
+#ifndef SUPERNOVA_STORAGE_LOG_SHM_HXX
+#define SUPERNOVA_STORAGE_LOG_SHM_HXX
 
 #include "log_shm.hpp"
-#include <simulation_grid/grid_db/exception.hpp>
+#include <supernova/storage/exception.hpp>
 #include "mode.hpp"
 #include "log_memory.hxx"
 
 namespace bip = boost::interprocess;
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 template <class entry_t>
 log_shm_reader<entry_t>::log_shm_reader(const std::string& name)
@@ -19,12 +19,12 @@ try :
     reader_handle_(region_)
 {
 }
-catch (grid_db_condition& cond)
+catch (storage_condition& cond)
 {
     cond << info_db_identity(name);
     throw cond;
 }
-catch (grid_db_error& err)
+catch (storage_error& err)
 {
     err << info_db_identity(name);
     throw err;
@@ -70,12 +70,12 @@ try :
     reader_handle_(region_)
 {
 }
-catch (grid_db_condition& cond)
+catch (storage_condition& cond)
 {
     cond << info_db_identity(name);
     throw cond;
 }
-catch (grid_db_error& err)
+catch (storage_error& err)
 {
     err << info_db_identity(name);
     throw err;
@@ -132,7 +132,7 @@ bool log_shm_owner<entry_t>::does_shm_exist(const std::string& name)
     return result;
 }
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova
 
 #endif

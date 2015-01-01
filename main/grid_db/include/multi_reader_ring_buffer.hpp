@@ -1,5 +1,5 @@
-#ifndef SIMULATION_GRID_GRID_DB_MULTI_READER_RING_BUFFER_HPP
-#define SIMULATION_GRID_GRID_DB_MULTI_READER_RING_BUFFER_HPP
+#ifndef SUPERNOVA_STORAGE_MULTI_READER_RING_BUFFER_HPP
+#define SUPERNOVA_STORAGE_MULTI_READER_RING_BUFFER_HPP
 
 #include <memory>
 #include <boost/noncopyable.hpp>
@@ -8,8 +8,8 @@
 #include <boost/interprocess/sync/interprocess_sharable_mutex.hpp>
 #include <boost/circular_buffer.hpp>
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 template <class element_t, class allocator_t>
 class multi_reader_ring_buffer : private boost::noncopyable
@@ -49,7 +49,7 @@ struct shmem_multi_reader_ring_buffer
     typedef multi_reader_ring_buffer<element_t, boost::interprocess::managed_shared_memory> type;
 };
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova
 
 #endif

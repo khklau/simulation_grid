@@ -1,6 +1,6 @@
 from waflib.extras.layout import Solution, Product
 
-NAME = 'simulation_grid'
+NAME = 'supernova'
 
 def options(optCtx):
     optCtx.load('compiler_cxx cxx boost protobuf gtest gmock zeromq')

@@ -1,11 +1,11 @@
-#include <simulation_grid/core/compiler_extensions.hpp>
+#include <supernova/core/compiler_extensions.hpp>
 #include "ringbuf_msg.hpp"
 
-namespace scm = simulation_grid::communication;
-namespace sgd = simulation_grid::grid_db;
+namespace scm = supernova::communication;
+namespace sst = supernova::storage;
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 instruction_msg::instruction_msg() :
     msg_()
@@ -197,5 +197,5 @@ void result_msg::set_predicate(const predicate_result& result)
     *msg_.mutable_predicate() = result;
 }
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova

@@ -1,4 +1,4 @@
-package simulation_grid.grid_db;
+package supernova.storage;
 
 message ip4_address
 {

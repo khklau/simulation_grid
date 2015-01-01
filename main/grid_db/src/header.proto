@@ -1,4 +1,4 @@
-package simulation_grid.grid_db;
+package supernova.storage;
 
 message version
 {
@@ -10,6 +10,6 @@ message version
 
 message header
 {
-    required version simulation_grid_version = 1;
-    required version grid_db_version = 2;
+    required version supernova_version = 1;
+    required version storage_version = 2;
 }

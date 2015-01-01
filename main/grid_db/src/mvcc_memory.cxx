@@ -8,16 +8,16 @@
 #include <boost/interprocess/creation_tags.hpp>
 #include <boost/optional.hpp>
 #include <boost/thread/thread.hpp>
-#include <simulation_grid/core/compiler_extensions.hpp>
-#include <simulation_grid/grid_db/exception.hpp>
+#include <supernova/core/compiler_extensions.hpp>
+#include <supernova/storage/exception.hpp>
 #include "mvcc_memory.hxx"
 
 namespace bfs = boost::filesystem;
 namespace bip = boost::interprocess;
 namespace bpt = boost::posix_time;
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 mvcc_key::mvcc_key()
 {
@@ -28,7 +28,7 @@ mvcc_key::mvcc_key(const char* key)
 {
     if (UNLIKELY_EXT(strlen(key) > MVCC_MAX_KEY_LENGTH))
     {
-	throw grid_db_error("Maximum key length exceeded")
+	throw storage_error("Maximum key length exceeded")
 		<< info_component_identity("mvcc_key")
 		<< info_data_identity(key);
     }
@@ -65,5 +65,5 @@ mvcc_header::mvcc_header() :
     strncpy(file_type_tag, MVCC_FILE_TYPE_TAG, sizeof(file_type_tag));
 }
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova

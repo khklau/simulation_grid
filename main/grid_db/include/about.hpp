@@ -1,11 +1,11 @@
-#ifndef SIMULATION_GRID_GRID_DB_ABOUT_HPP
-#define SIMULATION_GRID_GRID_DB_ABOUT_HPP
+#ifndef SUPERNOVA_STORAGE_ABOUT_HPP
+#define SUPERNOVA_STORAGE_ABOUT_HPP
 
 #include <ostream>
 #include <boost/cstdint.hpp>
 
-namespace simulation_grid {
-namespace grid_db {
+namespace supernova {
+namespace storage {
 
 struct version
 {
@@ -26,7 +26,7 @@ struct version
 
 static const version DB_VERSION(1, 1, 1, 1);
 
-} // namespace grid_db
-} // namespace simulation_grid
+} // namespace storage
+} // namespace supernova
 
 #endif

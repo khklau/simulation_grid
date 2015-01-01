@@ -1,7 +1,7 @@
 import "header.proto";
 import "region.proto";
 
-package simulation_grid.grid_db;
+package supernova.storage;
 
 message grid
 {

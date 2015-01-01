@@ -5,7 +5,7 @@ namespace bas = boost::asio;
 namespace bsi = boost::signals2;
 namespace bsy = boost::system;
 
-namespace simulation_grid {
+namespace supernova {
 namespace core {
 
 signal_notifier::signal_notifier() :
@@ -85,4 +85,4 @@ void signal_notifier::handle(const bsy::error_code& error, int signal)
 }
 
 } // namespace core
-} // namespace simulation_grid
+} // namespace supernova

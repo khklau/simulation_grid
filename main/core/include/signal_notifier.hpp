@@ -1,5 +1,5 @@
-#ifndef SIMULATION_GRID_CORE_SIGNAL_NOTIFIER_HPP
-#define SIMULATION_GRID_CORE_SIGNAL_NOTIFIER_HPP
+#ifndef SUPERNOVA_CORE_SIGNAL_NOTIFIER_HPP
+#define SUPERNOVA_CORE_SIGNAL_NOTIFIER_HPP
 
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/signal_set.hpp>
@@ -9,7 +9,7 @@
 #include <boost/system/error_code.hpp>
 #include <boost/thread/thread.hpp>
 
-namespace simulation_grid {
+namespace supernova {
 namespace core {
 
 class signal_notifier : private boost::noncopyable
@@ -35,6 +35,6 @@ private:
 };
 
 } // namespace core
-} // namespace simulation_grid
+} // namespace supernova
 
 #endif
