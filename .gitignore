@@ -1,4 +1,4 @@
-.lock-waf_linux2_build
+.lock-waf*
 .waf*
 waf
 build/
