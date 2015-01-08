@@ -1,0 +1,4 @@
+[submodule "tool/waf"]
+	path = tool/waf
+	url = https://github.com/khklau/waf_khklau
+	branch = waf_khklau-1.7.16.x
