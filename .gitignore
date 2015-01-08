@@ -1,6 +1,6 @@
-.lock-waf*
-.waf*
-waf
+/.lock-waf*
+/.waf*
+/waf
 build/
 *.pyc
 *.pyo
