@@ -3,10 +3,12 @@ from waflib.extras.layout import Solution, Product
 NAME = 'supernova'
 
 def options(optCtx):
-    optCtx.load('compiler_cxx cxx boost protobuf gtest gmock zeromq')
+    optCtx.load('cxx_env boost protobuf gtest gmock zeromq')
 
 def configure(confCtx):
-    confCtx.load('compiler_cxx cxx boost protobuf gtest gmock zeromq')
+    confCtx.options.env_conf_dir = confCtx.srcnode.find_dir('env').abspath()
+    confCtx.options.dep_base_dir = confCtx.srcnode.find_dir('..').abspath()
+    confCtx.load('cxx_env boost protobuf gtest gmock zeromq')
     confCtx.check_boost(lib='system exception program_options filesystem date_time chrono thread random context coroutine')
     confCtx.env.product = Product.fromContext(confCtx, NAME, confCtx.env.solution)
     confCtx.env.solution.addProduct(confCtx.env.product)
