@@ -1,6 +1,3 @@
-import os
-from waflib.ConfigSet import ConfigSet
-
 def options(optCtx):
     optCtx.recurse('env')
     optCtx.recurse('dep')
