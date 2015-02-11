@@ -1,0 +1,27 @@
+{
+    "product" : "supernova",
+    "version" : "master",
+    "dependencies" :
+    [
+	{
+	    "product" : "boost",
+	    "version" : "1.54"
+	},
+	{
+	    "product" : "protobuf",
+	    "version" : "2.5.0"
+	},
+	{
+	    "product" : "gtest",
+	    "version" : "1.7.0"
+	},
+	{
+	    "product" : "gmock",
+	    "version" : "1.7.0"
+	},
+	{
+	    "product" : "zeromq",
+	    "version" : "4.0.3"
+	}
+    ]
+}
