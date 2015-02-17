@@ -1,4 +1,5 @@
 from waflib.extras.preparation import PreparationContext
+from waflib.extras.build_status import BuildStatus
 
 def options(optCtx):
     optCtx.recurse('env')
@@ -16,8 +17,10 @@ def configure(confCtx):
     confCtx.recurse('main')
 
 def build(buildCtx):
+    status = BuildStatus.init(buildCtx.path.abspath())
     buildCtx.recurse('dep')
     buildCtx.recurse('main')
+    status.setSuccess()
 
 def install(installCtx):
     installCtx.recurse('main')
